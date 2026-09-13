@@ -30,5 +30,15 @@ public interface IApplicationDbContext
     DbSet<Domain.Entities.Maintenance.QuotationItem> QuotationItems { get; }
     DbSet<Domain.Entities.Maintenance.MaintenanceHistory> MaintenanceHistory { get; }
 
+    // Member 4: Workflow, Approval, Audit & Continuity
+    DbSet<Domain.Entities.Workflow.WorkflowInstance> WorkflowInstances { get; }
+    DbSet<Domain.Entities.Workflow.WorkflowStep> WorkflowSteps { get; }
+    DbSet<Domain.Entities.Workflow.ApprovalRequest> ApprovalRequests { get; }
+    DbSet<Domain.Entities.Workflow.AgentRun> AgentRuns { get; }
+    DbSet<Domain.Entities.Workflow.ToolExecution> ToolExecutions { get; }
+    DbSet<Domain.Entities.Workflow.AuditEvent> AuditEvents { get; }
+    DbSet<Domain.Entities.Workflow.FollowUpTask> FollowUpTasks { get; }
+    DbSet<Domain.Entities.Workflow.Notification> Notifications { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

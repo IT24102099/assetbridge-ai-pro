@@ -38,6 +38,16 @@ public class AssetBridgeDbContext : DbContext, IApplicationDbContext
     public DbSet<Domain.Entities.Maintenance.QuotationItem> QuotationItems => Set<Domain.Entities.Maintenance.QuotationItem>();
     public DbSet<Domain.Entities.Maintenance.MaintenanceHistory> MaintenanceHistory => Set<Domain.Entities.Maintenance.MaintenanceHistory>();
 
+    // Member 4: Workflow, Approval, Audit & Continuity
+    public DbSet<Domain.Entities.Workflow.WorkflowInstance> WorkflowInstances => Set<Domain.Entities.Workflow.WorkflowInstance>();
+    public DbSet<Domain.Entities.Workflow.WorkflowStep> WorkflowSteps => Set<Domain.Entities.Workflow.WorkflowStep>();
+    public DbSet<Domain.Entities.Workflow.ApprovalRequest> ApprovalRequests => Set<Domain.Entities.Workflow.ApprovalRequest>();
+    public DbSet<Domain.Entities.Workflow.AgentRun> AgentRuns => Set<Domain.Entities.Workflow.AgentRun>();
+    public DbSet<Domain.Entities.Workflow.ToolExecution> ToolExecutions => Set<Domain.Entities.Workflow.ToolExecution>();
+    public DbSet<Domain.Entities.Workflow.AuditEvent> AuditEvents => Set<Domain.Entities.Workflow.AuditEvent>();
+    public DbSet<Domain.Entities.Workflow.FollowUpTask> FollowUpTasks => Set<Domain.Entities.Workflow.FollowUpTask>();
+    public DbSet<Domain.Entities.Workflow.Notification> Notifications => Set<Domain.Entities.Workflow.Notification>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

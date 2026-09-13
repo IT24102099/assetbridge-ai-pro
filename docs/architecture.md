@@ -155,11 +155,50 @@ AssetBridge AI follows a 4-tier Clean Architecture pattern:
 2. **MaintenanceJob:** Represents planned or executed repair work linked to an `Incident`, assigned `ServiceProvider`, and optional `Inspection`. Tracks `ApprovedBudget`, `ActualCost`, and lifecycle status (`Planned` -> `Scheduled` -> `InProgress` -> `Completed` -> `Closed`).
 3. **Quotation & QuotationItem:** Contractor cost estimates. Subtotals and total amounts are computed strictly server-side using `decimal(18,2)` precision.
 4. **BudgetValidationService & QuotationComparisonService:** Deterministically verifies quotation totals against `Incident.EstimatedBudget` and provides multi-factor candidate ranking with structured factual reasons for the future **Maintenance & Cost Recommendation Agent (Agent 3)**.
-5. **MaintenanceHistory:** Property-centric business history recording maintenance completions and financial expenditures.
+5. **MaintenanceHistory:** Property-centric business history recording maintenance milestones and financial expenditures.
 
 ---
 
-## 8. Local Development Setup
+## 8. Member 4: Workflow Orchestration, Approval, Audit & Continuity
+
+```
+                                  WORKFLOW & GOVERNANCE ARCHITECTURE
+                                  
+  Incident ────────▶ WorkflowInstance ───────▶ WorkflowStep (History Trace)
+                           │
+                           ├─────────────────▶ ApprovalRequest (Human Manager Decision)
+                           │
+                           ├─────────────────▶ AgentRun ────────▶ ToolExecution (AI Observability)
+                           │
+                           ├─────────────────▶ AuditEvent (Append-only Non-repudiation)
+                           │
+                           └─────────────────▶ FollowUpTask (Property Continuity & Warranty)
+```
+
+### Core Architecture Principles
+1. **Deterministic Workflow State Machine:**
+   Enforces strict, legal transitions across 15 states:
+   `CREATED` $\rightarrow$ `PLANNING` $\rightarrow$ `PROVIDER_SELECTION` $\rightarrow$ `INSPECTION_PENDING` $\rightarrow$ `QUOTATION_REVIEW` $\rightarrow$ `AI_VALIDATION` $\rightarrow$ `AWAITING_APPROVAL` $\rightarrow$ `APPROVED` / `REJECTED` / `REVISION_REQUESTED` $\rightarrow$ `EXECUTION` $\rightarrow$ `COMPLETION_REVIEW` $\rightarrow$ `COMPLETED` $\rightarrow$ `FOLLOW_UP` / `FAILED`.
+   Arbitrary state transitions are strictly blocked with validation exceptions.
+
+2. **Human-in-the-Loop Approval Governance:**
+   * **AI recommends $\rightarrow$ Backend validates $\rightarrow$ Human approves $\rightarrow$ Backend executes $\rightarrow$ Audit records.**
+   * High-impact business actions (accepting quotes, authorizing execution, allocating funds) strictly require an `ApprovalRequest` approved by `Manager` or `Admin`.
+   * Unauthorized roles (`Owner`, `ServiceProvider`, `Representative`) are strictly forbidden from approving high-impact actions (HTTP 403 Forbidden).
+
+3. **Append-Only Audit Trail (`AuditEvent`):**
+   * Records all state changes, approval decisions, AI recommendations, and security events.
+   * Read-only and non-repudiable for total audit compliance.
+
+4. **Agentic AI Telemetry Persistence (`AgentRun` & `ToolExecution`):**
+   * Stores agent execution metadata, prompt inputs, output summaries, duration timings, retry counts, and individual allowlisted tool invocations without logging sensitive credentials.
+
+5. **Property Continuity Engine (`FollowUpTask`):**
+   * Ties completed maintenance back to the `Asset` for scheduled preventive checks, warranty milestones, and seasonal inspections (e.g., 30-day plumbing re-inspection, pre-monsoon roof checks).
+
+---
+
+## 9. Local Development Setup
 
 ### Prerequisites
 * .NET 8 SDK (`dotnet --version` $\ge$ `8.0.100`)

@@ -33,6 +33,11 @@ public static class DependencyInjection
         services.AddScoped<IQuotationComparisonService, QuotationComparisonService>();
         services.AddScoped<IMaintenanceHistoryService, MaintenanceHistoryService>();
 
+        // Member 4: Workflow, Approval, Audit & Continuity
+        services.AddScoped<IWorkflowService, WorkflowService>();
+        services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<IFollowUpService, FollowUpService>();
+
         return services;
     }
 }
