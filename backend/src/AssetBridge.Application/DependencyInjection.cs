@@ -24,6 +24,15 @@ public static class DependencyInjection
         services.AddScoped<IProviderHistoryService, ProviderHistoryService>();
         services.AddScoped<IProviderMatchingService, ProviderMatchingService>();
 
+        // Member 3: Maintenance, Inspection & Quotations
+        services.AddScoped<IInspectionService, InspectionService>();
+        services.AddScoped<IInspectionFindingService, InspectionFindingService>();
+        services.AddScoped<IMaintenanceJobService, MaintenanceJobService>();
+        services.AddScoped<IQuotationService, QuotationService>();
+        services.AddScoped<IBudgetValidationService, BudgetValidationService>();
+        services.AddScoped<IQuotationComparisonService, QuotationComparisonService>();
+        services.AddScoped<IMaintenanceHistoryService, MaintenanceHistoryService>();
+
         return services;
     }
 }

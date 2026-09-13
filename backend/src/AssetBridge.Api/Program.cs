@@ -84,12 +84,12 @@ var app = builder.Build();
 // Global Exception Handler: Translates unhandled exceptions into uniform ApiResponse<T>
 app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
 
-// Enable Swagger UI for interactive API exploration and testing
+// Enable Swagger UI for interactive API exploration and testing at /swagger
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "AssetBridge AI API v1");
-    c.RoutePrefix = string.Empty; // Serve Swagger UI at application root (http://localhost:port/)
+    c.RoutePrefix = "swagger"; // Serve Swagger UI at http://localhost:port/swagger
 });
 
 app.UseCors("AssetBridgeCorsPolicy");

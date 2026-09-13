@@ -7,6 +7,8 @@ namespace AssetBridge.Api.Controllers;
 // Provides a public health probe endpoint used by uptime monitors, load balancers,
 // and automated deployment checks to verify API and database readiness.
 [AllowAnonymous]
+[Route("health")]
+[Route("api/health")]
 public class HealthController : BaseApiController
 {
     private readonly IApplicationDbContext _context;

@@ -22,5 +22,13 @@ public interface IApplicationDbContext
     DbSet<ProviderAvailability> ProviderAvailability { get; }
     DbSet<ProviderHistory> ProviderHistory { get; }
 
+    // Member 3: Maintenance, Inspection & Quotations
+    DbSet<Domain.Entities.Inspections.Inspection> Inspections { get; }
+    DbSet<Domain.Entities.Inspections.InspectionFinding> InspectionFindings { get; }
+    DbSet<Domain.Entities.Maintenance.MaintenanceJob> MaintenanceJobs { get; }
+    DbSet<Domain.Entities.Maintenance.Quotation> Quotations { get; }
+    DbSet<Domain.Entities.Maintenance.QuotationItem> QuotationItems { get; }
+    DbSet<Domain.Entities.Maintenance.MaintenanceHistory> MaintenanceHistory { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

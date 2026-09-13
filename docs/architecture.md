@@ -132,7 +132,34 @@ AssetBridge AI follows a 4-tier Clean Architecture pattern:
 
 ---
 
-## 7. Local Development Setup
+## 7. Domain Models & Relational Architecture (Member 3 — IT24100079)
+
+```
+┌──────────────────┐       1 : N       ┌──────────────────┐       1 : N       ┌───────────────────┐
+│     Incident     ├──────────────────►│    Inspection    ├──────────────────►│ InspectionFinding │
+│(Problem Report)  │                   │(Site Assessment) │                   │(Defects & Actions)│
+└────────┬─────────┘                   └──────────────────┘                   └───────────────────┘
+         │
+         │ 1 : N                       ┌──────────────────┐
+         ├────────────────────────────►│  MaintenanceJob  │
+         │                             │ (Execution Work) │
+         │                             └──────────────────┘
+         │ 1 : N                       ┌──────────────────┐       1 : N       ┌───────────────────┐
+         └────────────────────────────►│    Quotation     ├──────────────────►│   QuotationItem   │
+                                       │ (Cost Proposal)  │                   │ (Line Item Costs) │
+                                       └──────────────────┘                   └───────────────────┘
+```
+
+### Member 3 Relational Schema Rules
+1. **Inspection & InspectionFinding:** An on-site evaluation of an incident conducted by a verified `ServiceProvider`. Contains structured findings with severity classifications (`Low`, `Medium`, `High`, `Critical`), technical recommendations, and optional evidence links.
+2. **MaintenanceJob:** Represents planned or executed repair work linked to an `Incident`, assigned `ServiceProvider`, and optional `Inspection`. Tracks `ApprovedBudget`, `ActualCost`, and lifecycle status (`Planned` -> `Scheduled` -> `InProgress` -> `Completed` -> `Closed`).
+3. **Quotation & QuotationItem:** Contractor cost estimates. Subtotals and total amounts are computed strictly server-side using `decimal(18,2)` precision.
+4. **BudgetValidationService & QuotationComparisonService:** Deterministically verifies quotation totals against `Incident.EstimatedBudget` and provides multi-factor candidate ranking with structured factual reasons for the future **Maintenance & Cost Recommendation Agent (Agent 3)**.
+5. **MaintenanceHistory:** Property-centric business history recording maintenance completions and financial expenditures.
+
+---
+
+## 8. Local Development Setup
 
 ### Prerequisites
 * .NET 8 SDK (`dotnet --version` $\ge$ `8.0.100`)

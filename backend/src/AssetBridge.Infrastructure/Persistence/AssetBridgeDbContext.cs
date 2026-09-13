@@ -30,6 +30,14 @@ public class AssetBridgeDbContext : DbContext, IApplicationDbContext
     public DbSet<Domain.Entities.Providers.ProviderAvailability> ProviderAvailability => Set<Domain.Entities.Providers.ProviderAvailability>();
     public DbSet<Domain.Entities.Providers.ProviderHistory> ProviderHistory => Set<Domain.Entities.Providers.ProviderHistory>();
 
+    // Member 3: Maintenance, Inspection & Quotations
+    public DbSet<Domain.Entities.Inspections.Inspection> Inspections => Set<Domain.Entities.Inspections.Inspection>();
+    public DbSet<Domain.Entities.Inspections.InspectionFinding> InspectionFindings => Set<Domain.Entities.Inspections.InspectionFinding>();
+    public DbSet<Domain.Entities.Maintenance.MaintenanceJob> MaintenanceJobs => Set<Domain.Entities.Maintenance.MaintenanceJob>();
+    public DbSet<Domain.Entities.Maintenance.Quotation> Quotations => Set<Domain.Entities.Maintenance.Quotation>();
+    public DbSet<Domain.Entities.Maintenance.QuotationItem> QuotationItems => Set<Domain.Entities.Maintenance.QuotationItem>();
+    public DbSet<Domain.Entities.Maintenance.MaintenanceHistory> MaintenanceHistory => Set<Domain.Entities.Maintenance.MaintenanceHistory>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
