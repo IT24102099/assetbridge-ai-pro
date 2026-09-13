@@ -1,6 +1,8 @@
 using System.Reflection;
 using AssetBridge.Application.Common.Interfaces;
+using AssetBridge.Domain.Entities.Assets;
 using AssetBridge.Domain.Entities.Common;
+using AssetBridge.Domain.Entities.Incidents;
 using AssetBridge.Domain.Entities.Users;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +18,10 @@ public class AssetBridgeDbContext : DbContext, IApplicationDbContext
     }
 
     public DbSet<User> Users => Set<User>();
+    public DbSet<Asset> Assets => Set<Asset>();
+    public DbSet<Incident> Incidents => Set<Incident>();
+    public DbSet<IncidentEvidence> IncidentEvidence => Set<IncidentEvidence>();
+    public DbSet<AssetHistory> AssetHistory => Set<AssetHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

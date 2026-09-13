@@ -73,7 +73,31 @@ AssetBridge AI follows a 4-tier Clean Architecture pattern:
 
 ---
 
-## 4. Local Development Setup
+## 4. Domain Models & Relational Architecture (Member 1)
+
+```
+┌──────────────┐       1 : N       ┌──────────────┐       1 : N       ┌──────────────────┐
+│     User     ├──────────────────►│    Asset     ├──────────────────►│     Incident     │
+│   (Owner)    │                   │  (Property)  │                   │(Problem Report)  │
+└──────────────┘                   └──────┬───────┘                   └────────┬─────────┘
+                                          │                                    │
+                                          │ 1 : N                              │ 1 : N
+                                          ▼                                    ▼
+                                   ┌──────────────┐                   ┌──────────────────┐
+                                   │ AssetHistory │                   │ IncidentEvidence │
+                                   │  (Timeline)  │                   │  (Photos / Docs) │
+                                   └──────────────┘                   └──────────────────┘
+```
+
+### Relational Schema Rules
+1. **Asset:** Belongs to an `Owner` (`User`). Relational cascade on delete is restricted (`OnDelete(DeleteBehavior.Restrict)`) to preserve referential integrity.
+2. **Incident:** Foreign key to `Asset` (`OnDelete(DeleteBehavior.Cascade)`). Stores `Category`, `Priority`, `Status`, `EstimatedBudget` (`decimal(18,2)` in LKR), and `RequiredByUtc`.
+3. **IncidentEvidence:** Attached to an `Incident`. Stores file URL, file name, MIME type, size in bytes, `EvidenceType` (`Photo`, `Video`, `Document`, `AudioNote`), and optional caption.
+4. **AssetHistory:** Property continuity timeline recording `AssetCreated`, `AssetUpdated`, `IncidentReported`, `IncidentStatusChanged`, `EvidenceAdded`, and `AssetArchived`.
+
+---
+
+## 5. Local Development Setup
 
 ### Prerequisites
 * .NET 8 SDK (`dotnet --version` $\ge$ `8.0.100`)
@@ -99,4 +123,4 @@ AssetBridge AI follows a 4-tier Clean Architecture pattern:
    ```bash
    dotnet run --project backend/src/AssetBridge.Api/AssetBridge.Api.csproj
    ```
-5. Open Swagger UI at: `http://localhost:5000` (or the configured launch port).
+5. Open Swagger UI at: `http://localhost:5000/`.
