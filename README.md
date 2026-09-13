@@ -36,11 +36,64 @@
 # Build the complete solution
 dotnet build backend/AssetBridge.sln
 
-# Run unit and integration tests
+# Run all automated tests (Unit + Integration: 65 tests)
 dotnet test backend/tests/AssetBridge.UnitTests/AssetBridge.UnitTests.csproj
 
-# Launch API
+# Launch API on port 5206 (or configured launchSettings profile)
 dotnet run --project backend/src/AssetBridge.Api/AssetBridge.Api.csproj
 ```
 
-Explore interactive OpenAPI documentation at `http://localhost:5000/`.
+---
+
+## Service Endpoints & Access Guide
+
+| Service / Tool | URL | Description |
+| :--- | :--- | :--- |
+| **Backend API Root** | `http://localhost:5206/` | API Status, version, and discoverable entrypoints JSON |
+| **Interactive Swagger UI** | `http://localhost:5206/swagger` | OpenAPI exploration with `Bearer <JWT>` Authorize support |
+| **OpenAPI Specification** | `http://localhost:5206/swagger/v1/swagger.json` | OpenAPI v1 JSON document |
+| **Health Check Probe** | `http://localhost:5206/health` or `/api/health` | Lightweight readiness probe for deployment & monitoring |
+| **React Web Client** | `http://localhost:5173/` (Dev) | React TypeScript Web Application |
+| **Flutter Mobile Client** | Android / iOS / Web | Mobile app consuming `http://localhost:5206/api/` |
+
+---
+
+## Authentication & Security Foundation
+
+### 1. Architecture Flow
+```
+Client (React / Flutter)
+   │
+   ▼
+[1] POST /api/auth/register
+   │   ├── Validates email format & uniqueness
+   │   ├── Hashes password with BCrypt (12 rounds)
+   │   └── Persists user in PostgreSQL / InMemoryDb
+   ▼
+[2] POST /api/auth/login
+   │   ├── Verifies password against stored BCrypt hash
+   │   ├── Generates cryptographically signed JWT with claims (Sub, Email, Name, Role)
+   │   └── Returns JWT access token + safe user profile (no secrets/hashes exposed)
+   ▼
+[3] Client stores token securely & sends HTTP Header:
+   Authorization: Bearer <JWT>
+   │
+   ▼
+[4] ASP.NET Core Authentication Middleware (JwtBearer)
+   │   ├── Validates signature (HMAC-SHA256)
+   │   ├── Validates Issuer, Audience & Lifetime expiration
+   │   └── Populates HttpContext.User Principal
+   ▼
+[5] ASP.NET Core Role-Based Authorization
+   │   ├── [Authorize] & [Authorize(Roles = "Manager,Admin")]
+   │   └── ICurrentUserService extracts authenticated user ID & Role
+   ▼
+[6] Application Services & Protected Business Endpoints
+```
+
+### 2. Security Principles
+- **No Plaintext Passwords:** Passwords are salted and hashed using BCrypt (`WorkFactor = 12`) before persistence.
+- **Server-Side Enforcement:** Frontend client views are personalized, but the backend is the authoritative boundary. Unauthorized or role-mismatched requests receive HTTP `401 Unauthorized` or `403 Forbidden`.
+- **Identity Isolation:** Resource operations resolve caller identity directly from the validated JWT token via `ICurrentUserService`, preventing client ID tampering.
+- **Environment-Driven Configuration:** JWT secrets, Issuer, Audience, and Database connection strings are loaded via `IConfiguration` and can be overridden through standard environment variables (`JwtSettings__Secret`, etc.) for Docker deployments.
+

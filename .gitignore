@@ -5,6 +5,8 @@ nuget_packages/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+[Tt]est[Rr]esults/
+*.trx
 .vs/
 *.user
 *.suo
