@@ -23,6 +23,13 @@ public class AssetBridgeDbContext : DbContext, IApplicationDbContext
     public DbSet<IncidentEvidence> IncidentEvidence => Set<IncidentEvidence>();
     public DbSet<AssetHistory> AssetHistory => Set<AssetHistory>();
 
+    // Member 2: Representative & Service Provider Coordination
+    public DbSet<Domain.Entities.Representatives.Representative> Representatives => Set<Domain.Entities.Representatives.Representative>();
+    public DbSet<Domain.Entities.Providers.ServiceProvider> ServiceProviders => Set<Domain.Entities.Providers.ServiceProvider>();
+    public DbSet<Domain.Entities.Providers.ProviderSkill> ProviderSkills => Set<Domain.Entities.Providers.ProviderSkill>();
+    public DbSet<Domain.Entities.Providers.ProviderAvailability> ProviderAvailability => Set<Domain.Entities.Providers.ProviderAvailability>();
+    public DbSet<Domain.Entities.Providers.ProviderHistory> ProviderHistory => Set<Domain.Entities.Providers.ProviderHistory>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

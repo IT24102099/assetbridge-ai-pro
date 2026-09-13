@@ -97,7 +97,42 @@ AssetBridge AI follows a 4-tier Clean Architecture pattern:
 
 ---
 
-## 5. Local Development Setup
+## 6. Domain Models & Relational Architecture (Member 2 — IT24101365)
+
+```
+┌──────────────┐       1 : 1       ┌──────────────────┐
+│     User     ├──────────────────►│  Representative  │
+│(Identity Acc)│                   │(Local Coordinator│
+└──────┬───────┘                   └──────────────────┘
+       │
+       │ 1 : 1
+       ▼
+┌──────────────┐       1 : N       ┌──────────────────┐
+│ServiceProvider├─────────────────►│  ProviderSkill   │
+│ (Contractor) │                   │(Category & Trade)│
+└──────┬───────┘                   └──────────────────┘
+       │
+       │ 1 : N                     ┌──────────────────────┐
+       ├──────────────────────────►│ ProviderAvailability │
+       │                           │  (Working Slots)     │
+       │                           └──────────────────────┘
+       │ 1 : N                     ┌──────────────────┐
+       └──────────────────────────►│ ProviderHistory  │
+                                   │ (Job & Feedback) │
+                                   └──────────────────┘
+```
+
+### Member 2 Relational Schema Rules
+1. **Representative:** Links 1:1 with `User` (`OnDelete(DeleteBehavior.Restrict)`). Stores operating district, city, optional GPS coordinates, national ID, and `VerificationStatus` (`Pending`, `Verified`, `Rejected`, `Suspended`).
+2. **ServiceProvider:** Links 1:1 with `User`. Stores operating district, city, GPS base coordinates (`BaseLatitude`, `BaseLongitude`), maximum `ServiceRadiusKm`, `VerificationStatus`, and aggregated `Rating` (1.0 to 5.0) and `CompletedJobsCount`.
+3. **ProviderSkill:** Relates to `ServiceProvider` (`OnDelete(DeleteBehavior.Cascade)`). Stores structured `Category` (`IncidentCategory`), `SkillName`, `YearsOfExperience`, license number, and primary trade indicator (`IsPrimary`).
+4. **ProviderAvailability:** Relates to `ServiceProvider` (`OnDelete(DeleteBehavior.Cascade)`). Stores available dates, start/end time spans, and `AvailabilityStatus` (`Available`, `Busy`, `Unavailable`).
+5. **ProviderHistory:** Relates to `ServiceProvider` (`OnDelete(DeleteBehavior.Cascade)`). Tracks historical job milestones, customer ratings, and associated incidents.
+6. **Deterministic Provider Matching Engine:** Evaluates candidate contractors across 4 dimensions: Skill (35 pts), Availability (25 pts), Proximity (25 pts via Haversine distance), and Track Record (15 pts), returning rich factual explanations for the future Provider Intelligence Agent.
+
+---
+
+## 7. Local Development Setup
 
 ### Prerequisites
 * .NET 8 SDK (`dotnet --version` $\ge$ `8.0.100`)

@@ -19,7 +19,12 @@
 ## Architecture & Technology Stack
 
 * **Backend:** ASP.NET Core 8 Web API, EF Core 8, PostgreSQL, JWT Authentication, Swagger/OpenAPI
-* **Web Admin:** React, TypeScript, Vite, Shadcn UI
+* **Business Modules:**
+  * Member 1 (`IT24102839`): Asset & Incident Management, Property Continuity History
+  * Member 2 (`IT24101365`): Local Representative & Service Provider Coordination, Trade Skills, Availability Scheduling, Deterministic & Explainable Provider Matching
+  * Member 3 (`IT24100079`): Maintenance, Inspection & Quotations
+  * Member 4 (`IT24102099`): Workflow, Approval, Audit & Continuity
+* **Web Admin:** React, TypeScript, Vite, TailwindCSS
 * **Mobile Client:** Flutter, Dart
 * **AI Orchestration:** Multi-Agent AI (Incident Planning, Provider Intelligence, Maintenance Cost, Validation & Continuity) with Human-in-the-Loop approval
 
