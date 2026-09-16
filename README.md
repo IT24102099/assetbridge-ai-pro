@@ -30,8 +30,9 @@
 
 ---
 
-## Quick Start (Backend)
+## Quick Start
 
+### Backend API (.NET 8)
 ```bash
 # Build the complete solution
 dotnet build backend/AssetBridge.sln
@@ -41,6 +42,18 @@ dotnet test backend/tests/AssetBridge.UnitTests/AssetBridge.UnitTests.csproj
 
 # Launch API on port 5206 (or configured launchSettings profile)
 dotnet run --project backend/src/AssetBridge.Api/AssetBridge.Api.csproj
+```
+
+### Frontend Web (React + Vite + TypeScript)
+```bash
+# Option 1: Run directly from root
+npm run dev
+
+# Option 2: Run from frontend-web directory
+cd frontend-web
+npm install
+npm run dev      # Starts Vite dev server on http://localhost:5173
+npm run build    # Generates production bundle in frontend-web/dist
 ```
 
 ---
