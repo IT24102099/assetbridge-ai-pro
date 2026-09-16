@@ -22,17 +22,17 @@ AssetBridge AI follows a 4-tier Clean Architecture pattern:
 │    • AssetBridge.Application                              │
 │    • Business Services (Auth, Incidents, Providers, etc.) │
 │    • DTOs, Validators, Application Interfaces             │
-└─────────────────────────────┬─────────────────────────────┘
-                              │
-┌─────────────────────────────▼─────────────────────────────┐
-│                   Domain / Core Layer                     │
-│    • AssetBridge.Domain                                   │
-│    • Entities (User, Asset, Incident, Quotation, etc.)    │
-│    • Enums (UserRole, WorkflowStatus, etc.)               │
-│    • Domain Exceptions & Business Invariants              │
-└─────────────────────────────▲─────────────────────────────┘
-                              │
-┌─────────────────────────────┴─────────────────────────────┐
+└──────────────┬──────────────────────────────┬─────────────┘
+               │                              │
+┌──────────────▼──────────────┐┌──────────────▼─────────────┐
+│     Domain / Core Layer     ││    Internal AI Service     │
+│  • AssetBridge.Domain       ││  • ai-service/ (FastAPI)   │
+│  • Entities & Aggregates    ││  • 4 Specialized Agents    │
+│  • Enums & Business Rules   ││  • Controlled Tool Registry│
+│  • 15-State Workflow Machine││  • RAG Knowledge Base      │
+└──────────────▲──────────────┴──────────────┬─────────────┘
+               │                              │
+┌──────────────┴──────────────────────────────┴─────────────┐
 │                   Infrastructure Layer                    │
 │    • AssetBridge.Infrastructure                           │
 │    • PostgreSQL Data Access via EF Core 8                 │
