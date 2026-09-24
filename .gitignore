@@ -37,6 +37,17 @@ build/
 .npm
 .eslintcache
 
+## Python & AI Service
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+env/
+venv/
+
 ## Flutter & Dart
 .dart_tool/
 .flutter-plugins

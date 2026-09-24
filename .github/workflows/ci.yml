@@ -1,0 +1,85 @@
+name: AssetBridge AI Continuous Integration (CI)
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # -------------------------------------------------------------
+  # 1. ASP.NET Core Backend Build & Unit / Integration Test Suite
+  # -------------------------------------------------------------
+  backend-ci:
+    name: ASP.NET Core Backend (.NET 8)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore backend/AssetBridge.sln
+
+      - name: Build solution (Release)
+        run: dotnet build backend/AssetBridge.sln --no-restore --configuration Release
+
+      - name: Execute unit & integration tests
+        run: dotnet test backend/AssetBridge.sln --no-build --configuration Release --verbosity normal
+
+  # -------------------------------------------------------------
+  # 2. FastAPI Internal Agentic AI & RAG Test Suite
+  # -------------------------------------------------------------
+  ai-service-ci:
+    name: FastAPI Agentic AI & RAG (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'ai-service/requirements.txt'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ai-service/requirements.txt
+
+      - name: Run 4-agent & RAG tests
+        env:
+          PYTHONPATH: ai-service
+        run: pytest ai-service/tests/test_agents_and_rag.py -v
+
+  # -------------------------------------------------------------
+  # 3. React / Vite Frontend TypeScript & Production Build Check
+  # -------------------------------------------------------------
+  frontend-ci:
+    name: React Web Application (Vite / TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'frontend-web/package-lock.json'
+
+      - name: Install dependencies
+        run: npm --prefix frontend-web ci
+
+      - name: Verify TypeScript & build production bundle
+        run: npm --prefix frontend-web run build
