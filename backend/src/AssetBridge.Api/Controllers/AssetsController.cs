@@ -74,4 +74,44 @@ public class AssetsController : BaseApiController
         var result = await _assetService.GetAssetHistoryAsync(id, cancellationToken);
         return HandleSuccess(result, "Property continuity history timeline retrieved.");
     }
+
+    [HttpPost("{id:guid}/media")]
+    [Authorize(Roles = "Owner,Manager,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<AssetMediaResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AddMedia(Guid id, [FromBody] AddAssetMediaRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _assetService.AddMediaAsync(id, request, cancellationToken);
+        return HandleCreated($"/api/assets/{id}/media/{result.Id}", result, "Property media uploaded successfully.");
+    }
+
+    [HttpGet("{id:guid}/media")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AssetMediaResponseDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMedia(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _assetService.GetMediaAsync(id, cancellationToken);
+        return HandleSuccess(result, "Property media gallery retrieved.");
+    }
+
+    [HttpDelete("{id:guid}/media/{mediaId:guid}")]
+    [Authorize(Roles = "Owner,Manager,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteMedia(Guid id, Guid mediaId, CancellationToken cancellationToken)
+    {
+        var result = await _assetService.DeleteMediaAsync(id, mediaId, cancellationToken);
+        return HandleSuccess(result, "Property media deleted successfully.");
+    }
+
+    [HttpPatch("{id:guid}/media/{mediaId:guid}/thumbnail")]
+    [Authorize(Roles = "Owner,Manager,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<AssetMediaResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SetThumbnail(Guid id, Guid mediaId, CancellationToken cancellationToken)
+    {
+        var result = await _assetService.SetThumbnailAsync(id, mediaId, cancellationToken);
+        return HandleSuccess(result, "Property thumbnail cover image updated successfully.");
+    }
 }

@@ -30,6 +30,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
+            .WithExposedHeaders("Content-Disposition")
             .AllowCredentials();
     });
 });
@@ -98,6 +99,13 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// 6. Seed Database & Demo Accounts
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<AssetBridge.Infrastructure.Persistence.IDatabaseSeeder>();
+    await seeder.SeedAsync();
+}
 
 app.Run();
 

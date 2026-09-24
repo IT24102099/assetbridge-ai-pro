@@ -82,6 +82,15 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
+
+        // 4. Internal Agentic AI Service Client (HttpClient factory with configured BaseAddress)
+        services.AddHttpClient<AssetBridge.Application.Services.Interfaces.IAiAssistantService, AssetBridge.Infrastructure.Services.AiAssistantService>(client =>
+        {
+            var baseUrl = configuration["AiService:BaseUrl"] ?? "http://127.0.0.1:5001";
+            client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/api/v1/");
+            client.Timeout = TimeSpan.FromSeconds(35);
+        });
 
         return services;
     }

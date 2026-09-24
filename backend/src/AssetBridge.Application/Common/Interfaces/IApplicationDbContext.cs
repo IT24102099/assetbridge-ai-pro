@@ -12,6 +12,7 @@ public interface IApplicationDbContext
 {
     DbSet<User> Users { get; }
     DbSet<Asset> Assets { get; }
+    DbSet<AssetMedia> AssetMedia { get; }
     DbSet<Incident> Incidents { get; }
     DbSet<IncidentEvidence> IncidentEvidence { get; }
     DbSet<AssetHistory> AssetHistory { get; }

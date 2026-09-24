@@ -248,4 +248,196 @@ public class AssetServiceTests : IDisposable
             null,
             It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task AddMediaAsync_ShouldAddMediaAndSetFirstAsThumbnail_WhenNoneExist()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var asset = new Asset { Id = Guid.NewGuid(), OwnerId = _owner1Id, Name = "Media Test Villa", City = "Kandy", District = "Kandy", AddressLine1 = "100 Hill St" };
+        _dbContext.Assets.Add(asset);
+        await _dbContext.SaveChangesAsync();
+
+        var request = new AddAssetMediaRequestDto
+        {
+            FileName = "front_elevation.jpg",
+            FileUrl = "https://storage.assetbridge.ai/media/front.jpg",
+            FileType = "image/jpeg",
+            FileSizeBytes = 1024000,
+            IsThumbnail = false // Even if false, should default to true for the first media
+        };
+
+        // Act
+        var result = await _sut.AddMediaAsync(asset.Id, request);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.IsThumbnail.Should().BeTrue();
+        result.FileName.Should().Be("front_elevation.jpg");
+
+        var mediaInDb = await _dbContext.AssetMedia.FirstOrDefaultAsync(m => m.Id == result.Id);
+        mediaInDb.Should().NotBeNull();
+        mediaInDb!.IsThumbnail.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AddMediaAsync_ShouldUnsetPreviousThumbnail_WhenNewMediaIsDesignatedThumbnail()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var asset = new Asset { Id = Guid.NewGuid(), OwnerId = _owner1Id, Name = "Media Test Villa 2", City = "Colombo", District = "Colombo", AddressLine1 = "50 Galle Rd" };
+        var firstMedia = new AssetMedia
+        {
+            Id = Guid.NewGuid(),
+            AssetId = asset.Id,
+            UploadedByUserId = _owner1Id,
+            FileName = "first.jpg",
+            FileUrl = "https://storage.assetbridge.ai/media/first.jpg",
+            FileType = "image/jpeg",
+            FileSizeBytes = 500000,
+            IsThumbnail = true,
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-10)
+        };
+        asset.Media.Add(firstMedia);
+        _dbContext.Assets.Add(asset);
+        await _dbContext.SaveChangesAsync();
+
+        var secondMediaRequest = new AddAssetMediaRequestDto
+        {
+            FileName = "new_cover.png",
+            FileUrl = "https://storage.assetbridge.ai/media/new_cover.png",
+            FileType = "image/png",
+            FileSizeBytes = 800000,
+            IsThumbnail = true
+        };
+
+        // Act
+        var result = await _sut.AddMediaAsync(asset.Id, secondMediaRequest);
+
+        // Assert
+        result.IsThumbnail.Should().BeTrue();
+
+        var allMedia = await _dbContext.AssetMedia.Where(m => m.AssetId == asset.Id).ToListAsync();
+        allMedia.Count(m => m.IsThumbnail).Should().Be(1, "Strictly exactly ONE thumbnail must exist");
+        allMedia.First(m => m.Id == firstMedia.Id).IsThumbnail.Should().BeFalse();
+        allMedia.First(m => m.Id == result.Id).IsThumbnail.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AddMediaAsync_ShouldThrowValidationException_WhenFileSizeExceedsLimit()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var asset = new Asset { Id = Guid.NewGuid(), OwnerId = _owner1Id, Name = "Size Test Villa", City = "Kandy", District = "Kandy", AddressLine1 = "100 Hill St" };
+        _dbContext.Assets.Add(asset);
+        await _dbContext.SaveChangesAsync();
+
+        var oversizedRequest = new AddAssetMediaRequestDto
+        {
+            FileName = "huge_photo.jpg",
+            FileUrl = "https://storage.assetbridge.ai/media/huge.jpg",
+            FileType = "image/jpeg",
+            FileSizeBytes = 15 * 1024 * 1024 // 15MB > 10MB limit
+        };
+
+        // Act
+        var act = () => _sut.AddMediaAsync(asset.Id, oversizedRequest);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*cannot exceed 10MB*");
+    }
+
+    [Fact]
+    public async Task AddMediaAsync_ShouldThrowValidationException_WhenExtensionIsInvalid()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var asset = new Asset { Id = Guid.NewGuid(), OwnerId = _owner1Id, Name = "Ext Test Villa", City = "Kandy", District = "Kandy", AddressLine1 = "100 Hill St" };
+        _dbContext.Assets.Add(asset);
+        await _dbContext.SaveChangesAsync();
+
+        var invalidRequest = new AddAssetMediaRequestDto
+        {
+            FileName = "malicious_script.exe",
+            FileUrl = "https://storage.assetbridge.ai/media/script.exe",
+            FileType = "application/x-msdownload",
+            FileSizeBytes = 10000
+        };
+
+        // Act
+        var act = () => _sut.AddMediaAsync(asset.Id, invalidRequest);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*Only JPG, PNG, and WEBP formats are accepted*");
+    }
+
+    [Fact]
+    public async Task SetThumbnailAsync_ShouldEnsureOnlyOneThumbnail_WhenChangingThumbnail()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var asset = new Asset { Id = Guid.NewGuid(), OwnerId = _owner1Id, Name = "Thumbnail Test Villa", City = "Galle", District = "Galle", AddressLine1 = "1 Fort St" };
+        var media1 = new AssetMedia { Id = Guid.NewGuid(), AssetId = asset.Id, UploadedByUserId = _owner1Id, FileName = "m1.jpg", FileUrl = "url1", FileSizeBytes = 1000, IsThumbnail = true };
+        var media2 = new AssetMedia { Id = Guid.NewGuid(), AssetId = asset.Id, UploadedByUserId = _owner1Id, FileName = "m2.jpg", FileUrl = "url2", FileSizeBytes = 1000, IsThumbnail = false };
+        asset.Media.Add(media1);
+        asset.Media.Add(media2);
+        _dbContext.Assets.Add(asset);
+        await _dbContext.SaveChangesAsync();
+
+        // Act - Set media2 as thumbnail
+        var result = await _sut.SetThumbnailAsync(asset.Id, media2.Id);
+
+        // Assert
+        result.Id.Should().Be(media2.Id);
+        result.IsThumbnail.Should().BeTrue();
+
+        var allMedia = await _dbContext.AssetMedia.Where(m => m.AssetId == asset.Id).ToListAsync();
+        allMedia.Count(m => m.IsThumbnail).Should().Be(1);
+        allMedia.First(m => m.Id == media1.Id).IsThumbnail.Should().BeFalse();
+        allMedia.First(m => m.Id == media2.Id).IsThumbnail.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task DeleteMediaAsync_ShouldPromoteNextMedia_WhenThumbnailIsDeleted()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var asset = new Asset { Id = Guid.NewGuid(), OwnerId = _owner1Id, Name = "Delete Media Villa", City = "Kandy", District = "Kandy", AddressLine1 = "100 Hill St" };
+        var media1 = new AssetMedia { Id = Guid.NewGuid(), AssetId = asset.Id, UploadedByUserId = _owner1Id, FileName = "m1.jpg", FileUrl = "url1", FileSizeBytes = 1000, IsThumbnail = true, CreatedAtUtc = DateTime.UtcNow.AddMinutes(-5) };
+        var media2 = new AssetMedia { Id = Guid.NewGuid(), AssetId = asset.Id, UploadedByUserId = _owner1Id, FileName = "m2.jpg", FileUrl = "url2", FileSizeBytes = 1000, IsThumbnail = false, CreatedAtUtc = DateTime.UtcNow };
+        asset.Media.Add(media1);
+        asset.Media.Add(media2);
+        _dbContext.Assets.Add(asset);
+        await _dbContext.SaveChangesAsync();
+
+        // Act - Delete media1 (current thumbnail)
+        var result = await _sut.DeleteMediaAsync(asset.Id, media1.Id);
+
+        // Assert
+        result.Should().BeTrue();
+        var remainingMedia = await _dbContext.AssetMedia.Where(m => m.AssetId == asset.Id).ToListAsync();
+        remainingMedia.Count.Should().Be(1);
+        remainingMedia[0].Id.Should().Be(media2.Id);
+        remainingMedia[0].IsThumbnail.Should().BeTrue("Remaining media should be promoted to thumbnail");
+    }
 }

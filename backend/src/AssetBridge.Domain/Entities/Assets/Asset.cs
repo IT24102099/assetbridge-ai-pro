@@ -29,6 +29,7 @@ public class Asset : BaseEntity
     public AssetStatus Status { get; set; } = AssetStatus.Active;
 
     // Navigation collections representing the life cycle and business history of the property
+    public ICollection<AssetMedia> Media { get; set; } = new List<AssetMedia>();
     public ICollection<Incident> Incidents { get; set; } = new List<Incident>();
     public ICollection<AssetHistory> HistoryEntries { get; set; } = new List<AssetHistory>();
 }

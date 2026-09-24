@@ -23,6 +23,9 @@ public class AssetResponseDto
     public AssetStatus Status { get; set; }
     public string StatusName => Status.ToString();
     public int ActiveIncidentCount { get; set; }
+    public string? ThumbnailUrl { get; set; }
+    public int MediaCount { get; set; }
+    public List<AssetMediaResponseDto> Media { get; set; } = new();
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? UpdatedAtUtc { get; set; }
 }

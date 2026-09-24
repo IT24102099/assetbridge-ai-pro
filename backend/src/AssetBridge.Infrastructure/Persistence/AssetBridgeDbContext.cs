@@ -19,6 +19,7 @@ public class AssetBridgeDbContext : DbContext, IApplicationDbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Asset> Assets => Set<Asset>();
+    public DbSet<AssetMedia> AssetMedia => Set<AssetMedia>();
     public DbSet<Incident> Incidents => Set<Incident>();
     public DbSet<IncidentEvidence> IncidentEvidence => Set<IncidentEvidence>();
     public DbSet<AssetHistory> AssetHistory => Set<AssetHistory>();
