@@ -1,0 +1,70 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1230 >>
+stream
+BT
+/F1 18 Tf
+50 750 Td
+(Maintenance Approval and Safety Policy) Tj
+/F1 10 Tf
+0 -20 Td
+(Domain: GOVERNANCE_CONTINUITY_KNOWLEDGE | AssetBridge AI Knowledge Document) Tj
+0 -15 Td
+(--------------------------------------------------------------------------------) Tj
+/F1 11 Tf
+0 -25 Td
+/F1 13 Tf (1. Human-in-the-Loop Governance Boundary) Tj
+/F1 10 Tf 0 -15 Td
+(AI agents formulate recommendations, analyze cost variances, and prepare) Tj
+0 -13 Td
+(approval requests. Under no circumstance may an AI agent approve high-impact) Tj
+0 -13 Td
+(financial outlays or contractor appointments autonomously.) Tj
+0 -15 Td
+0 -10 Td
+/F1 13 Tf (2. Manager & Admin Approval Mandate) Tj
+/F1 10 Tf 0 -15 Td
+(All repair proposals with estimated cost exceeding 10,000 LKR or involving) Tj
+0 -13 Td
+(structural modification require formal digital authorization by the overseas) Tj
+0 -13 Td
+(property manager or verified owner.) Tj
+0 -15 Td
+0 -10 Td
+/F1 13 Tf (3. Safety Compliance & Lockout/Tagout) Tj
+/F1 10 Tf 0 -15 Td
+(Before work commencement, contractors must sign off on utility isolation) Tj
+0 -13 Td
+(protocols. For electrical repairs, the main breaker must be locked out, and for) Tj
+0 -13 Td
+(plumbing, the main stopcock tagged.) Tj
+0 -15 Td
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000001529 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1599
+%%EOF

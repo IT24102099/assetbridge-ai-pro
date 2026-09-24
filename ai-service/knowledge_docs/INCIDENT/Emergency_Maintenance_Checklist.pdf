@@ -1,0 +1,86 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1763 >>
+stream
+BT
+/F1 18 Tf
+50 750 Td
+(Emergency Maintenance Checklist) Tj
+/F1 10 Tf
+0 -20 Td
+(Domain: INCIDENT_KNOWLEDGE | AssetBridge AI Knowledge Document) Tj
+0 -15 Td
+(--------------------------------------------------------------------------------) Tj
+/F1 11 Tf
+0 -25 Td
+/F1 13 Tf (1. Emergency Triage Classification) Tj
+/F1 10 Tf 0 -15 Td
+(Emergencies are categorized into Class A \(Immediate structural collapse risk or) Tj
+0 -13 Td
+(live electrical hazard\), Class B \(Uncontrolled water ingress or sewer backflow\),) Tj
+0 -13 Td
+(and Class C \(Minor non-structural utility failure\).) Tj
+0 -15 Td
+0 -10 Td
+/F1 13 Tf (2. Electrical Emergencies) Tj
+/F1 10 Tf 0 -15 Td
+(If sparks, burning plastic odor, or RCD trip recurrence occurs, switch off the) Tj
+0 -13 Td
+(main double-pole isolator switch. Never attempt DIY wire splicing or fuse) Tj
+0 -13 Td
+(bypassing.) Tj
+0 -15 Td
+0 -10 Td
+/F1 13 Tf (3. Structural & Safety Hazards) Tj
+/F1 10 Tf 0 -15 Td
+(For severe wall cracking \(>5mm shear cracks\), sagging ceiling joists, or) Tj
+0 -13 Td
+(waterlogged plasterboard, evacuate the affected room immediately and cordon off) Tj
+0 -13 Td
+(the threshold.) Tj
+0 -15 Td
+0 -10 Td
+/F1 13 Tf (4. What Users Should NOT Do) Tj
+/F1 10 Tf 0 -15 Td
+(Do not operate electrical switches while standing in water. Do not apply) Tj
+0 -13 Td
+(structural sealants over pressurized water leaks without isolating supply. Do) Tj
+0 -13 Td
+(not authorize unverified third-party contractors without representative logging.) Tj
+0 -15 Td
+0 -10 Td
+/F1 13 Tf (5. Representative Mobilization Protocol) Tj
+/F1 10 Tf 0 -15 Td
+(Submit emergency incident via the AssetBridge mobile app. The platform will) Tj
+0 -13 Td
+(automatically notify the verified local representative within a 15km radius.) Tj
+0 -15 Td
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000002062 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+2132
+%%EOF
