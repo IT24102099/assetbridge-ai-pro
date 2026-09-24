@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, UserRole } from '../types/auth';
+import { authApi } from '../lib/api/authApi';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -9,6 +10,7 @@ interface AuthContextType {
   login: (token: string, user: UserProfile) => void;
   logout: () => void;
   hasRole: (roles: UserRole | UserRole[]) => boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,6 +20,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const fetchFreshUser = async () => {
+    try {
+      const res = await authApi.getCurrentUser();
+      if (res.data) {
+        setUser(res.data);
+        localStorage.setItem('assetbridge_user', JSON.stringify(res.data));
+      }
+    } catch (err) {
+      console.error('Failed to refresh user profile from /api/auth/me', err);
+    }
+  };
+
   useEffect(() => {
     try {
       const storedToken = localStorage.getItem('assetbridge_token');
@@ -25,7 +39,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (storedToken && storedUser) {
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        // Refresh authenticated profile in background to ensure dynamic real full name
+        fetchFreshUser();
       }
     } catch (e) {
       console.error('Failed to parse stored auth session:', e);
@@ -67,6 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         logout,
         hasRole,
+        refreshUser: fetchFreshUser,
       }}
     >
       {children}
@@ -81,3 +99,4 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+export default AuthProvider;
