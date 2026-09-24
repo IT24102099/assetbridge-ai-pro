@@ -1,0 +1,72 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1359 >>
+stream
+BT
+/F1 18 Tf
+50 750 Td
+(Service Provider Availability and Skills Guide) Tj
+/F1 10 Tf
+0 -20 Td
+(Domain: PROVIDER_KNOWLEDGE | AssetBridge AI Knowledge Document) Tj
+0 -15 Td
+(--------------------------------------------------------------------------------) Tj
+/F1 11 Tf
+0 -25 Td
+/F1 13 Tf (1. Trade Skill Categorization) Tj
+/F1 10 Tf 0 -15 Td
+(Service providers must hold explicit verified skills in the registry: Plumbing) Tj
+0 -13 Td
+(\(Pipe welding, PPR jointing, drainage diagnostics\), Electrical \(Single-phase) Tj
+0 -13 Td
+(wiring, distribution boards, surge protection\), Waterproofing \(Torch-on) Tj
+0 -13 Td
+(membrane, polymer slurry, elastomeric coating\), and Carpentry/Roofing.) Tj
+0 -15 Td
+0 -10 Td
+/F1 13 Tf (2. Real-Time Availability & Radius Filtering) Tj
+/F1 10 Tf 0 -15 Td
+(Provider dispatch algorithms calculate geodesic distance from property) Tj
+0 -13 Td
+(coordinates. For emergency incidents, only providers within 20km with) Tj
+0 -13 Td
+('Available' status in the current time slot are ranked.) Tj
+0 -15 Td
+0 -10 Td
+/F1 13 Tf (3. Coordination with Overseas Owners & Local Reps) Tj
+/F1 10 Tf 0 -15 Td
+(Service providers must communicate directly through the platform chat and submit) Tj
+0 -13 Td
+(quotation line items digitally. Direct cash payments outside platform) Tj
+0 -13 Td
+(escrow/milestones are strictly prohibited.) Tj
+0 -15 Td
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000001658 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1728
+%%EOF
