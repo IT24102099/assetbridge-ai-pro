@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, ClipboardCheck, AlertCircle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { inspectionApi } from '../../lib/api/inspectionApi';
 import { incidentApi } from '../../lib/api/incidentApi';
 import { providerApi } from '../../lib/api/providerApi';
@@ -13,6 +14,10 @@ interface CreateInspectionModalProps {
 }
 
 export default function CreateInspectionModal({ isOpen, onClose, onCreated }: CreateInspectionModalProps) {
+  const { user } = useAuth();
+  const canScheduleInspection =
+    user?.role === 'ServiceProvider' || user?.role === 'Manager' || user?.role === 'Admin';
+
   const [incidents, setIncidents] = useState<IncidentResponseDto[]>([]);
   const [providers, setProviders] = useState<ServiceProviderResponseDto[]>([]);
   const [loadingData, setLoadingData] = useState(false);
@@ -26,7 +31,7 @@ export default function CreateInspectionModal({ isOpen, onClose, onCreated }: Cr
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && canScheduleInspection) {
       loadOptions();
       // default scheduled date to tomorrow 9am
       const tomorrow = new Date();
@@ -34,7 +39,7 @@ export default function CreateInspectionModal({ isOpen, onClose, onCreated }: Cr
       tomorrow.setHours(9, 0, 0, 0);
       setScheduledAt(tomorrow.toISOString().slice(0, 16));
     }
-  }, [isOpen]);
+  }, [isOpen, canScheduleInspection]);
 
   const loadOptions = async () => {
     try {
@@ -63,7 +68,7 @@ export default function CreateInspectionModal({ isOpen, onClose, onCreated }: Cr
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !canScheduleInspection) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

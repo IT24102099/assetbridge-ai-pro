@@ -9,6 +9,7 @@ import {
   Plus,
   Trash2
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { inspectionApi } from '../../lib/api/inspectionApi';
 import {
   InspectionResponseDto,
@@ -23,6 +24,12 @@ import CreateFindingModal from './CreateFindingModal';
 export default function InspectionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const canManageInspection =
+    user?.role === 'ServiceProvider' || user?.role === 'Manager' || user?.role === 'Admin';
+  const canCreateQuotation =
+    user?.role === 'ServiceProvider' || user?.role === 'Manager' || user?.role === 'Admin';
 
   const [inspection, setInspection] = useState<InspectionResponseDto | null>(null);
   const [findings, setFindings] = useState<InspectionFindingResponseDto[]>([]);
@@ -112,7 +119,7 @@ export default function InspectionDetailPage() {
         </button>
 
         <div className="flex items-center gap-2">
-          {inspection.status === InspectionStatus.Scheduled && (
+          {canManageInspection && inspection.status === InspectionStatus.Scheduled && (
             <button
               onClick={() => handleUpdateStatus(InspectionStatus.InProgress)}
               disabled={statusUpdating}
@@ -122,7 +129,7 @@ export default function InspectionDetailPage() {
             </button>
           )}
 
-          {inspection.status === InspectionStatus.InProgress && (
+          {canManageInspection && inspection.status === InspectionStatus.InProgress && (
             <button
               onClick={() => handleUpdateStatus(InspectionStatus.Completed)}
               disabled={statusUpdating}
@@ -132,13 +139,15 @@ export default function InspectionDetailPage() {
             </button>
           )}
 
-          <button
-            onClick={() => navigate('/quotations')}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition flex items-center gap-1.5"
-          >
-            <FileText className="h-4 w-4" />
-            Create Quotation
-          </button>
+          {canCreateQuotation && (
+            <button
+              onClick={() => navigate('/quotations')}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition flex items-center gap-1.5"
+            >
+              <FileText className="h-4 w-4" />
+              Create Quotation
+            </button>
+          )}
         </div>
       </div>
 
@@ -232,13 +241,15 @@ export default function InspectionDetailPage() {
             </div>
           </div>
 
-          <button
-            onClick={() => setIsAddFindingOpen(true)}
-            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add Finding
-          </button>
+          {canManageInspection && (
+            <button
+              onClick={() => setIsAddFindingOpen(true)}
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Finding
+            </button>
+          )}
         </div>
 
         {findings.length === 0 ? (
@@ -246,7 +257,9 @@ export default function InspectionDetailPage() {
             <AlertTriangle className="h-8 w-8 text-slate-300 mx-auto mb-2" />
             <p className="text-xs font-bold text-slate-700">No findings recorded yet</p>
             <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
-              Click "+ Add Finding" to document identified defect symptoms, severity grades, and repair recommendations.
+              {canManageInspection
+                ? 'Click "+ Add Finding" to document identified defect symptoms, severity grades, and repair recommendations.'
+                : 'No findings have been recorded by the inspector yet.'}
             </p>
           </div>
         ) : (
@@ -277,13 +290,15 @@ export default function InspectionDetailPage() {
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => handleDeleteFinding(finding.id)}
-                    className="text-slate-400 hover:text-red-600 transition p-1"
-                    title="Remove finding"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {canManageInspection && (
+                    <button
+                      onClick={() => handleDeleteFinding(finding.id)}
+                      className="text-slate-400 hover:text-red-600 transition p-1"
+                      title="Remove finding"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
 
                 <div className="pl-8 text-xs space-y-1">
@@ -303,7 +318,7 @@ export default function InspectionDetailPage() {
       </div>
 
       {/* Add Finding Modal */}
-      {id && (
+      {id && canManageInspection && (
         <CreateFindingModal
           isOpen={isAddFindingOpen}
           inspectionId={id}

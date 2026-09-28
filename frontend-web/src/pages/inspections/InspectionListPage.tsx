@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { inspectionApi } from '../../lib/api/inspectionApi';
 import { InspectionResponseDto, InspectionStatus, FindingSeverity } from '../../types/inspection';
 import { StatusBadge } from '../../components/common/StatusBadge';
@@ -16,6 +17,9 @@ import CreateInspectionModal from './CreateInspectionModal';
 
 export default function InspectionListPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canScheduleInspection = user?.role === 'ServiceProvider' || user?.role === 'Manager' || user?.role === 'Admin';
+
   const [inspections, setInspections] = useState<InspectionResponseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,13 +87,15 @@ export default function InspectionListPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition flex items-center gap-2 self-start sm:self-auto"
-        >
-          <Plus className="h-4 w-4" />
-          Schedule Inspection
-        </button>
+        {canScheduleInspection && (
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition flex items-center gap-2 self-start sm:self-auto"
+          >
+            <Plus className="h-4 w-4" />
+            Schedule Inspection
+          </button>
+        )}
       </div>
 
       {/* Filter and Search Bar */}
@@ -157,10 +163,12 @@ export default function InspectionListPage() {
           description={
             searchQuery || statusFilter !== 'all' || severityFilter !== 'all'
               ? 'Try changing your search parameters or filter criteria.'
-              : 'Schedule your first technical inspection to assess property damage.'
+              : canScheduleInspection
+              ? 'Schedule your first technical inspection to assess property damage.'
+              : 'No inspections have been scheduled for your assets yet.'
           }
-          actionLabel="+ Schedule Inspection"
-          onAction={() => setIsCreateModalOpen(true)}
+          actionLabel={canScheduleInspection ? '+ Schedule Inspection' : undefined}
+          onAction={canScheduleInspection ? () => setIsCreateModalOpen(true) : undefined}
         />
       ) : (
         <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
@@ -298,11 +306,13 @@ export default function InspectionListPage() {
       )}
 
       {/* Create Modal */}
-      <CreateInspectionModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onCreated={loadInspections}
-      />
+      {canScheduleInspection && (
+        <CreateInspectionModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreated={loadInspections}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, AlertTriangle, AlertCircle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { inspectionApi } from '../../lib/api/inspectionApi';
 import { FindingSeverity } from '../../types/inspection';
 
@@ -11,6 +12,10 @@ interface CreateFindingModalProps {
 }
 
 export default function CreateFindingModal({ isOpen, inspectionId, onClose, onCreated }: CreateFindingModalProps) {
+  const { user } = useAuth();
+  const canManageFindings =
+    user?.role === 'ServiceProvider' || user?.role === 'Manager' || user?.role === 'Admin';
+
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<FindingSeverity>(FindingSeverity.Medium);
   const [recommendation, setRecommendation] = useState('');
@@ -19,7 +24,7 @@ export default function CreateFindingModal({ isOpen, inspectionId, onClose, onCr
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  if (!isOpen || !canManageFindings) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
