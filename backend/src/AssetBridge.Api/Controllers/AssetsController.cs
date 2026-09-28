@@ -75,6 +75,62 @@ public class AssetsController : BaseApiController
         return HandleSuccess(result, "Property continuity history timeline retrieved.");
     }
 
+    [HttpPost("{id:guid}/media/upload")]
+    [Authorize(Roles = "Owner,Manager,Admin")]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(ApiResponse<AssetMediaResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UploadMedia(
+        Guid id,
+        IFormFile file,
+        [FromForm] bool isThumbnail = false,
+        [FromForm] string? caption = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return HandleFailure<AssetMediaResponseDto>("No file was uploaded or file is empty.");
+        }
+
+        const long maxSizeBytes = 10 * 1024 * 1024; // 10MB
+        if (file.Length > maxSizeBytes)
+        {
+            return HandleFailure<AssetMediaResponseDto>("File size exceeds the 10MB limit.");
+        }
+
+        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!allowedExtensions.Contains(ext))
+        {
+            return HandleFailure<AssetMediaResponseDto>("Unsupported image format. Allowed formats: JPG, PNG, WEBP.");
+        }
+
+        var contentType = file.ContentType;
+        if (string.IsNullOrEmpty(contentType) || contentType == "application/octet-stream")
+        {
+            contentType = ext switch
+            {
+                ".png" => "image/png",
+                ".webp" => "image/webp",
+                _ => "image/jpeg"
+            };
+        }
+
+        await using var stream = file.OpenReadStream();
+        var result = await _assetService.UploadMediaAsync(
+            id,
+            stream,
+            file.FileName,
+            contentType,
+            file.Length,
+            isThumbnail,
+            caption,
+            cancellationToken);
+
+        return HandleCreated($"/api/assets/{id}/media/{result.Id}", result, "Property media uploaded to persistent storage successfully.");
+    }
+
     [HttpPost("{id:guid}/media")]
     [Authorize(Roles = "Owner,Manager,Admin")]
     [ProducesResponseType(typeof(ApiResponse<AssetMediaResponseDto>), StatusCodes.Status201Created)]

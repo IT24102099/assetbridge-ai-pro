@@ -28,18 +28,21 @@ public class AssetService : IAssetService
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAssetHistoryService _historyService;
+    private readonly IFileStorageService? _fileStorageService;
     private readonly ILogger<AssetService> _logger;
 
     public AssetService(
         IApplicationDbContext context,
         ICurrentUserService currentUserService,
         IAssetHistoryService historyService,
-        ILogger<AssetService> logger)
+        ILogger<AssetService> logger,
+        IFileStorageService? fileStorageService = null)
     {
         _context = context;
         _currentUserService = currentUserService;
         _historyService = historyService;
         _logger = logger;
+        _fileStorageService = fileStorageService;
     }
 
     public async Task<AssetResponseDto> CreateAssetAsync(CreateAssetRequestDto request, CancellationToken cancellationToken = default)
@@ -268,6 +271,17 @@ public class AssetService : IAssetService
 
         ValidateMediaRequest(request);
 
+        if (request.FileUrl.StartsWith("blob:", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ValidationException(nameof(request.FileUrl), "Browser blob URLs cannot be stored as persistent media. Use the /media/upload endpoint to stream images directly to cloud storage.");
+        }
+
+        if (!Uri.TryCreate(request.FileUrl, UriKind.Absolute, out var parsedUri) ||
+            (parsedUri.Scheme != Uri.UriSchemeHttps && parsedUri.Scheme != Uri.UriSchemeHttp))
+        {
+            throw new ValidationException(nameof(request.FileUrl), "FileUrl must be a valid absolute HTTPS (or HTTP) URL. Local disk, relative, and browser blob URLs cannot be stored directly. Use the /media/upload endpoint to stream images to cloud storage.");
+        }
+
         var asset = await _context.Assets
             .Include(a => a.Media)
             .FirstOrDefaultAsync(a => a.Id == assetId, cancellationToken);
@@ -319,6 +333,108 @@ public class AssetService : IAssetService
 
         _logger.LogInformation("Added media {MediaId} to Asset {AssetId} (IsThumbnail: {IsThumbnail})",
             media.Id, assetId, media.IsThumbnail);
+
+        var uploader = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == currentUserId, cancellationToken);
+
+        return MapMediaToDto(media, uploader?.FullName);
+    }
+
+    public async Task<AssetMediaResponseDto> UploadMediaAsync(
+        Guid assetId,
+        Stream fileStream,
+        string fileName,
+        string contentType,
+        long fileSizeBytes,
+        bool isThumbnail = false,
+        string? caption = null,
+        CancellationToken cancellationToken = default)
+    {
+        var currentUserId = GetAuthenticatedUserId();
+
+        if (fileStream == null || fileStream.Length == 0)
+        {
+            throw new ValidationException(nameof(fileStream), "File stream cannot be empty.");
+        }
+
+        if (fileSizeBytes <= 0 || fileSizeBytes > MaxFileSizeBytes)
+        {
+            throw new ValidationException(nameof(fileSizeBytes), "Image file size must be between 1 byte and 10MB (10,485,760 bytes).");
+        }
+
+        var ext = Path.GetExtension(fileName);
+        if (string.IsNullOrWhiteSpace(ext) || !AllowedExtensions.Contains(ext))
+        {
+            throw new ValidationException(nameof(fileName), $"Unsupported file extension '{ext}'. Only JPG, PNG, and WEBP formats are accepted.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(contentType) && !AllowedMimeTypes.Contains(contentType))
+        {
+            throw new ValidationException(nameof(contentType), $"Unsupported file MIME type '{contentType}'. Only image/jpeg, image/png, and image/webp are allowed.");
+        }
+
+        var asset = await _context.Assets
+            .Include(a => a.Media)
+            .FirstOrDefaultAsync(a => a.Id == assetId, cancellationToken);
+
+        if (asset == null)
+        {
+            throw new EntityNotFoundException(nameof(Asset), assetId);
+        }
+
+        ValidateAssetAccess(asset);
+
+        string secureFileUrl;
+        if (_fileStorageService != null)
+        {
+            secureFileUrl = await _fileStorageService.UploadFileAsync(
+                fileStream,
+                fileName,
+                contentType,
+                folder: "assetbridge/assets",
+                cancellationToken: cancellationToken);
+        }
+        else
+        {
+            throw new InvalidOperationException("File storage service is not configured.");
+        }
+
+        var shouldBeThumbnail = isThumbnail || !asset.Media.Any();
+
+        if (shouldBeThumbnail)
+        {
+            foreach (var existing in asset.Media)
+            {
+                existing.IsThumbnail = false;
+            }
+        }
+
+        var media = new AssetMedia
+        {
+            Id = Guid.NewGuid(),
+            AssetId = assetId,
+            UploadedByUserId = currentUserId,
+            FileName = fileName.Trim(),
+            FileUrl = secureFileUrl,
+            FileType = contentType.Trim(),
+            FileSizeBytes = fileSizeBytes,
+            IsThumbnail = shouldBeThumbnail,
+            Caption = caption?.Trim(),
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _context.AssetMedia.Add(media);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        await _historyService.RecordEventAsync(
+            asset.Id,
+            AssetHistoryEventType.AssetUpdated,
+            "Property Photo Uploaded",
+            $"Uploaded photo '{media.FileName}' to cloud storage (Thumbnail: {media.IsThumbnail}).",
+            currentUserId,
+            cancellationToken: cancellationToken);
+
+        _logger.LogInformation("Uploaded and added media {MediaId} to Asset {AssetId} (IsThumbnail: {IsThumbnail}) at {Url}",
+            media.Id, assetId, media.IsThumbnail, secureFileUrl);
 
         var uploader = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == currentUserId, cancellationToken);
 

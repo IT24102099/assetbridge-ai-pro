@@ -17,6 +17,7 @@ import {
   Check,
   Trash2,
 } from 'lucide-react';
+import { SafeImage } from '../../components/common/SafeImage';
 
 interface EditAssetModalProps {
   isOpen: boolean;
@@ -263,14 +264,12 @@ export const EditAssetModal: React.FC<EditAssetModalProps> = ({
       if (newPhotos.length > 0) {
         for (const photo of newPhotos) {
           try {
-            await assetApi.addMedia(asset.id, {
-              fileName: photo.name,
-              fileUrl: photo.previewUrl,
-              fileSizeBytes: photo.file.size,
-              fileType: photo.file.type || 'image/jpeg',
-              isThumbnail: photo.isThumbnail,
-              caption: photo.isThumbnail ? 'Primary Property Thumbnail' : 'Property Photo',
-            });
+            await assetApi.uploadMedia(
+              asset.id,
+              photo.file,
+              photo.isThumbnail,
+              photo.isThumbnail ? 'Primary Property Thumbnail' : 'Property Photo'
+            );
           } catch (mediaErr) {
             console.warn('Asset media upload warning:', mediaErr);
           }
@@ -454,7 +453,7 @@ export const EditAssetModal: React.FC<EditAssetModalProps> = ({
                 }`}
               >
                 <div className="h-24 w-full bg-slate-100 relative">
-                  <img
+                  <SafeImage
                     src={media.fileUrl}
                     alt={media.fileName}
                     className="w-full h-full object-cover"

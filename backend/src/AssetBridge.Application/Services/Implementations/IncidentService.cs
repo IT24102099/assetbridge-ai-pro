@@ -286,6 +286,17 @@ public class IncidentService : IIncidentService
 
         ValidateIncidentAccess(incident);
 
+        if (request.FileUrl.StartsWith("blob:", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ValidationException(nameof(request.FileUrl), "Browser blob URLs cannot be stored as persistent evidence. Use the /evidence/upload endpoint to stream files directly to cloud storage.");
+        }
+
+        if (!Uri.TryCreate(request.FileUrl, UriKind.Absolute, out var parsedUri) ||
+            (parsedUri.Scheme != Uri.UriSchemeHttps && parsedUri.Scheme != Uri.UriSchemeHttp))
+        {
+            throw new ValidationException(nameof(request.FileUrl), "FileUrl must be a valid absolute HTTPS (or HTTP) URL. Local disk, relative, and browser blob URLs cannot be stored directly. Use the /evidence/upload endpoint to stream files to cloud storage.");
+        }
+
         var evidence = new IncidentEvidence
         {
             Id = Guid.NewGuid(),

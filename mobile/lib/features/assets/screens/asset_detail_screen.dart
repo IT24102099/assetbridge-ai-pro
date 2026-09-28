@@ -170,25 +170,44 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                   return Container(
                     width: 100,
                     margin: const EdgeInsets.only(right: 8),
+                    clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
                       color: AppColors.surfaceVariant,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppColors.border),
                     ),
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.image, size: 28, color: AppColors.primary),
-                          const SizedBox(height: 4),
-                          Text(
-                            m.fileName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (m.fileUrl.startsWith('http'))
+                          Image.network(
+                            m.fileUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Center(
+                              child: Icon(Icons.image, size: 28, color: AppColors.primary),
+                            ),
+                          )
+                        else
+                          const Center(
+                            child: Icon(Icons.image, size: 28, color: AppColors.primary),
                           ),
-                        ],
-                      ),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            color: Colors.black54,
+                            child: Text(
+                              m.fileName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 },

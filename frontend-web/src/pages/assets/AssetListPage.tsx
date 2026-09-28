@@ -7,6 +7,7 @@ import { LoadingState, EmptyState, ErrorState } from '../../components/common/Fe
 import { CreateAssetModal } from './CreateAssetModal';
 import { useAuth } from '../../context/AuthContext';
 import { PlusCircle, Search, MapPin, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { SafeImage } from '../../components/common/SafeImage';
 
 const PROPERTY_TYPES: { value: PropertyType | ''; label: string }[] = [
   { value: '', label: 'All Types' },
@@ -200,13 +201,10 @@ export const AssetListPage: React.FC = () => {
                 {/* Thumbnail matching wireframe */}
                 <div className="h-16 w-20 rounded-xl bg-slate-100 border border-slate-200 shrink-0 overflow-hidden flex items-center justify-center text-slate-400">
                   {asset.thumbnailUrl ? (
-                    <img
+                    <SafeImage
                       src={asset.thumbnailUrl}
                       alt={asset.name}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                      }}
                     />
                   ) : (
                     <Building2 className="h-7 w-7 opacity-50 text-slate-400" />

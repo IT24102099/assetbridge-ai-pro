@@ -46,6 +46,30 @@ export const assetApi = {
     return response.data;
   },
 
+  uploadMedia: async (
+    assetId: string,
+    file: File,
+    isThumbnail = false,
+    caption?: string
+  ): Promise<ApiResponse<AssetMediaResponseDto>> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('isThumbnail', String(isThumbnail));
+    if (caption) {
+      formData.append('caption', caption);
+    }
+    const response = await apiClient.post<ApiResponse<AssetMediaResponseDto>>(
+      `/assets/${assetId}/media/upload`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
   getMedia: async (assetId: string): Promise<ApiResponse<AssetMediaResponseDto[]>> => {
     const response = await apiClient.get<ApiResponse<AssetMediaResponseDto[]>>(`/assets/${assetId}/media`);
     return response.data;

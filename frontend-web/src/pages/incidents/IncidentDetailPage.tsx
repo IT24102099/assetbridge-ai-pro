@@ -13,7 +13,12 @@ import {
   ArrowLeft,
   CheckCircle2,
   Bot,
+  UploadCloud,
+  X,
+  Check,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { SafeImage, DEFAULT_EVIDENCE_FALLBACK } from '../../components/common/SafeImage';
 
 const WORKFLOW_STEPS = [
   { key: 'Reported', label: 'Incident Reported', defaultTime: '07 Sep 2026 10:32' },
@@ -28,6 +33,13 @@ const WORKFLOW_STEPS = [
 export const IncidentDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const canUploadEvidence =
+    user?.role === 'Owner' ||
+    user?.role === 'Representative' ||
+    user?.role === 'Manager' ||
+    user?.role === 'Admin';
 
   const [incident, setIncident] = useState<IncidentResponseDto | null>(null);
   const [evidence, setEvidence] = useState<IncidentEvidenceResponseDto[]>([]);
@@ -35,6 +47,9 @@ export const IncidentDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('details');
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const [evidenceUploadError, setEvidenceUploadError] = useState<string | null>(null);
+  const [evidenceUploadSuccess, setEvidenceUploadSuccess] = useState<string | null>(null);
 
   const fetchIncidentDetails = async () => {
     if (!id) return;
@@ -94,6 +109,25 @@ export const IncidentDetailPage: React.FC = () => {
     );
   }
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    try {
+      setUploadingEvidence(true);
+      setEvidenceUploadError(null);
+      setEvidenceUploadSuccess(null);
+      await incidentApi.uploadEvidence(id, file, 'Photo', `Defect Photo: ${file.name}`);
+      setEvidenceUploadSuccess(`Photo "${file.name}" uploaded to persistent storage successfully!`);
+      await fetchIncidentDetails();
+    } catch (err: any) {
+      console.error('Failed to upload evidence', err);
+      setEvidenceUploadError(err?.response?.data?.message || 'Failed to upload photo evidence.');
+    } finally {
+      setUploadingEvidence(false);
+      e.target.value = '';
+    }
+  };
+
   const getStepIndex = (status: IncidentStatus) => {
     switch (status) {
       case 'Reported':
@@ -117,10 +151,11 @@ export const IncidentDetailPage: React.FC = () => {
   };
 
   const currentStepIndex = getStepIndex(incident.status);
+  const effectiveEvidence = evidence.length > 0 ? evidence : incident.evidence || [];
 
   const tabs = [
     { id: 'details', label: 'Details' },
-    { id: 'photos', label: `Photos (${evidence.length || 3})` },
+    { id: 'photos', label: `Photos (${effectiveEvidence.length})` },
     { id: 'timeline', label: 'Timeline' },
   ];
 
@@ -288,35 +323,72 @@ export const IncidentDetailPage: React.FC = () => {
         {/* Tab 2: Photos Gallery */}
         {activeTab === 'photos' && (
           <div className="space-y-4">
-            {evidence.length === 0 && (!incident.evidence || incident.evidence.length === 0) ? (
+            {evidenceUploadError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 flex items-center justify-between">
+                <span>{evidenceUploadError}</span>
+                <button onClick={() => setEvidenceUploadError(null)} className="text-red-400 hover:text-red-600">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
+            {evidenceUploadSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 flex items-center gap-2">
+                <Check className="h-4 w-4 shrink-0 text-emerald-600" />
+                <span>{evidenceUploadSuccess}</span>
+              </div>
+            )}
+
+            {/* Upload Evidence Box */}
+            {canUploadEvidence && (
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Add Defect Photo / Evidence
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Upload physical evidence or damage photos directly to persistent cloud storage (JPG, PNG, WEBP up to 10MB)
+                  </p>
+                </div>
+                <label className="cursor-pointer px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 shrink-0">
+                  <UploadCloud className="h-4 w-4" />
+                  <span>{uploadingEvidence ? 'Uploading...' : 'Upload Evidence'}</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/jpg"
+                    onChange={handleFileUpload}
+                    disabled={uploadingEvidence}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            )}
+
+            {effectiveEvidence.length === 0 ? (
               <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
                 <div className="h-10 w-10 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center mx-auto mb-1">
                   <Bot className="h-5 w-5" />
                 </div>
                 <p className="text-xs font-bold text-slate-700">No damage evidence photos attached</p>
                 <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-                  Photos submitted during incident reporting or during site inspections will appear here.
+                  {canUploadEvidence
+                    ? 'Use the upload button above to attach defect evidence photos.'
+                    : 'Photos submitted during incident reporting or site inspections will appear here.'}
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                {(evidence.length > 0 ? evidence : incident.evidence).map((ev, idx) => (
+                {effectiveEvidence.map((ev, idx) => (
                   <div
                     key={ev.id || idx}
                     className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs hover:shadow-md transition"
                   >
                     <div className="h-32 bg-slate-100 overflow-hidden relative">
-                      <img
-                        src={ev.fileUrl || 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=600&q=80'}
+                      <SafeImage
+                        src={ev.fileUrl}
+                        fallbackSrc={DEFAULT_EVIDENCE_FALLBACK}
                         alt={ev.caption || ev.fileName || 'Evidence'}
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          if (!target.dataset.triedFallback) {
-                            target.dataset.triedFallback = 'true';
-                            target.src = 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=600&q=80';
-                          }
-                        }}
                       />
                       <span className="absolute top-2 left-2 px-2 py-0.5 bg-slate-900/80 backdrop-blur-xs text-white text-[9px] font-bold rounded">
                         {ev.evidenceType || 'Photo'}

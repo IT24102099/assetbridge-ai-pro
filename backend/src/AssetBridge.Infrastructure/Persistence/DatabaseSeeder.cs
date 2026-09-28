@@ -496,7 +496,140 @@ public class DatabaseSeeder : IDatabaseSeeder
             _logger.LogInformation("Seeded demo properties for {Email}.", owner.Email);
         }
 
-        // 2. Seed demo incidents if none exist for Owner
+        // 2. Ensure persistent demo media gallery for existing properties
+        foreach (var asset in existingAssets)
+        {
+            var hasMedia = await _context.AssetMedia.AnyAsync(m => m.AssetId == asset.Id, cancellationToken);
+            if (!hasMedia)
+            {
+                var mediaItems = new List<AssetMedia>();
+                if (asset.City == "Kandy")
+                {
+                    mediaItems.Add(new AssetMedia
+                    {
+                        Id = Guid.NewGuid(),
+                        AssetId = asset.Id,
+                        UploadedByUserId = owner.Id,
+                        FileName = "kandy_villa_exterior.jpg",
+                        FileUrl = "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=1200&q=80",
+                        FileType = "image/jpeg",
+                        FileSizeBytes = 1024 * 650,
+                        IsThumbnail = true,
+                        Caption = "Hillside villa front elevation & landscaped gardens",
+                        CreatedAtUtc = DateTime.UtcNow.AddMonths(-6)
+                    });
+                    mediaItems.Add(new AssetMedia
+                    {
+                        Id = Guid.NewGuid(),
+                        AssetId = asset.Id,
+                        UploadedByUserId = owner.Id,
+                        FileName = "kandy_villa_living_room.jpg",
+                        FileUrl = "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80",
+                        FileType = "image/jpeg",
+                        FileSizeBytes = 1024 * 520,
+                        IsThumbnail = false,
+                        Caption = "Colonial timber high-ceiling living lounge",
+                        CreatedAtUtc = DateTime.UtcNow.AddMonths(-5)
+                    });
+                    mediaItems.Add(new AssetMedia
+                    {
+                        Id = Guid.NewGuid(),
+                        AssetId = asset.Id,
+                        UploadedByUserId = owner.Id,
+                        FileName = "kandy_villa_tea_garden.jpg",
+                        FileUrl = "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80",
+                        FileType = "image/jpeg",
+                        FileSizeBytes = 1024 * 710,
+                        IsThumbnail = false,
+                        Caption = "Private landscaped tea garden pathway",
+                        CreatedAtUtc = DateTime.UtcNow.AddMonths(-4)
+                    });
+                }
+                else if (asset.City == "Colombo")
+                {
+                    mediaItems.Add(new AssetMedia
+                    {
+                        Id = Guid.NewGuid(),
+                        AssetId = asset.Id,
+                        UploadedByUserId = owner.Id,
+                        FileName = "havelock_skyline_suite.jpg",
+                        FileUrl = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80",
+                        FileType = "image/jpeg",
+                        FileSizeBytes = 1024 * 580,
+                        IsThumbnail = true,
+                        Caption = "Tower B panoramic view & master balcony",
+                        CreatedAtUtc = DateTime.UtcNow.AddMonths(-4)
+                    });
+                    mediaItems.Add(new AssetMedia
+                    {
+                        Id = Guid.NewGuid(),
+                        AssetId = asset.Id,
+                        UploadedByUserId = owner.Id,
+                        FileName = "havelock_interior_suite.jpg",
+                        FileUrl = "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80",
+                        FileType = "image/jpeg",
+                        FileSizeBytes = 1024 * 490,
+                        IsThumbnail = false,
+                        Caption = "Open concept dining and modern kitchen",
+                        CreatedAtUtc = DateTime.UtcNow.AddMonths(-3)
+                    });
+                }
+                else
+                {
+                    mediaItems.Add(new AssetMedia
+                    {
+                        Id = Guid.NewGuid(),
+                        AssetId = asset.Id,
+                        UploadedByUserId = owner.Id,
+                        FileName = "galle_fort_colonial_facade.jpg",
+                        FileUrl = "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80",
+                        FileType = "image/jpeg",
+                        FileSizeBytes = 1024 * 610,
+                        IsThumbnail = true,
+                        Caption = "Historic Dutch colonial restored entrance",
+                        CreatedAtUtc = DateTime.UtcNow.AddMonths(-8)
+                    });
+                }
+
+                if (mediaItems.Any())
+                {
+                    await _context.AssetMedia.AddRangeAsync(mediaItems, cancellationToken);
+                    await _context.SaveChangesAsync(cancellationToken);
+                    _logger.LogInformation("Seeded demo persistent media gallery for asset {AssetName}.", asset.Name);
+                }
+            }
+        }
+
+        // 3. Sanitize any legacy records with non-HTTP URLs (e.g., relative filenames paint.jpg, water1.jpg, water2.jpg or blob: URLs)
+        var legacyAssetMedia = await _context.AssetMedia
+            .Where(m => !m.FileUrl.StartsWith("http://") && !m.FileUrl.StartsWith("https://"))
+            .ToListAsync(cancellationToken);
+
+        if (legacyAssetMedia.Any())
+        {
+            foreach (var m in legacyAssetMedia)
+            {
+                _logger.LogWarning("Sanitizing legacy AssetMedia record {Id} with non-persistent FileUrl '{FileUrl}' -> updating to persistent demo storage URL.", m.Id, m.FileUrl);
+                m.FileUrl = "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=1200&q=80";
+            }
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        var legacyIncidentEvidence = await _context.IncidentEvidence
+            .Where(e => !e.FileUrl.StartsWith("http://") && !e.FileUrl.StartsWith("https://"))
+            .ToListAsync(cancellationToken);
+
+        if (legacyIncidentEvidence.Any())
+        {
+            foreach (var e in legacyIncidentEvidence)
+            {
+                _logger.LogWarning("Sanitizing legacy IncidentEvidence record {Id} with non-persistent FileUrl '{FileUrl}' -> updating to persistent demo storage URL.", e.Id, e.FileUrl);
+                e.FileUrl = "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80";
+            }
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        // 4. Seed demo incidents if none exist for Owner
         var existingIncidents = await _context.Incidents
             .Where(i => existingAssets.Select(a => a.Id).Contains(i.AssetId))
             .ToListAsync(cancellationToken);

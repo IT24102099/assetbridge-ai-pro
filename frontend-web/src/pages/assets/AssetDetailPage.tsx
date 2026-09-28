@@ -24,8 +24,9 @@ import {
   Star,
   Trash2,
 } from 'lucide-react';
+import { SafeImage, DEFAULT_PROPERTY_FALLBACK } from '../../components/common/SafeImage';
 
-const DEFAULT_FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80';
+const DEFAULT_FALLBACK_IMAGE = DEFAULT_PROPERTY_FALLBACK;
 
 export const AssetDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -126,14 +127,12 @@ export const AssetDetailPage: React.FC = () => {
 
       const isFirst = mediaList.length === 0;
 
-      await assetApi.addMedia(id, {
-        fileName: selectedFile.name,
-        fileUrl: previewUrl,
-        fileSizeBytes: selectedFile.size,
-        fileType: selectedFile.type || 'image/jpeg',
-        isThumbnail: isFirst,
-        caption: isFirst ? 'Primary Property Thumbnail' : 'Property Photo',
-      });
+      await assetApi.uploadMedia(
+        id,
+        selectedFile,
+        isFirst,
+        isFirst ? 'Primary Property Thumbnail' : 'Property Photo'
+      );
 
       setUploadSuccess(`Photo "${selectedFile.name}" added to property media successfully!`);
       setSelectedFile(null);
@@ -252,13 +251,10 @@ export const AssetDetailPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {/* Main Showcase Hero Image (Using Selected Thumbnail) */}
           <div className="md:col-span-3 h-64 bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden relative group">
-            <img
+            <SafeImage
               src={primaryPhotoUrl}
               alt={asset.name}
               className="w-full h-full object-cover group-hover:scale-102 transition duration-300"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = DEFAULT_FALLBACK_IMAGE;
-              }}
             />
             <div className="absolute bottom-3 left-3 bg-slate-900/80 text-white text-[11px] font-semibold px-3 py-1 rounded-lg backdrop-blur-xs flex items-center gap-1.5 shadow-sm">
               <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
@@ -277,7 +273,7 @@ export const AssetDetailPage: React.FC = () => {
                   canManageAsset ? 'cursor-pointer hover:border-blue-400' : ''
                 }`}
               >
-                <img src={m.fileUrl} alt={m.fileName} className="w-full h-full object-cover" />
+                <SafeImage src={m.fileUrl} alt={m.fileName} className="w-full h-full object-cover" />
                 {canManageAsset && (
                   <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-[10px] text-white font-bold">
                     Set Cover
@@ -521,7 +517,7 @@ export const AssetDetailPage: React.FC = () => {
                       }`}
                     >
                       <div className="h-40 overflow-hidden bg-slate-100 relative">
-                        <img
+                        <SafeImage
                           src={m.fileUrl}
                           alt={m.fileName}
                           className="w-full h-full object-cover group-hover:scale-103 transition duration-300"

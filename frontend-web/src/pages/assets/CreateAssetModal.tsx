@@ -220,14 +220,12 @@ export const CreateAssetModal: React.FC<CreateAssetModalProps> = ({
       if (res.data && selectedPhotos.length > 0) {
         for (const photo of selectedPhotos) {
           try {
-            await assetApi.addMedia(res.data.id, {
-              fileName: photo.name,
-              fileUrl: photo.previewUrl,
-              fileSizeBytes: photo.file.size,
-              fileType: photo.file.type || 'image/jpeg',
-              isThumbnail: photo.isThumbnail,
-              caption: photo.isThumbnail ? 'Primary Property Thumbnail' : 'Property Photo',
-            });
+            await assetApi.uploadMedia(
+              res.data.id,
+              photo.file,
+              photo.isThumbnail,
+              photo.isThumbnail ? 'Primary Property Thumbnail' : 'Property Photo'
+            );
           } catch (mediaErr) {
             console.warn('Asset media upload warning:', mediaErr);
           }

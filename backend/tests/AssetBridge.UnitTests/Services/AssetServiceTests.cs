@@ -20,6 +20,7 @@ public class AssetServiceTests : IDisposable
     private readonly AssetBridgeDbContext _dbContext;
     private readonly Mock<ICurrentUserService> _currentUserServiceMock;
     private readonly Mock<IAssetHistoryService> _historyServiceMock;
+    private readonly Mock<IFileStorageService> _fileStorageServiceMock;
     private readonly Mock<ILogger<AssetService>> _loggerMock;
     private readonly AssetService _sut;
 
@@ -36,13 +37,15 @@ public class AssetServiceTests : IDisposable
         _dbContext = new AssetBridgeDbContext(dbOptions);
         _currentUserServiceMock = new Mock<ICurrentUserService>();
         _historyServiceMock = new Mock<IAssetHistoryService>();
+        _fileStorageServiceMock = new Mock<IFileStorageService>();
         _loggerMock = new Mock<ILogger<AssetService>>();
 
         _sut = new AssetService(
             _dbContext,
             _currentUserServiceMock.Object,
             _historyServiceMock.Object,
-            _loggerMock.Object);
+            _loggerMock.Object,
+            _fileStorageServiceMock.Object);
 
         SeedTestUsers();
     }
@@ -383,6 +386,89 @@ public class AssetServiceTests : IDisposable
         // Assert
         await act.Should().ThrowAsync<ValidationException>()
             .WithMessage("*Only JPG, PNG, and WEBP formats are accepted*");
+    }
+
+    [Fact]
+    public async Task AddMediaAsync_ShouldThrowValidationException_WhenBlobUrlProvided()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var asset = new Asset { Id = Guid.NewGuid(), OwnerId = _owner1Id, Name = "Blob Test Villa", City = "Kandy", District = "Kandy", AddressLine1 = "100 Hill St" };
+        _dbContext.Assets.Add(asset);
+        await _dbContext.SaveChangesAsync();
+
+        var blobRequest = new AddAssetMediaRequestDto
+        {
+            FileName = "preview.jpg",
+            FileUrl = "blob:http://localhost:5173/3c5b8b6e-4e4f-4d9d-9b6e-123456789abc",
+            FileType = "image/jpeg",
+            FileSizeBytes = 102400
+        };
+
+        // Act
+        var act = () => _sut.AddMediaAsync(asset.Id, blobRequest);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*Browser blob URLs cannot be stored*");
+    }
+
+    [Fact]
+    public async Task UploadMediaAsync_ShouldStreamFileToStorage_AndSavePersistentUrlInDatabase()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var asset = new Asset { Id = Guid.NewGuid(), OwnerId = _owner1Id, Name = "Upload Stream Villa", City = "Kandy", District = "Kandy", AddressLine1 = "100 Hill St" };
+        _dbContext.Assets.Add(asset);
+        await _dbContext.SaveChangesAsync();
+
+        var persistentCloudinaryUrl = "https://res.cloudinary.com/assetbridge/image/upload/v1/assetbridge/assets/evidence_12345.jpg";
+        _fileStorageServiceMock
+            .Setup(x => x.UploadFileAsync(
+                It.IsAny<Stream>(),
+                "living_room.jpg",
+                "image/jpeg",
+                "assetbridge/assets",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(persistentCloudinaryUrl);
+
+        using var memoryStream = new MemoryStream(new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10 });
+
+        // Act
+        var result = await _sut.UploadMediaAsync(
+            asset.Id,
+            memoryStream,
+            "living_room.jpg",
+            "image/jpeg",
+            fileSizeBytes: 6,
+            isThumbnail: true,
+            caption: "Spacious colonial living room");
+
+        // Assert
+        result.Should().NotBeNull();
+        result.FileUrl.Should().Be(persistentCloudinaryUrl);
+        result.IsThumbnail.Should().BeTrue();
+        result.FileName.Should().Be("living_room.jpg");
+
+        var mediaInDb = await _dbContext.AssetMedia.FirstOrDefaultAsync(m => m.Id == result.Id);
+        mediaInDb.Should().NotBeNull();
+        mediaInDb!.FileUrl.Should().Be(persistentCloudinaryUrl);
+        mediaInDb.IsThumbnail.Should().BeTrue();
+
+        _fileStorageServiceMock.Verify(
+            x => x.UploadFileAsync(
+                It.IsAny<Stream>(),
+                "living_room.jpg",
+                "image/jpeg",
+                "assetbridge/assets",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
