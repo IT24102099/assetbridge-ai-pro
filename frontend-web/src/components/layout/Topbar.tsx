@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Search, Bell, LogOut, Activity } from 'lucide-react';
+import { Search, Bell, LogOut } from 'lucide-react';
 import { StatusBadge } from '../common/StatusBadge';
 
 interface TopbarProps {
@@ -13,32 +13,6 @@ export const Topbar: React.FC<TopbarProps> = ({
   onSearch,
 }) => {
   const { user, logout } = useAuth();
-  const [isApiOnline, setIsApiOnline] = React.useState<boolean | null>(true);
-
-  React.useEffect(() => {
-    let isMounted = true;
-    const checkHealth = async () => {
-      try {
-        const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5206/api';
-        const healthUrl = apiBase.replace(/\/api\/?$/, '') + '/health';
-        const res = await fetch(healthUrl);
-        if (isMounted) {
-          setIsApiOnline(res.ok);
-        }
-      } catch {
-        if (isMounted) {
-          setIsApiOnline(false);
-        }
-      }
-    };
-
-    checkHealth();
-    const interval = setInterval(checkHealth, 15000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
 
   // Get user initial for avatar circle
   const initial = user?.fullName ? user.fullName.charAt(0).toUpperCase() : 'U';
@@ -58,21 +32,6 @@ export const Topbar: React.FC<TopbarProps> = ({
 
       {/* Right controls */}
       <div className="flex items-center gap-3">
-        {/* API Connection Heartbeat Badge */}
-        <div
-          className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
-            isApiOnline
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-              : 'bg-red-50 border-red-200 text-red-700'
-          }`}
-        >
-          <Activity
-            className={`h-3.5 w-3.5 ${
-              isApiOnline ? 'text-emerald-600 animate-pulse' : 'text-red-600'
-            }`}
-          />
-          <span>{isApiOnline ? 'API: Connected (5206)' : 'API: Offline (5206)'}</span>
-        </div>
 
         {/* User Role Badge */}
         {user?.role && (
