@@ -12,6 +12,7 @@ import {
 } from '../../types/maintenance';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingState, ErrorState } from '../../components/common/FeedbackStates';
+import { useAuth } from '../../context/AuthContext';
 
 const STAGES = [
   { status: MaintenanceJobStatus.Planned, label: 'Planned' },
@@ -24,10 +25,13 @@ const STAGES = [
 export default function MaintenanceJobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [job, setJob] = useState<MaintenanceJobResponseDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const canUpdateStatus = user?.role === 'Manager' || user?.role === 'Admin' || user?.role === 'ServiceProvider';
 
   // Status Modal
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -114,34 +118,36 @@ export default function MaintenanceJobDetailPage() {
           Back to Maintenance Jobs
         </button>
 
-        <div className="flex items-center gap-2">
-          {job.status === MaintenanceJobStatus.Scheduled && (
-            <button
-              onClick={() => handleOpenStatusModal(MaintenanceJobStatus.InProgress)}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition shadow-xs"
-            >
-              Start Work Order
-            </button>
-          )}
+        {canUpdateStatus && (
+          <div className="flex items-center gap-2">
+            {job.status === MaintenanceJobStatus.Scheduled && (
+              <button
+                onClick={() => handleOpenStatusModal(MaintenanceJobStatus.InProgress)}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition shadow-xs"
+              >
+                Start Work Order
+              </button>
+            )}
 
-          {job.status === MaintenanceJobStatus.InProgress && (
-            <button
-              onClick={() => handleOpenStatusModal(MaintenanceJobStatus.Completed)}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
-            >
-              Mark Job Completed
-            </button>
-          )}
+            {job.status === MaintenanceJobStatus.InProgress && (
+              <button
+                onClick={() => handleOpenStatusModal(MaintenanceJobStatus.Completed)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
+              >
+                Mark Job Completed
+              </button>
+            )}
 
-          {job.status === MaintenanceJobStatus.Completed && (
-            <button
-              onClick={() => handleOpenStatusModal(MaintenanceJobStatus.Closed)}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition shadow-xs"
-            >
-              Close & Archive Job
-            </button>
-          )}
-        </div>
+            {job.status === MaintenanceJobStatus.Completed && (
+              <button
+                onClick={() => handleOpenStatusModal(MaintenanceJobStatus.Closed)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition shadow-xs"
+              >
+                Close & Archive Job
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main Job Card */}

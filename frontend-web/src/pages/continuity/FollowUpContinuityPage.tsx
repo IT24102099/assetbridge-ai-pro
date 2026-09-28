@@ -22,12 +22,16 @@ import { AssetResponseDto } from '../../types/asset';
 import { StatCard } from '../../components/common/StatCard';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingState, ErrorState, EmptyState } from '../../components/common/FeedbackStates';
+import { useAuth } from '../../context/AuthContext';
 
 export default function FollowUpContinuityPage() {
+  const { user } = useAuth();
   const [tasks, setTasks] = useState<FollowUpTaskDto[]>([]);
   const [assets, setAssets] = useState<AssetResponseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const canScheduleFollowUp = user?.role === 'Manager' || user?.role === 'Admin' || user?.role === 'Representative';
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -197,13 +201,15 @@ export default function FollowUpContinuityPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition inline-flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Schedule Follow-Up
-          </button>
+          {canScheduleFollowUp && (
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition inline-flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Schedule Follow-Up
+            </button>
+          )}
         </div>
       </div>
 
@@ -299,10 +305,12 @@ export default function FollowUpContinuityPage() {
           description={
             searchQuery || statusFilter !== 'all'
               ? 'Try changing your search parameters or filter criteria.'
-              : 'Schedule post-repair warranty checks or annual HVAC & roof inspections.'
+              : canScheduleFollowUp
+              ? 'Schedule post-repair warranty checks or annual HVAC & roof inspections.'
+              : 'Post-maintenance warranty checks and preventive tasks for your assets will appear here.'
           }
-          actionLabel="+ Schedule Follow-Up"
-          onAction={() => setIsCreateModalOpen(true)}
+          actionLabel={canScheduleFollowUp ? '+ Schedule Follow-Up' : undefined}
+          onAction={canScheduleFollowUp ? () => setIsCreateModalOpen(true) : undefined}
         />
       ) : (
         <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">

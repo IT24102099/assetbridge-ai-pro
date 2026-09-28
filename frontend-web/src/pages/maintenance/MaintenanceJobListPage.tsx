@@ -12,13 +12,17 @@ import { maintenanceApi } from '../../lib/api/maintenanceApi';
 import { MaintenanceJobResponseDto, MaintenanceJobStatus } from '../../types/maintenance';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingState, ErrorState, EmptyState } from '../../components/common/FeedbackStates';
+import { useAuth } from '../../context/AuthContext';
 import CreateMaintenanceJobModal from './CreateMaintenanceJobModal';
 
 export default function MaintenanceJobListPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [jobs, setJobs] = useState<MaintenanceJobResponseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const canCreateJob = user?.role === 'Manager' || user?.role === 'Admin' || user?.role === 'ServiceProvider';
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,13 +82,15 @@ export default function MaintenanceJobListPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition flex items-center gap-2 self-start sm:self-auto"
-        >
-          <Plus className="h-4 w-4" />
-          Create Maintenance Job
-        </button>
+        {canCreateJob && (
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition flex items-center gap-2 self-start sm:self-auto"
+          >
+            <Plus className="h-4 w-4" />
+            Create Maintenance Job
+          </button>
+        )}
       </div>
 
       {/* Filter and Search Bar */}
@@ -134,10 +140,12 @@ export default function MaintenanceJobListPage() {
           description={
             searchQuery || statusFilter !== 'all'
               ? 'Try changing your search parameters or filter criteria.'
-              : 'Create a maintenance job from an approved incident quotation to begin repairs.'
+              : canCreateJob
+              ? 'Create a maintenance job from an approved incident quotation to begin repairs.'
+              : 'Maintenance work orders created by contractors and managers will appear here.'
           }
-          actionLabel="+ Create Maintenance Job"
-          onAction={() => setIsCreateModalOpen(true)}
+          actionLabel={canCreateJob ? '+ Create Maintenance Job' : undefined}
+          onAction={canCreateJob ? () => setIsCreateModalOpen(true) : undefined}
         />
       ) : (
         <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">

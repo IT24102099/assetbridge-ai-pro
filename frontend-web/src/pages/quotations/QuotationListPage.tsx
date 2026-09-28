@@ -12,13 +12,17 @@ import { quotationApi } from '../../lib/api/quotationApi';
 import { QuotationResponseDto, QuotationStatus } from '../../types/quotation';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingState, ErrorState, EmptyState } from '../../components/common/FeedbackStates';
+import { useAuth } from '../../context/AuthContext';
 import CreateQuotationModal from './CreateQuotationModal';
 
 export default function QuotationListPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [quotations, setQuotations] = useState<QuotationResponseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const canCreateQuotation = user?.role === 'ServiceProvider' || user?.role === 'Manager' || user?.role === 'Admin';
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,13 +89,15 @@ export default function QuotationListPage() {
             <Sparkles className="h-4 w-4 text-cyan-600" />
             Compare Quotations
           </button>
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition flex items-center gap-1.5"
-          >
-            <Plus className="h-4 w-4" />
-            Create Quotation
-          </button>
+          {canCreateQuotation && (
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition flex items-center gap-1.5"
+            >
+              <Plus className="h-4 w-4" />
+              Create Quotation
+            </button>
+          )}
         </div>
       </div>
 
@@ -142,10 +148,12 @@ export default function QuotationListPage() {
           description={
             searchQuery || statusFilter !== 'all'
               ? 'Try changing your search keywords or filter criteria.'
-              : 'Service providers can submit itemized estimates for inspection findings.'
+              : canCreateQuotation
+              ? 'Service providers can submit itemized estimates for inspection findings.'
+              : 'Competitive bids submitted by contractors for your properties will appear here.'
           }
-          actionLabel="+ Create Quotation"
-          onAction={() => setIsCreateModalOpen(true)}
+          actionLabel={canCreateQuotation ? '+ Create Quotation' : undefined}
+          onAction={canCreateQuotation ? () => setIsCreateModalOpen(true) : undefined}
         />
       ) : (
         <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">

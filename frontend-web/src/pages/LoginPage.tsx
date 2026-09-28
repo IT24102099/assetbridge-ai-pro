@@ -47,6 +47,10 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const handleGoogleSignIn = () => {
+    setErrorMessage('Google sign-in is not configured for this deployment yet.');
+  };
+
   const handleQuickFill = (demoEmail: string) => {
     setEmail(demoEmail);
     setPassword('SecurePassword123!');
@@ -67,7 +71,7 @@ export const LoginPage: React.FC = () => {
 
             <div className="space-y-1 text-center sm:text-left">
               <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Welcome Back</h2>
-              <p className="text-xs text-slate-500">Sign in to your account</p>
+              <p className="text-xs text-slate-500">Sign in to manage your remote assets</p>
             </div>
 
             {errorMessage && (
@@ -88,7 +92,7 @@ export const LoginPage: React.FC = () => {
                   <input
                     type="email"
                     required
-                    placeholder="Email address"
+                    placeholder="name@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
@@ -106,7 +110,7 @@ export const LoginPage: React.FC = () => {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    placeholder="Password"
+                    placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
@@ -173,7 +177,7 @@ export const LoginPage: React.FC = () => {
               {/* Continue with Google */}
               <button
                 type="button"
-                onClick={() => handleQuickFill('owner@assetbridge.lk')}
+                onClick={handleGoogleSignIn}
                 className="w-full border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-xs"
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24">
@@ -241,22 +245,39 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column: Clean Artwork & Wireframe Composition */}
-        <div className="hidden lg:flex flex-col justify-between p-12 bg-slate-100/60 border-l border-slate-200 text-center">
-          <div className="space-y-4 pt-4">
-            <h3 className="text-2xl font-bold text-slate-900 leading-tight max-w-xs mx-auto">
-              Manage your assets from anywhere in the world.
+        {/* Right Column: Multi-Asset Ecosystem Artwork & Branding */}
+        <div className="hidden lg:flex flex-col justify-between p-10 bg-slate-100/70 border-l border-slate-200 text-center">
+          <div className="space-y-2 pt-2">
+            <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">
+              Asset Continuity Platform
+            </span>
+            <h3 className="text-xl font-extrabold text-slate-900 leading-snug max-w-xs mx-auto">
+              Remote Asset Management & Continuity
             </h3>
+            <p className="text-xs text-slate-500 max-w-xs mx-auto">
+              Secure, AI-powered oversight for properties, vehicles, land and other managed assets.
+            </p>
           </div>
 
-          {/* Large Property Illustration */}
-          <div className="py-4">
+          {/* Large Multi-Asset Illustration */}
+          <div className="py-2">
             <PropertyIllustration className="max-w-xs mx-auto" />
           </div>
 
-          {/* Bottom Trust Line */}
-          <div className="text-xs font-semibold text-slate-500 pt-4">
-            Secure • Reliable • AI-Powered
+          {/* Bottom Trust Line & Multi-Asset Pills */}
+          <div className="space-y-2 pt-2">
+            <div className="flex items-center justify-center gap-1.5 text-[10px] font-bold text-slate-600 flex-wrap">
+              <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">Residential</span>
+              <span>•</span>
+              <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">Commercial</span>
+              <span>•</span>
+              <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">Vehicles</span>
+              <span>•</span>
+              <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">Land</span>
+            </div>
+            <div className="text-[11px] font-semibold text-slate-500">
+              Your Assets. Always Protected.
+            </div>
           </div>
         </div>
       </div>

@@ -231,7 +231,7 @@ export const AiAssistantPage: React.FC = () => {
                       >
                         <FileText className="h-3 w-3 text-blue-500" />
                         {s.title}
-                        <span className="text-[9px] text-slate-400">({Math.round(s.relevance_score * 100)}%)</span>
+                        <span className="text-[9px] text-slate-400">({Math.round(s.relevance_score * 100)}% Relevance)</span>
                         <Download className="h-2.5 w-2.5 text-slate-400" />
                       </button>
                     ))}
