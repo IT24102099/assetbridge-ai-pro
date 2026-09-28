@@ -1,21 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { ShieldCheck, LogOut, Activity, User as UserIcon } from 'lucide-react';
-import apiClient from '../../lib/api';
+import { ShieldCheck, LogOut, User as UserIcon } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
-  const [apiOnline, setApiOnline] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    // Health check ping to backend
-    apiClient
-      .get('/health')
-      .then(() => setApiOnline(true))
-      .catch(() => setApiOnline(false));
-  }, []);
 
   const getRoleBadgeVariant = (role?: string) => {
     switch (role) {
@@ -44,11 +34,7 @@ export const Navbar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
-        {/* API Health Pill */}
-        <div className="flex items-center gap-1.5 rounded-full bg-secondary/50 px-2.5 py-1 text-xs text-muted-foreground border border-border/40">
-          <Activity className={`h-3 w-3 ${apiOnline === true ? 'text-emerald-400 animate-pulse' : apiOnline === false ? 'text-rose-400' : 'text-amber-400'}`} />
-          <span>API: {apiOnline === true ? 'Connected (5206)' : apiOnline === false ? 'Offline' : 'Checking...'}</span>
-        </div>
+        {/* User Role Badge */}
 
         {/* User Role Badge */}
         {user && (

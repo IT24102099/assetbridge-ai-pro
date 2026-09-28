@@ -132,19 +132,6 @@ export const Sidebar: React.FC = () => {
           </NavLink>
         ))}
       </div>
-
-      {/* Footer Role / API Heartbeat Status */}
-      <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[11px] font-semibold text-slate-600">Core API Online</span>
-          </div>
-          <span className="text-[10px] font-bold bg-slate-200/80 text-slate-700 px-2 py-0.5 rounded">
-            5206
-          </span>
-        </div>
-      </div>
     </aside>
   );
 };
