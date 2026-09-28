@@ -5,6 +5,7 @@ import { AssetResponseDto, PropertyType, AssetStatus } from '../../types/asset';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingState, EmptyState, ErrorState } from '../../components/common/FeedbackStates';
 import { CreateAssetModal } from './CreateAssetModal';
+import { useAuth } from '../../context/AuthContext';
 import { PlusCircle, Search, MapPin, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const PROPERTY_TYPES: { value: PropertyType | ''; label: string }[] = [
@@ -35,12 +36,18 @@ const STATUS_FILTERS: { value: AssetStatus | ''; label: string }[] = [
 
 export const AssetListPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [assets, setAssets] = useState<AssetResponseDto[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 6;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const canCreateAsset =
+    user?.role === 'Owner' ||
+    user?.role === 'Manager' ||
+    user?.role === 'Admin';
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -150,13 +157,15 @@ export const AssetListPage: React.FC = () => {
           </select>
 
           {/* + Add Asset Button */}
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md shadow-blue-500/20 transition shrink-0"
-          >
-            <PlusCircle className="h-4 w-4" />
-            Add Asset
-          </button>
+          {canCreateAsset && (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md shadow-blue-500/20 transition shrink-0"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Add Asset
+            </button>
+          )}
         </div>
       </div>
 
@@ -168,9 +177,15 @@ export const AssetListPage: React.FC = () => {
       ) : assets.length === 0 ? (
         <EmptyState
           title="No properties found"
-          description="You haven't registered any property matching the selected criteria."
-          actionLabel="Register First Property"
-          onAction={() => setIsAddModalOpen(true)}
+          description={
+            searchTerm || selectedType || selectedLocation || selectedStatus
+              ? "You haven't registered any property matching the selected criteria."
+              : canCreateAsset
+              ? "You haven't registered any property yet."
+              : "No properties assigned to your account yet."
+          }
+          actionLabel={canCreateAsset ? 'Register First Property' : undefined}
+          onAction={canCreateAsset ? () => setIsAddModalOpen(true) : undefined}
         />
       ) : (
         <div className="space-y-3">
@@ -262,7 +277,7 @@ export const AssetListPage: React.FC = () => {
       )}
 
       {/* Add Asset Modal */}
-      {isAddModalOpen && (
+      {isAddModalOpen && canCreateAsset && (
         <CreateAssetModal
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}

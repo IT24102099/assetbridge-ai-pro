@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from '../../components/common/Modal';
 import { assetApi } from '../../lib/api/assetApi';
+import { useAuth } from '../../context/AuthContext';
 import {
   AssetResponseDto,
   PropertyType,
@@ -78,6 +79,12 @@ export const EditAssetModal: React.FC<EditAssetModalProps> = ({
   onSuccess,
   asset,
 }) => {
+  const { user } = useAuth();
+  const canManageAsset =
+    user?.role === 'Owner' ||
+    user?.role === 'Manager' ||
+    user?.role === 'Admin';
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -223,6 +230,10 @@ export const EditAssetModal: React.FC<EditAssetModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageAsset) {
+      setError('You are not authorized to update properties.');
+      return;
+    }
     if (!name.trim() || !addressLine1.trim() || !city.trim()) {
       setError('Please provide the asset name, street address, and city.');
       return;
@@ -274,6 +285,8 @@ export const EditAssetModal: React.FC<EditAssetModalProps> = ({
       setSubmitting(false);
     }
   };
+
+  if (!isOpen || !canManageAsset) return null;
 
   return (
     <Modal

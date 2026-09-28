@@ -9,6 +9,7 @@ import { Tabs } from '../../components/common/Tabs';
 import { LoadingState, ErrorState } from '../../components/common/FeedbackStates';
 import { ReportIncidentModal } from '../incidents/ReportIncidentModal';
 import { EditAssetModal } from './EditAssetModal';
+import { useAuth } from '../../context/AuthContext';
 import {
   ArrowLeft,
   MapPin,
@@ -29,6 +30,12 @@ const DEFAULT_FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1600596542815-
 export const AssetDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const canManageAsset =
+    user?.role === 'Owner' ||
+    user?.role === 'Manager' ||
+    user?.role === 'Admin';
 
   const [asset, setAsset] = useState<AssetResponseDto | null>(null);
   const [incidents, setIncidents] = useState<IncidentResponseDto[]>([]);
@@ -227,13 +234,15 @@ export const AssetDetailPage: React.FC = () => {
             <PlusCircle className="h-3.5 w-3.5" />
             Report Incident
           </button>
-          <button
-            onClick={() => setIsEditModalOpen(true)}
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-1.5 rounded-xl shadow-xs transition"
-          >
-            <Edit2 className="h-3.5 w-3.5" />
-            Edit
-          </button>
+          {canManageAsset && (
+            <button
+              onClick={() => setIsEditModalOpen(true)}
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-1.5 rounded-xl shadow-xs transition"
+            >
+              <Edit2 className="h-3.5 w-3.5" />
+              Edit
+            </button>
+          )}
         </div>
       </div>
 
@@ -262,14 +271,18 @@ export const AssetDetailPage: React.FC = () => {
             {secondaryMedia.map((m) => (
               <div
                 key={m.id}
-                onClick={() => handleSetThumbnail(m.id)}
-                title="Click to set as cover thumbnail"
-                className="h-19 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 cursor-pointer hover:border-blue-400 transition relative group"
+                onClick={() => canManageAsset && handleSetThumbnail(m.id)}
+                title={canManageAsset ? 'Click to set as cover thumbnail' : undefined}
+                className={`h-19 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 transition relative group ${
+                  canManageAsset ? 'cursor-pointer hover:border-blue-400' : ''
+                }`}
               >
                 <img src={m.fileUrl} alt={m.fileName} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-[10px] text-white font-bold">
-                  Set Cover
-                </div>
+                {canManageAsset && (
+                  <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-[10px] text-white font-bold">
+                    Set Cover
+                  </div>
+                )}
               </div>
             ))}
 
@@ -416,67 +429,69 @@ export const AssetDetailPage: React.FC = () => {
             )}
 
             {/* Upload Box */}
-            <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-              <div>
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Add Property Photo
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Upload images of rooms, elevation, boundary walls, or roof setup (JPG, PNG, WEBP up to 10MB)
-                </p>
-              </div>
+            {canManageAsset && (
+              <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Add Property Photo
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Upload images of rooms, elevation, boundary walls, or roof setup (JPG, PNG, WEBP up to 10MB)
+                  </p>
+                </div>
 
-              {!selectedFile ? (
-                <label className="border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/40 rounded-xl p-6 text-center cursor-pointer flex flex-col items-center justify-center bg-white transition block">
-                  <UploadCloud className="h-8 w-8 text-blue-600 mb-1.5" />
-                  <span className="text-xs font-bold text-slate-800">Click to browse or drag photo</span>
-                  <span className="text-[10px] text-slate-400 mt-0.5">JPG, PNG, WEBP • Up to 10MB</span>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/jpg"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                </label>
-              ) : (
-                <div className="p-4 bg-white rounded-xl border border-blue-200 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-                  <div className="flex items-center gap-3">
-                    {previewUrl && (
-                      <img
-                        src={previewUrl}
-                        alt="Preview"
-                        className="h-16 w-16 rounded-lg object-cover border border-slate-200"
-                      />
-                    )}
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">{selectedFile.name}</p>
-                      <p className="text-[11px] text-slate-500">
-                        {(selectedFile.size / 1024).toFixed(1)} KB
-                      </p>
+                {!selectedFile ? (
+                  <label className="border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/40 rounded-xl p-6 text-center cursor-pointer flex flex-col items-center justify-center bg-white transition block">
+                    <UploadCloud className="h-8 w-8 text-blue-600 mb-1.5" />
+                    <span className="text-xs font-bold text-slate-800">Click to browse or drag photo</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">JPG, PNG, WEBP • Up to 10MB</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/jpg"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </label>
+                ) : (
+                  <div className="p-4 bg-white rounded-xl border border-blue-200 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+                    <div className="flex items-center gap-3">
+                      {previewUrl && (
+                        <img
+                          src={previewUrl}
+                          alt="Preview"
+                          className="h-16 w-16 rounded-lg object-cover border border-slate-200"
+                        />
+                      )}
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">{selectedFile.name}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {(selectedFile.size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <button
+                        type="button"
+                        onClick={handleCancelSelection}
+                        disabled={isUploading}
+                        className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleUploadPhoto}
+                        disabled={isUploading}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {isUploading ? 'Uploading...' : 'Save & Upload Photo'}
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2 self-end sm:self-center">
-                    <button
-                      type="button"
-                      onClick={handleCancelSelection}
-                      disabled={isUploading}
-                      className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleUploadPhoto}
-                      disabled={isUploading}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 flex items-center gap-1.5"
-                    >
-                      {isUploading ? 'Uploading...' : 'Save & Upload Photo'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
             {/* Media Gallery Grid */}
             <div>
@@ -488,7 +503,11 @@ export const AssetDetailPage: React.FC = () => {
                 <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
                   <Building2 className="h-8 w-8 text-slate-400 mx-auto" />
                   <p className="text-xs font-bold text-slate-700">No property photos uploaded yet</p>
-                  <p className="text-[11px] text-slate-400">Upload photos above to establish property media.</p>
+                  <p className="text-[11px] text-slate-400">
+                    {canManageAsset
+                      ? 'Upload photos above to establish property media.'
+                      : 'No photos have been uploaded for this property yet.'}
+                  </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -514,7 +533,7 @@ export const AssetDetailPage: React.FC = () => {
                             <Star className="h-3 w-3 fill-white" />
                             Thumbnail
                           </span>
-                        ) : (
+                        ) : canManageAsset ? (
                           <button
                             type="button"
                             onClick={() => handleSetThumbnail(m.id)}
@@ -522,17 +541,19 @@ export const AssetDetailPage: React.FC = () => {
                           >
                             Set as Thumbnail
                           </button>
-                        )}
+                        ) : null}
 
                         {/* Delete Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteMedia(m.id)}
-                          className="absolute top-2 right-2 h-7 w-7 rounded-full bg-slate-900/80 hover:bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-md"
-                          title="Delete photo"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {canManageAsset && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMedia(m.id)}
+                            className="absolute top-2 right-2 h-7 w-7 rounded-full bg-slate-900/80 hover:bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-md"
+                            title="Delete photo"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
 
                       <div className="p-3 bg-white">
@@ -628,7 +649,7 @@ export const AssetDetailPage: React.FC = () => {
       )}
 
       {/* Edit Asset Modal */}
-      {isEditModalOpen && (
+      {isEditModalOpen && canManageAsset && (
         <EditAssetModal
           isOpen={isEditModalOpen}
           asset={asset}

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Modal } from '../../components/common/Modal';
 import { assetApi } from '../../lib/api/assetApi';
+import { useAuth } from '../../context/AuthContext';
 import { PropertyType, CreateAssetRequestDto } from '../../types/asset';
 import {
   AlertTriangle,
@@ -63,6 +64,12 @@ export const CreateAssetModal: React.FC<CreateAssetModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { user } = useAuth();
+  const canCreateAsset =
+    user?.role === 'Owner' ||
+    user?.role === 'Manager' ||
+    user?.role === 'Admin';
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,6 +188,10 @@ export const CreateAssetModal: React.FC<CreateAssetModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateAsset) {
+      setError('You are not authorized to register properties.');
+      return;
+    }
     if (!name.trim() || !addressLine1.trim() || !city.trim()) {
       setError('Please provide the asset name, street address, and city.');
       return;
@@ -232,6 +243,8 @@ export const CreateAssetModal: React.FC<CreateAssetModalProps> = ({
       setSubmitting(false);
     }
   };
+
+  if (!isOpen || !canCreateAsset) return null;
 
   return (
     <Modal
