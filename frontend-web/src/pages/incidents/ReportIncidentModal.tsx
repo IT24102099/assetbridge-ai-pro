@@ -197,12 +197,17 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
       if (res.data && selectedPhotos.length > 0) {
         for (const photo of selectedPhotos) {
           try {
+            const validFileUrl =
+              photo.previewUrl.startsWith('http://') || photo.previewUrl.startsWith('https://')
+                ? photo.previewUrl
+                : `${window.location.origin}/uploads/evidence/${encodeURIComponent(photo.name)}`;
+
             await incidentApi.addEvidence(res.data.id, {
               fileName: photo.name,
-              fileUrl: photo.previewUrl,
+              fileUrl: validFileUrl,
               fileSizeBytes: photo.file.size,
               fileType: photo.file.type || 'image/jpeg',
-              evidenceType: 'BeforeWork',
+              evidenceType: 'Photo',
               caption: `Incident photo: ${photo.name}`,
             });
           } catch (evErr) {

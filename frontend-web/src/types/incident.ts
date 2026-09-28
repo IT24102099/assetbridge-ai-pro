@@ -22,7 +22,7 @@ export type IncidentStatus =
   | 'Closed'
   | 'Cancelled';
 
-export type EvidenceType = 'BeforeWork' | 'DuringWork' | 'AfterWork' | 'InspectionDocument' | 'InvoiceReceipt';
+export type EvidenceType = 'Photo' | 'Video' | 'Document' | 'AudioNote';
 
 export interface IncidentEvidenceResponseDto {
   id: string;
