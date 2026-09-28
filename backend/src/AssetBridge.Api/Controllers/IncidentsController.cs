@@ -77,6 +77,62 @@ public class IncidentsController : BaseApiController
         return HandleCreated($"/api/incidents/{id}/evidence/{result.Id}", result, "Incident evidence uploaded successfully.");
     }
 
+    [HttpPost("{id:guid}/evidence/upload")]
+    [Authorize(Roles = "Owner,Representative,Manager,Admin")]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(ApiResponse<IncidentEvidenceResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UploadEvidence(
+        Guid id,
+        IFormFile file,
+        [FromForm] AssetBridge.Domain.Enums.EvidenceType evidenceType = AssetBridge.Domain.Enums.EvidenceType.Photo,
+        [FromForm] string? caption = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return HandleFailure<IncidentEvidenceResponseDto>("No file was uploaded or file is empty.");
+        }
+
+        const long maxSizeBytes = 10 * 1024 * 1024; // 10MB
+        if (file.Length > maxSizeBytes)
+        {
+            return HandleFailure<IncidentEvidenceResponseDto>("File size exceeds the 10MB limit.");
+        }
+
+        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!allowedExtensions.Contains(ext))
+        {
+            return HandleFailure<IncidentEvidenceResponseDto>("Unsupported image format. Allowed formats: JPG, PNG, WEBP.");
+        }
+
+        var contentType = file.ContentType;
+        if (string.IsNullOrEmpty(contentType) || contentType == "application/octet-stream")
+        {
+            contentType = ext switch
+            {
+                ".png" => "image/png",
+                ".webp" => "image/webp",
+                _ => "image/jpeg"
+            };
+        }
+
+        await using var stream = file.OpenReadStream();
+        var result = await _incidentService.UploadEvidenceAsync(
+            id,
+            stream,
+            file.FileName,
+            contentType,
+            file.Length,
+            evidenceType,
+            caption,
+            cancellationToken);
+
+        return HandleCreated($"/api/incidents/{id}/evidence/{result.Id}", result, "Incident evidence uploaded to persistent storage successfully.");
+    }
+
     [HttpGet("{id:guid}/evidence")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<IncidentEvidenceResponseDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

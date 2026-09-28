@@ -12,6 +12,7 @@ public interface IIncidentService
     Task<IncidentResponseDto> UpdateIncidentAsync(Guid id, UpdateIncidentRequestDto request, CancellationToken cancellationToken = default);
     Task<IncidentResponseDto> UpdateIncidentStatusAsync(Guid id, UpdateIncidentStatusRequestDto request, CancellationToken cancellationToken = default);
     Task<IncidentEvidenceResponseDto> AddEvidenceAsync(Guid incidentId, AddIncidentEvidenceRequestDto request, CancellationToken cancellationToken = default);
+    Task<IncidentEvidenceResponseDto> UploadEvidenceAsync(Guid incidentId, Stream fileStream, string fileName, string contentType, long fileSizeBytes, AssetBridge.Domain.Enums.EvidenceType evidenceType, string? caption, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<IncidentEvidenceResponseDto>> GetIncidentEvidenceAsync(Guid incidentId, CancellationToken cancellationToken = default);
     Task<bool> DeleteEvidenceAsync(Guid incidentId, Guid evidenceId, CancellationToken cancellationToken = default);
 }

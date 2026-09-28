@@ -84,7 +84,10 @@ public static class DependencyInjection
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
 
-        // 4. Internal Agentic AI Service Client (HttpClient factory with configured BaseAddress)
+        // 4. File Storage Service (Cloudinary & Persistent Media Storage)
+        services.AddHttpClient<IFileStorageService, CloudinaryStorageService>();
+
+        // 5. Internal Agentic AI Service Client (HttpClient factory with configured BaseAddress)
         services.AddHttpClient<AssetBridge.Application.Services.Interfaces.IAiAssistantService, AssetBridge.Infrastructure.Services.AiAssistantService>(client =>
         {
             var baseUrl = configuration["AiService:BaseUrl"] ?? "http://127.0.0.1:5001";

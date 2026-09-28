@@ -16,17 +16,20 @@ public class IncidentService : IIncidentService
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAssetHistoryService _historyService;
+    private readonly IFileStorageService _fileStorageService;
     private readonly ILogger<IncidentService> _logger;
 
     public IncidentService(
         IApplicationDbContext context,
         ICurrentUserService currentUserService,
         IAssetHistoryService historyService,
+        IFileStorageService fileStorageService,
         ILogger<IncidentService> logger)
     {
         _context = context;
         _currentUserService = currentUserService;
         _historyService = historyService;
+        _fileStorageService = fileStorageService;
         _logger = logger;
     }
 
@@ -310,6 +313,83 @@ public class IncidentService : IIncidentService
             cancellationToken: cancellationToken);
 
         _logger.LogInformation("Evidence {EvidenceId} added to Incident {IncidentId}", evidence.Id, incidentId);
+
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == currentUserId, cancellationToken);
+
+        return new IncidentEvidenceResponseDto
+        {
+            Id = evidence.Id,
+            IncidentId = evidence.IncidentId,
+            UploadedByUserId = evidence.UploadedByUserId,
+            UploadedByUserName = user?.FullName ?? "System",
+            FileUrl = evidence.FileUrl,
+            FileName = evidence.FileName,
+            FileType = evidence.FileType,
+            FileSizeBytes = evidence.FileSizeBytes,
+            EvidenceType = evidence.EvidenceType,
+            Caption = evidence.Caption,
+            CreatedAtUtc = evidence.CreatedAtUtc
+        };
+    }
+
+    public async Task<IncidentEvidenceResponseDto> UploadEvidenceAsync(
+        Guid incidentId,
+        Stream fileStream,
+        string fileName,
+        string contentType,
+        long fileSizeBytes,
+        EvidenceType evidenceType,
+        string? caption,
+        CancellationToken cancellationToken = default)
+    {
+        var currentUserId = GetAuthenticatedUserId();
+
+        var incident = await _context.Incidents
+            .Include(i => i.Asset)
+            .FirstOrDefaultAsync(i => i.Id == incidentId, cancellationToken);
+
+        if (incident == null)
+        {
+            throw new EntityNotFoundException(nameof(Incident), incidentId);
+        }
+
+        ValidateIncidentAccess(incident);
+
+        // Upload physical stream to persistent cloud storage (Cloudinary)
+        var secureFileUrl = await _fileStorageService.UploadFileAsync(
+            fileStream,
+            fileName,
+            contentType,
+            folder: "assetbridge/evidence",
+            cancellationToken: cancellationToken);
+
+        var evidence = new IncidentEvidence
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = incidentId,
+            UploadedByUserId = currentUserId,
+            FileUrl = secureFileUrl,
+            FileName = fileName.Trim(),
+            FileType = contentType.Trim(),
+            FileSizeBytes = fileSizeBytes,
+            EvidenceType = evidenceType,
+            Caption = caption?.Trim(),
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _context.IncidentEvidence.Add(evidence);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        await _historyService.RecordEventAsync(
+            incident.AssetId,
+            AssetHistoryEventType.EvidenceAdded,
+            "Evidence Added",
+            $"{evidence.EvidenceType} evidence '{evidence.FileName}' uploaded to persistent storage for incident '{incident.Title}'.",
+            currentUserId,
+            relatedIncidentId: incident.Id,
+            cancellationToken: cancellationToken);
+
+        _logger.LogInformation("Evidence {EvidenceId} uploaded and added to Incident {IncidentId} at {Url}", evidence.Id, incidentId, secureFileUrl);
 
         var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == currentUserId, cancellationToken);
 

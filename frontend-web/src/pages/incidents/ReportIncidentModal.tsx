@@ -193,23 +193,16 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
 
       const res = await incidentApi.createIncident(payload);
 
-      // Attach evidence photos if any were selected
+      // Upload actual selected evidence photo files to persistent cloud storage
       if (res.data && selectedPhotos.length > 0) {
         for (const photo of selectedPhotos) {
           try {
-            const validFileUrl =
-              photo.previewUrl.startsWith('http://') || photo.previewUrl.startsWith('https://')
-                ? photo.previewUrl
-                : `${window.location.origin}/uploads/evidence/${encodeURIComponent(photo.name)}`;
-
-            await incidentApi.addEvidence(res.data.id, {
-              fileName: photo.name,
-              fileUrl: validFileUrl,
-              fileSizeBytes: photo.file.size,
-              fileType: photo.file.type || 'image/jpeg',
-              evidenceType: 'Photo',
-              caption: `Incident photo: ${photo.name}`,
-            });
+            await incidentApi.uploadEvidence(
+              res.data.id,
+              photo.file,
+              'Photo',
+              `Incident photo: ${photo.name}`
+            );
           } catch (evErr) {
             console.warn('Evidence upload warning:', evErr);
           }

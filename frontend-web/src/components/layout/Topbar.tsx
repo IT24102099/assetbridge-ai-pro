@@ -19,7 +19,9 @@ export const Topbar: React.FC<TopbarProps> = ({
     let isMounted = true;
     const checkHealth = async () => {
       try {
-        const res = await fetch('http://localhost:5206/health');
+        const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5206/api';
+        const healthUrl = apiBase.replace(/\/api\/?$/, '') + '/health';
+        const res = await fetch(healthUrl);
         if (isMounted) {
           setIsApiOnline(res.ok);
         }

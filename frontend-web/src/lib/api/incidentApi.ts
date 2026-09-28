@@ -8,6 +8,7 @@ import {
   AddIncidentEvidenceRequestDto,
   IncidentEvidenceResponseDto,
   IncidentQueryParametersDto,
+  EvidenceType,
 } from '../../types/incident';
 
 export const incidentApi = {
@@ -38,6 +39,21 @@ export const incidentApi = {
 
   addEvidence: async (id: string, data: AddIncidentEvidenceRequestDto): Promise<ApiResponse<IncidentEvidenceResponseDto>> => {
     const response = await apiClient.post<ApiResponse<IncidentEvidenceResponseDto>>(`/incidents/${id}/evidence`, data);
+    return response.data;
+  },
+
+  uploadEvidence: async (id: string, file: File, evidenceType: EvidenceType = 'Photo', caption?: string): Promise<ApiResponse<IncidentEvidenceResponseDto>> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('evidenceType', evidenceType);
+    if (caption) {
+      formData.append('caption', caption);
+    }
+    const response = await apiClient.post<ApiResponse<IncidentEvidenceResponseDto>>(`/incidents/${id}/evidence/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 

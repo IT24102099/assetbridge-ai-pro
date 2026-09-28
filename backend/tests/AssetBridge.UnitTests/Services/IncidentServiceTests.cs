@@ -21,6 +21,7 @@ public class IncidentServiceTests : IDisposable
     private readonly AssetBridgeDbContext _dbContext;
     private readonly Mock<ICurrentUserService> _currentUserServiceMock;
     private readonly Mock<IAssetHistoryService> _historyServiceMock;
+    private readonly Mock<IFileStorageService> _fileStorageServiceMock;
     private readonly Mock<ILogger<IncidentService>> _loggerMock;
     private readonly IncidentService _sut;
 
@@ -38,12 +39,14 @@ public class IncidentServiceTests : IDisposable
         _dbContext = new AssetBridgeDbContext(dbOptions);
         _currentUserServiceMock = new Mock<ICurrentUserService>();
         _historyServiceMock = new Mock<IAssetHistoryService>();
+        _fileStorageServiceMock = new Mock<IFileStorageService>();
         _loggerMock = new Mock<ILogger<IncidentService>>();
 
         _sut = new IncidentService(
             _dbContext,
             _currentUserServiceMock.Object,
             _historyServiceMock.Object,
+            _fileStorageServiceMock.Object,
             _loggerMock.Object);
 
         SeedTestData();
@@ -328,6 +331,68 @@ public class IncidentServiceTests : IDisposable
             It.IsAny<string>(),
             _owner1Id,
             incident.Id,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UploadEvidenceAsync_ShouldStreamFileToStorage_AndSavePersistentUrlInDatabase()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var expectedCloudinaryUrl = "https://res.cloudinary.com/assetbridge/image/upload/v12345/assetbridge/evidence/evidence_water2.jpg";
+        _fileStorageServiceMock
+            .Setup(x => x.UploadFileAsync(
+                It.IsAny<Stream>(),
+                "water2.jpg",
+                "image/jpeg",
+                "assetbridge/evidence",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedCloudinaryUrl);
+
+        var incident = new Incident
+        {
+            Id = Guid.NewGuid(),
+            AssetId = _asset1Id,
+            ReportedByUserId = _owner1Id,
+            Title = "Kitchen Pipe Burst",
+            Description = "Water flooding kitchen floor",
+            Status = IncidentStatus.Reported
+        };
+        _dbContext.Incidents.Add(incident);
+        await _dbContext.SaveChangesAsync();
+
+        using var memoryStream = new MemoryStream(new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 }); // Valid JPEG magic header bytes
+
+        // Act
+        var result = await _sut.UploadEvidenceAsync(
+            incident.Id,
+            memoryStream,
+            "water2.jpg",
+            "image/jpeg",
+            4,
+            EvidenceType.Photo,
+            "Real photo of flooded pantry floor");
+
+        // Assert
+        result.Should().NotBeNull();
+        result.FileUrl.Should().Be(expectedCloudinaryUrl);
+        result.FileName.Should().Be("water2.jpg");
+        result.EvidenceType.Should().Be(EvidenceType.Photo);
+        result.Caption.Should().Be("Real photo of flooded pantry floor");
+
+        var dbRecord = await _dbContext.IncidentEvidence.FirstOrDefaultAsync(e => e.Id == result.Id);
+        dbRecord.Should().NotBeNull();
+        dbRecord!.FileUrl.Should().Be(expectedCloudinaryUrl);
+        dbRecord.FileName.Should().Be("water2.jpg");
+
+        _fileStorageServiceMock.Verify(x => x.UploadFileAsync(
+            It.IsAny<Stream>(),
+            "water2.jpg",
+            "image/jpeg",
+            "assetbridge/evidence",
             It.IsAny<CancellationToken>()), Times.Once);
     }
 }
