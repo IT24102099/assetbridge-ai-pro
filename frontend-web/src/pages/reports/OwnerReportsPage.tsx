@@ -5,6 +5,7 @@ import { AssetResponseDto } from '../../types/asset';
 import { IncidentResponseDto } from '../../types/incident';
 import { StatCard } from '../../components/common/StatCard';
 import { LoadingState, ErrorState } from '../../components/common/FeedbackStates';
+import { generateReportPdf } from '../../lib/pdf/reportPdfGenerator';
 import {
   Download,
   Building2,
@@ -63,7 +64,20 @@ export const OwnerReportsPage: React.FC = () => {
   }, {});
 
   const handleExport = (format: 'PDF' | 'CSV') => {
-    alert(`Exporting AssetBridge Property & Maintenance Report in ${format} format...`);
+    if (format === 'PDF') {
+      generateReportPdf({
+        assets,
+        incidents,
+        dateRange,
+        totalAssets,
+        totalIncidents,
+        resolvedCount,
+        resolutionRate,
+        categoryCounts
+      });
+    } else {
+      alert(`Exporting AssetBridge Property & Maintenance Report in ${format} format...`);
+    }
   };
 
   return (
