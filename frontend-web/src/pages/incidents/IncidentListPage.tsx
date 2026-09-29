@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { incidentApi } from '../../lib/api/incidentApi';
 import {
   IncidentResponseDto,
@@ -52,6 +53,7 @@ const STATUSES: { value: IncidentStatus | ''; label: string }[] = [
 ];
 
 export const IncidentListPage: React.FC = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [incidents, setIncidents] = useState<IncidentResponseDto[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -59,6 +61,12 @@ export const IncidentListPage: React.FC = () => {
   const pageSize = 10;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const canReportIncident =
+    user?.role === 'Owner' ||
+    user?.role === 'Representative' ||
+    user?.role === 'Manager' ||
+    user?.role === 'Admin';
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -114,13 +122,15 @@ export const IncidentListPage: React.FC = () => {
             Track, report and resolve property maintenance requests with AI triage
           </p>
         </div>
-        <button
-          onClick={() => setIsReportModalOpen(true)}
-          className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-blue-500/20 transition"
-        >
-          <PlusCircle className="h-4 w-4" />
-          Report Incident
-        </button>
+        {canReportIncident && (
+          <button
+            onClick={() => setIsReportModalOpen(true)}
+            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-blue-500/20 transition"
+          >
+            <PlusCircle className="h-4 w-4" />
+            Report Incident
+          </button>
+        )}
       </div>
 
       {/* Filter and Search Bar */}
@@ -304,7 +314,7 @@ export const IncidentListPage: React.FC = () => {
       )}
 
       {/* Report Modal */}
-      {isReportModalOpen && (
+      {isReportModalOpen && canReportIncident && (
         <ReportIncidentModal
           isOpen={isReportModalOpen}
           onClose={() => setIsReportModalOpen(false)}

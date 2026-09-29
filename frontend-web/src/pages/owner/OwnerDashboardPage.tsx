@@ -28,6 +28,12 @@ export const OwnerDashboardPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
+  const canReportIncident =
+    user?.role === 'Owner' ||
+    user?.role === 'Representative' ||
+    user?.role === 'Manager' ||
+    user?.role === 'Admin';
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
@@ -97,13 +103,15 @@ export const OwnerDashboardPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsReportModalOpen(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-blue-500/20 transition"
-          >
-            <PlusCircle className="h-4 w-4" />
-            Report Incident
-          </button>
+          {canReportIncident && (
+            <button
+              onClick={() => setIsReportModalOpen(true)}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-blue-500/20 transition"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Report Incident
+            </button>
+          )}
         </div>
       </div>
 
@@ -281,7 +289,7 @@ export const OwnerDashboardPage: React.FC = () => {
       </div>
 
       {/* Report Incident Modal */}
-      {isReportModalOpen && (
+      {isReportModalOpen && canReportIncident && (
         <ReportIncidentModal
           isOpen={isReportModalOpen}
           onClose={() => setIsReportModalOpen(false)}

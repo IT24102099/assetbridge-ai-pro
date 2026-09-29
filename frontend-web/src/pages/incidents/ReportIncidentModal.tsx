@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../../components/common/Modal';
 import { assetApi } from '../../lib/api/assetApi';
 import { incidentApi } from '../../lib/api/incidentApi';
@@ -55,11 +56,18 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
   onSuccess,
   initialAssetId,
 }) => {
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [assets, setAssets] = useState<AssetResponseDto[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const canReportIncident =
+    user?.role === 'Owner' ||
+    user?.role === 'Representative' ||
+    user?.role === 'Manager' ||
+    user?.role === 'Admin';
 
   // Form states
   const [assetId, setAssetId] = useState(initialAssetId || '');
@@ -84,6 +92,7 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
   }, [isOpen]);
 
   const loadAssets = async () => {
+    if (!canReportIncident) return;
     try {
       setLoadingAssets(true);
       const res = await assetApi.getAssets({ pageSize: 50 });
@@ -167,6 +176,10 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canReportIncident) {
+      setError('Unauthorized: Service Providers are not permitted to report incidents.');
+      return;
+    }
     if (!assetId) {
       setError('Please select a property asset.');
       return;
@@ -217,6 +230,10 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
       setSubmitting(false);
     }
   };
+
+  if (!canReportIncident) {
+    return null;
+  }
 
   return (
     <Modal

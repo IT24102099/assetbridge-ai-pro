@@ -47,6 +47,9 @@ const DashboardRouter: React.FC = () => {
   if (user?.role === 'Manager' || user?.role === 'Admin') {
     return <ManagerDashboardPage />;
   }
+  if (user?.role === 'ServiceProvider') {
+    return <MaintenanceDashboardPage />;
+  }
   return <OwnerDashboardPage />;
 };
 

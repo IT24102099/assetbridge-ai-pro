@@ -38,6 +38,12 @@ export const AssetDetailPage: React.FC = () => {
     user?.role === 'Manager' ||
     user?.role === 'Admin';
 
+  const canReportIncident =
+    user?.role === 'Owner' ||
+    user?.role === 'Representative' ||
+    user?.role === 'Manager' ||
+    user?.role === 'Admin';
+
   const [asset, setAsset] = useState<AssetResponseDto | null>(null);
   const [incidents, setIncidents] = useState<IncidentResponseDto[]>([]);
   const [history, setHistory] = useState<AssetHistoryResponseDto[]>([]);
@@ -226,13 +232,15 @@ export const AssetDetailPage: React.FC = () => {
         </button>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsReportModalOpen(true)}
-            className="flex items-center gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs px-3.5 py-1.5 rounded-xl border border-blue-200 transition"
-          >
-            <PlusCircle className="h-3.5 w-3.5" />
-            Report Incident
-          </button>
+          {canReportIncident && (
+            <button
+              onClick={() => setIsReportModalOpen(true)}
+              className="flex items-center gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs px-3.5 py-1.5 rounded-xl border border-blue-200 transition"
+            >
+              <PlusCircle className="h-3.5 w-3.5" />
+              Report Incident
+            </button>
+          )}
           {canManageAsset && (
             <button
               onClick={() => setIsEditModalOpen(true)}
@@ -632,7 +640,7 @@ export const AssetDetailPage: React.FC = () => {
       </div>
 
       {/* Report Modal */}
-      {isReportModalOpen && (
+      {isReportModalOpen && canReportIncident && (
         <ReportIncidentModal
           isOpen={isReportModalOpen}
           initialAssetId={asset.id}
