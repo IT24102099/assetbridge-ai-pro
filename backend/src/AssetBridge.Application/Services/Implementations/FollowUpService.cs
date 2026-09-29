@@ -95,8 +95,6 @@ public class FollowUpService : IFollowUpService
 
         if (currentUserRole == UserRole.Owner.ToString())
             query = query.Where(f => f.Asset.OwnerId == currentUserId);
-        else if (currentUserRole == UserRole.Representative.ToString())
-            query = query.Where(f => f.AssignedToUserId == currentUserId);
 
         if (parameters.AssetId.HasValue)
             query = query.Where(f => f.AssetId == parameters.AssetId.Value);

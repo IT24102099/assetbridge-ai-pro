@@ -215,6 +215,118 @@ public class AuditAndContinuityTests : IDisposable
         metrics.RecentWorkflows.Should().HaveCount(1);
     }
 
+    [Fact]
+    public async Task FollowUpService_Representative_CanQueryFollowUpCreatedWithoutAssignedToUserId()
+    {
+        // Arrange: Create a follow-up task without an assigned user (e.g. from continuity UI)
+        var repId = Guid.NewGuid();
+        var repUser = new User { Id = repId, FullName = "Kasun Perera", Email = "rep@continuity.lk", Role = UserRole.Representative };
+        _dbContext.Users.Add(repUser);
+        await _dbContext.SaveChangesAsync();
+
+        var created = await _followUpSut.CreateFollowUpTaskAsync(new CreateFollowUpTaskDto
+        {
+            AssetId = _assetId,
+            Title = "Post-repair quarterly waterproofing verification",
+            Description = "Verify no seepage or water staining after heavy monsoon rains.",
+            DueDateUtc = DateTime.UtcNow.AddDays(14),
+            Priority = FollowUpPriority.High,
+            AssignedToUserId = null
+        }, repId, UserRole.Representative.ToString());
+
+        // Act: Query follow-ups as Representative
+        var result = await _followUpSut.GetFollowUpTasksAsync(new FollowUpFilterParametersDto
+        {
+            PageSize = 50
+        }, repId, UserRole.Representative.ToString());
+
+        // Assert
+        result.Should().NotBeNull();
+        result.TotalCount.Should().BeGreaterThanOrEqualTo(1);
+        result.Items.Should().Contain(t => t.Id == created.Id);
+        var retrieved = result.Items.First(t => t.Id == created.Id);
+        retrieved.Title.Should().Be("Post-repair quarterly waterproofing verification");
+        retrieved.AssignedToUserId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FollowUpService_Owner_StrictlyRestrictedToOwnedAssetFollowUps()
+    {
+        // Arrange: Create a second owner and asset with its own follow-up
+        var otherOwnerId = Guid.NewGuid();
+        var otherAssetId = Guid.NewGuid();
+        var otherOwner = new User { Id = otherOwnerId, FullName = "Nimal Silva", Email = "nimal@continuity.lk", Role = UserRole.Owner };
+        var otherAsset = new Asset
+        {
+            Id = otherAssetId,
+            OwnerId = otherOwnerId,
+            Name = "Kandy Hillside Villa",
+            PropertyType = PropertyType.SingleFamilyHouse,
+            AddressLine1 = "12 Lake Road",
+            City = "Kandy",
+            District = "Kandy"
+        };
+        _dbContext.Users.Add(otherOwner);
+        _dbContext.Assets.Add(otherAsset);
+        await _dbContext.SaveChangesAsync();
+
+        var owner1Task = await _followUpSut.CreateFollowUpTaskAsync(new CreateFollowUpTaskDto
+        {
+            AssetId = _assetId,
+            Title = "Owner 1 Heritage Timber Polish Check",
+            Description = "Check varnish condition on main doors.",
+            DueDateUtc = DateTime.UtcNow.AddDays(7),
+            Priority = FollowUpPriority.Medium
+        }, _managerId, UserRole.Manager.ToString());
+
+        var owner2Task = await _followUpSut.CreateFollowUpTaskAsync(new CreateFollowUpTaskDto
+        {
+            AssetId = otherAssetId,
+            Title = "Owner 2 Retaining Wall Drainage Inspection",
+            Description = "Ensure runoff weep holes are clear.",
+            DueDateUtc = DateTime.UtcNow.AddDays(10),
+            Priority = FollowUpPriority.High
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Act: Query as Owner 1
+        var owner1Result = await _followUpSut.GetFollowUpTasksAsync(new FollowUpFilterParametersDto(), _ownerId, UserRole.Owner.ToString());
+
+        // Assert: Owner 1 sees only Owner 1's tasks
+        owner1Result.Items.Should().Contain(t => t.Id == owner1Task.Id);
+        owner1Result.Items.Should().NotContain(t => t.Id == owner2Task.Id);
+
+        // Act: Query as Owner 2
+        var owner2Result = await _followUpSut.GetFollowUpTasksAsync(new FollowUpFilterParametersDto(), otherOwnerId, UserRole.Owner.ToString());
+
+        // Assert: Owner 2 sees only Owner 2's tasks
+        owner2Result.Items.Should().Contain(t => t.Id == owner2Task.Id);
+        owner2Result.Items.Should().NotContain(t => t.Id == owner1Task.Id);
+    }
+
+    [Fact]
+    public async Task FollowUpService_ManagerAndAdmin_CanQueryAllContinuityTasksAcrossAssets()
+    {
+        // Arrange: Create follow-up tasks across multiple assets
+        var taskA = await _followUpSut.CreateFollowUpTaskAsync(new CreateFollowUpTaskDto
+        {
+            AssetId = _assetId,
+            Title = "Task Across Asset A",
+            Description = "Checkup A",
+            DueDateUtc = DateTime.UtcNow.AddDays(5)
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Act: Query as Manager
+        var managerResult = await _followUpSut.GetFollowUpTasksAsync(new FollowUpFilterParametersDto(), _managerId, UserRole.Manager.ToString());
+
+        // Act: Query as Admin
+        var adminId = Guid.NewGuid();
+        var adminResult = await _followUpSut.GetFollowUpTasksAsync(new FollowUpFilterParametersDto(), adminId, UserRole.Admin.ToString());
+
+        // Assert: Both can see the task
+        managerResult.Items.Should().Contain(t => t.Id == taskA.Id);
+        adminResult.Items.Should().Contain(t => t.Id == taskA.Id);
+    }
+
     public void Dispose()
     {
         _dbContext.Dispose();
