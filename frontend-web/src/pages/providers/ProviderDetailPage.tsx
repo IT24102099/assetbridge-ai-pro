@@ -132,18 +132,16 @@ export const ProviderDetailPage: React.FC = () => {
   }
 
   const initial = provider.businessName ? provider.businessName.charAt(0).toUpperCase() : 'P';
-  const statusDisplay =
-    !provider.isActive
-      ? 'Inactive'
+  const currentStatus =
+    !provider.isActive || provider.verificationStatus === 'Rejected' || provider.verificationStatus === 'Suspended'
+      ? 'Unverified'
       : provider.verificationStatus === 'Verified'
       ? 'Verified'
-      : provider.verificationStatus === 'Pending'
-      ? 'Pending'
-      : 'Unverified';
+      : 'Pending';
 
   return (
     <div className="space-y-6">
-      {/* Top Navigation Bar matching Screen 7 wireframe */}
+      {/* Top Navigation Bar */}
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate('/providers')}
@@ -153,37 +151,44 @@ export const ProviderDetailPage: React.FC = () => {
           Back to Providers
         </button>
 
-        <div className="flex items-center gap-2">
-          {isManagerOrAdmin && provider.verificationStatus === 'Pending' && (
-            <>
-              <button
-                onClick={() => handleVerificationChange('Verified')}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs disabled:opacity-50"
-              >
-                <UserCheck className="h-4 w-4" />
-                Approve Verification
-              </button>
-              <button
-                onClick={() => handleVerificationChange('Rejected')}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition shadow-xs disabled:opacity-50"
-              >
-                <UserX className="h-4 w-4" />
-                Reject
-              </button>
-            </>
-          )}
-
-          <button
-            onClick={() => setIsEditModalOpen(true)}
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md shadow-blue-500/20 transition"
-          >
-            <Edit3 className="h-4 w-4" />
-            Edit
-          </button>
-        </div>
+        <button
+          onClick={() => setIsEditModalOpen(true)}
+          className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md shadow-blue-500/20 transition"
+        >
+          <Edit3 className="h-4 w-4" />
+          Edit
+        </button>
       </div>
+
+      {/* Manager Verification Control Panel */}
+      {isManagerOrAdmin && (
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Current Status:</span>
+            <StatusBadge status={currentStatus} size="sm" />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Verification Action:</span>
+            <button
+              onClick={() => handleVerificationChange('Verified')}
+              disabled={actionLoading || currentStatus === 'Verified'}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer disabled:cursor-not-allowed"
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              Approve
+            </button>
+            <button
+              onClick={() => handleVerificationChange('Rejected')}
+              disabled={actionLoading || currentStatus === 'Unverified'}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:hover:bg-red-600 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer disabled:cursor-not-allowed"
+            >
+              <UserX className="h-3.5 w-3.5" />
+              Reject
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Profile Header Card matching Screen 7 wireframe */}
       <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row items-start sm:items-center gap-6">
@@ -194,7 +199,7 @@ export const ProviderDetailPage: React.FC = () => {
         <div className="space-y-2 flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl font-bold text-slate-900">{provider.businessName}</h1>
-            <StatusBadge status={statusDisplay} size="md" />
+            <StatusBadge status={currentStatus} size="md" />
           </div>
 
           <div className="flex items-center gap-3 text-xs">

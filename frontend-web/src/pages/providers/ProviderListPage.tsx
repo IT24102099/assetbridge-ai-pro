@@ -193,13 +193,11 @@ export const ProviderListPage: React.FC = () => {
                       : 'General Maintenance';
 
                   const statusDisplay =
-                    !p.isActive
-                      ? 'Inactive'
+                    !p.isActive || p.verificationStatus === 'Rejected' || p.verificationStatus === 'Suspended'
+                      ? 'Unverified'
                       : p.verificationStatus === 'Verified'
                       ? 'Verified'
-                      : p.verificationStatus === 'Pending'
-                      ? 'Pending'
-                      : 'Unverified';
+                      : 'Pending';
 
                   return (
                     <tr

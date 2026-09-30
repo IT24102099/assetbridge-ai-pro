@@ -188,7 +188,7 @@ export const RepresentativeListPage: React.FC = () => {
 
                       <td className="py-3.5 px-4">
                         <StatusBadge
-                          status={!rep.isActive || rep.verificationStatus === 'Rejected' || rep.verificationStatus === 'Suspended' ? 'Inactive' : rep.verificationStatus === 'Verified' ? 'Active' : 'Pending'}
+                          status={!rep.isActive || rep.verificationStatus === 'Rejected' || rep.verificationStatus === 'Suspended' ? 'Unverified' : rep.verificationStatus === 'Verified' ? 'Verified' : 'Pending'}
                           size="sm"
                         />
                       </td>
