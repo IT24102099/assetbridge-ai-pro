@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/feedback_states.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../models/incident_model.dart';
 import '../services/incident_service.dart';
 import 'incident_detail_screen.dart';
@@ -32,14 +34,6 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
     'WorkInProgress',
     'Resolved',
     'Closed'
-  ];
-
-  final List<String> _priorityFilters = [
-    'All',
-    'Emergency',
-    'High',
-    'Medium',
-    'Low'
   ];
 
   @override
@@ -86,6 +80,9 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+    final canReport = user?.role != 'ServiceProvider';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -119,25 +116,27 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final created = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(builder: (_) => const ReportIncidentScreen()),
-          );
-          if (created == true) {
-            _loadIncidents();
-          }
-        },
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 3,
-        icon: const Icon(Icons.add_alert_rounded, size: 20),
-        label: const Text(
-          'Report Defect',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-        ),
-      ),
+      floatingActionButton: canReport
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                final created = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ReportIncidentScreen()),
+                );
+                if (created == true) {
+                  _loadIncidents();
+                }
+              },
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              elevation: 3,
+              icon: const Icon(Icons.add_alert_rounded, size: 20),
+              label: const Text(
+                'Report Defect',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+            )
+          : null,
       body: Column(
         children: [
           // Filter & Search Controls Header

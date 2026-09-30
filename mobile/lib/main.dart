@@ -39,7 +39,7 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
 
-    if (auth.isLoading) {
+    if (auth.isInitializing) {
       return const Scaffold(
         body: LoadingState(message: 'Initializing AssetBridge AI session...'),
       );

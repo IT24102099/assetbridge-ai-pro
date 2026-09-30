@@ -9,12 +9,14 @@ class AuthProvider extends ChangeNotifier {
 
   UserModel? _user;
   String? _token;
-  bool _isLoading = true;
+  bool _isInitializing = true;
+  bool _isLoading = false;
   String? _errorMessage;
 
   UserModel? get user => _user;
   String? get token => _token;
   bool get isAuthenticated => _token != null && _user != null;
+  bool get isInitializing => _isInitializing;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -35,7 +37,7 @@ class AuthProvider extends ChangeNotifier {
       _token = null;
       _user = null;
     } finally {
-      _isLoading = false;
+      _isInitializing = false;
       notifyListeners();
     }
   }
