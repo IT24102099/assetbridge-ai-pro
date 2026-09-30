@@ -5,5 +5,6 @@ public enum AvailabilityStatus
 {
     Available = 1,
     Busy = 2,
-    Unavailable = 3
+    Unavailable = 3,
+    OnLeave = 4
 }

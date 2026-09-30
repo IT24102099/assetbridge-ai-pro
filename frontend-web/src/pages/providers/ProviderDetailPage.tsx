@@ -468,10 +468,14 @@ export const ProviderDetailPage: React.FC = () => {
                       className={`px-2.5 py-0.5 rounded text-[10px] font-bold ${
                         slot.status === 'Available'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : slot.status === 'Busy'
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : slot.status === 'OnLeave'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : 'bg-slate-50 text-slate-700 border border-slate-200'
                       }`}
                     >
-                      {slot.status}
+                      {slot.status === 'OnLeave' ? 'On Leave' : slot.status}
                     </span>
                   </div>
                 ))

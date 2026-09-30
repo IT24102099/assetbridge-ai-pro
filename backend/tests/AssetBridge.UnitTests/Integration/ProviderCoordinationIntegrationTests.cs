@@ -188,8 +188,12 @@ public class ProviderCoordinationIntegrationTests : IClassFixture<WebApplication
         topCandidate.ExplanationReasons.Should().Contain(r => r.Contains("available"));
     }
 
-    [Fact]
-    public async Task AddAvailability_WithSerializedTimeSpanJson_ShouldSucceedWithCreated()
+    [Theory]
+    [InlineData("Available", AvailabilityStatus.Available)]
+    [InlineData("Busy", AvailabilityStatus.Busy)]
+    [InlineData("Unavailable", AvailabilityStatus.Unavailable)]
+    [InlineData("OnLeave", AvailabilityStatus.OnLeave)]
+    public async Task AddAvailability_WithAllStatusJsonStrings_ShouldSucceedWithCreated(string statusString, AvailabilityStatus expectedStatus)
     {
         // 1. Create provider
         var providerEmail = $"prov_slot_{Guid.NewGuid():N}@assetbridge.ai";
@@ -210,15 +214,15 @@ public class ProviderCoordinationIntegrationTests : IClassFixture<WebApplication
         var provPayload = await provRes.Content.ReadFromJsonAsync<ApiResponse<ServiceProviderResponseDto>>(_jsonOptions);
         var providerId = provPayload!.Data!.Id;
 
-        // 2. Post availability using exact TimeSpan format "08:00:00" / "17:00:00"
+        // 2. Post availability using exact TimeSpan format "08:00:00" / "17:00:00" and status string
         var jsonContent = new StringContent(
             $$"""
             {
                 "availableDateUtc": "{{DateTime.UtcNow.AddDays(1):yyyy-MM-dd}}T00:00:00Z",
                 "startTime": "08:00:00",
                 "endTime": "17:00:00",
-                "status": "Available",
-                "notes": "Full day availability"
+                "status": "{{statusString}}",
+                "notes": "Testing status {{statusString}}"
             }
             """,
             System.Text.Encoding.UTF8,
@@ -232,5 +236,6 @@ public class ProviderCoordinationIntegrationTests : IClassFixture<WebApplication
         slotPayload!.Success.Should().BeTrue();
         slotPayload.Data!.StartTime.Should().Be(new TimeSpan(8, 0, 0));
         slotPayload.Data.EndTime.Should().Be(new TimeSpan(17, 0, 0));
+        slotPayload.Data.Status.Should().Be(expectedStatus);
     }
 }

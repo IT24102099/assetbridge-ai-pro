@@ -183,8 +183,12 @@ public class ServiceProviderServiceTests : IDisposable
         await Assert.ThrowsAsync<ValidationException>(() => _skillSut.AddSkillAsync(provider.Id, skillRequest));
     }
 
-    [Fact]
-    public async Task AddAvailability_WithValidTimeSpan_ShouldSaveSuccessfully()
+    [Theory]
+    [InlineData(AvailabilityStatus.Available)]
+    [InlineData(AvailabilityStatus.Busy)]
+    [InlineData(AvailabilityStatus.Unavailable)]
+    [InlineData(AvailabilityStatus.OnLeave)]
+    public async Task AddAvailability_AllFourStatuses_ShouldSaveSuccessfully(AvailabilityStatus status)
     {
         // Arrange
         var provider = new ServiceProvider
@@ -210,8 +214,8 @@ public class ServiceProviderServiceTests : IDisposable
             AvailableDateUtc = DateTime.UtcNow.AddDays(2).Date,
             StartTime = new TimeSpan(8, 0, 0), // 08:00:00
             EndTime = new TimeSpan(17, 0, 0),   // 17:00:00
-            Status = AvailabilityStatus.Available,
-            Notes = "Working full day"
+            Status = status,
+            Notes = $"Status is {status}"
         };
 
         // Act
@@ -221,12 +225,16 @@ public class ServiceProviderServiceTests : IDisposable
         result.Should().NotBeNull();
         result.StartTime.Should().Be(new TimeSpan(8, 0, 0));
         result.EndTime.Should().Be(new TimeSpan(17, 0, 0));
-        result.Status.Should().Be(AvailabilityStatus.Available);
-        result.Notes.Should().Be("Working full day");
+        result.Status.Should().Be(status);
+        result.Notes.Should().Be($"Status is {status}");
     }
 
-    [Fact]
-    public async Task UpdateAvailability_WithValidTimeSpan_ShouldUpdateSuccessfully()
+    [Theory]
+    [InlineData(AvailabilityStatus.Available)]
+    [InlineData(AvailabilityStatus.Busy)]
+    [InlineData(AvailabilityStatus.Unavailable)]
+    [InlineData(AvailabilityStatus.OnLeave)]
+    public async Task UpdateAvailability_AllFourStatuses_ShouldUpdateSuccessfully(AvailabilityStatus status)
     {
         // Arrange
         var provider = new ServiceProvider
@@ -263,8 +271,8 @@ public class ServiceProviderServiceTests : IDisposable
             AvailableDateUtc = slot.AvailableDateUtc,
             StartTime = new TimeSpan(8, 30, 0),
             EndTime = new TimeSpan(17, 30, 0),
-            Status = AvailabilityStatus.Busy,
-            Notes = "Updated afternoon shift"
+            Status = status,
+            Notes = $"Updated to {status}"
         };
 
         // Act
@@ -274,8 +282,8 @@ public class ServiceProviderServiceTests : IDisposable
         updated.Should().NotBeNull();
         updated.StartTime.Should().Be(new TimeSpan(8, 30, 0));
         updated.EndTime.Should().Be(new TimeSpan(17, 30, 0));
-        updated.Status.Should().Be(AvailabilityStatus.Busy);
-        updated.Notes.Should().Be("Updated afternoon shift");
+        updated.Status.Should().Be(status);
+        updated.Notes.Should().Be($"Updated to {status}");
     }
 
     [Fact]

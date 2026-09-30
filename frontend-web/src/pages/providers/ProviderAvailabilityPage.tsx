@@ -273,6 +273,9 @@ export const ProviderAvailabilityPage: React.FC = () => {
                     {status === 'Unavailable' && (
                       <span className="h-2.5 w-2.5 rounded-full bg-slate-400 ring-2 ring-slate-200" title="Unavailable" />
                     )}
+                    {status === 'OnLeave' && (
+                      <span className="h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-amber-200" title="On Leave" />
+                    )}
                   </div>
                 </div>
               );
@@ -297,6 +300,10 @@ export const ProviderAvailabilityPage: React.FC = () => {
               Unavailable
             </span>
             <span className="flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-full bg-amber-500" />
+              On Leave
+            </span>
+            <span className="flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-full bg-blue-600" />
               Selected
             </span>
@@ -305,7 +312,7 @@ export const ProviderAvailabilityPage: React.FC = () => {
           {selectedDay && (
             <div className="text-xs font-bold text-slate-700 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
               Selected Date: {selectedDay} {monthNames[currentMonth]} {currentYear} (
-              {getDayStatus(selectedDay) || 'Not Configured'})
+              {getDayStatus(selectedDay) === 'OnLeave' ? 'On Leave' : getDayStatus(selectedDay) || 'Not Configured'})
             </div>
           )}
         </div>
