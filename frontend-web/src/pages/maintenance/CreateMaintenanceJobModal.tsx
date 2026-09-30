@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Wrench, AlertCircle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { maintenanceApi } from '../../lib/api/maintenanceApi';
 import { incidentApi } from '../../lib/api/incidentApi';
 import { providerApi } from '../../lib/api/providerApi';
@@ -13,6 +14,9 @@ interface CreateMaintenanceJobModalProps {
 }
 
 export default function CreateMaintenanceJobModal({ isOpen, onClose, onCreated }: CreateMaintenanceJobModalProps) {
+  const { user } = useAuth();
+  const canCreateJob = user?.role === 'Manager' || user?.role === 'Admin';
+
   const [incidents, setIncidents] = useState<IncidentResponseDto[]>([]);
   const [providers, setProviders] = useState<ServiceProviderResponseDto[]>([]);
   const [loadingData, setLoadingData] = useState(false);
@@ -45,6 +49,7 @@ export default function CreateMaintenanceJobModal({ isOpen, onClose, onCreated }
   }, [isOpen]);
 
   const loadOptions = async () => {
+    if (!canCreateJob) return;
     try {
       setLoadingData(true);
       const [incRes, provRes] = await Promise.all([
@@ -73,10 +78,14 @@ export default function CreateMaintenanceJobModal({ isOpen, onClose, onCreated }
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !canCreateJob) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateJob) {
+      setError('You are not authorized to access this resource.');
+      return;
+    }
     if (!incidentId || !providerId || !title.trim() || !description.trim()) {
       setError('Please fill in all required job fields.');
       return;

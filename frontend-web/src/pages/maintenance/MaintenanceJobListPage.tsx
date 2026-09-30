@@ -22,7 +22,7 @@ export default function MaintenanceJobListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const canCreateJob = user?.role === 'Manager' || user?.role === 'Admin' || user?.role === 'ServiceProvider';
+  const canCreateJob = user?.role === 'Manager' || user?.role === 'Admin';
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -259,11 +259,13 @@ export default function MaintenanceJobListPage() {
       )}
 
       {/* Create Modal */}
-      <CreateMaintenanceJobModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onCreated={loadJobs}
-      />
+      {isCreateModalOpen && canCreateJob && (
+        <CreateMaintenanceJobModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreated={loadJobs}
+        />
+      )}
     </div>
   );
 }

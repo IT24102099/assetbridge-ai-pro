@@ -21,10 +21,11 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Handle 401 Unauthorized
+// Response Interceptor: Handle 401 Unauthorized vs 403 Forbidden
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // 401 Unauthorized: Invalid or expired session -> clear tokens and redirect to login
     if (error.response?.status === 401) {
       localStorage.removeItem('assetbridge_token');
       localStorage.removeItem('assetbridge_user');
@@ -32,6 +33,8 @@ apiClient.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+    // 403 Forbidden (or other errors): User is authenticated but lacks authorization ->
+    // Keep JWT/session intact, do NOT redirect to login, let calling component display error message
     return Promise.reject(error);
   }
 );
