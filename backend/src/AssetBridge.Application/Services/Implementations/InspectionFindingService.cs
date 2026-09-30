@@ -150,7 +150,7 @@ public class InspectionFindingService : IInspectionFindingService
 
         if (inspection.InspectorProvider == null || inspection.InspectorProvider.UserId != _currentUserService.UserId.Value)
         {
-            throw new UnauthorizedAccessException("You do not have permission to modify findings for this inspection.");
+            throw new ForbiddenAccessException("You do not have permission to modify findings for this inspection.");
         }
     }
 

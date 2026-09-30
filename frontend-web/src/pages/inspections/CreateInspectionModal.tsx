@@ -50,15 +50,26 @@ export default function CreateInspectionModal({ isOpen, onClose, onCreated }: Cr
       ]);
 
       if (incRes.success && incRes.data) {
-        setIncidents(incRes.data.items || []);
-        if (incRes.data.items?.length > 0) {
-          setIncidentId(incRes.data.items[0].id);
+        const fetchedIncidents = incRes.data.items || [];
+        setIncidents(fetchedIncidents);
+        if (fetchedIncidents.length > 0) {
+          setIncidentId(fetchedIncidents[0].id);
         }
       }
       if (provRes.success && provRes.data) {
-        setProviders(provRes.data.items || []);
-        if (provRes.data.items?.length > 0) {
-          setInspectorProviderId(provRes.data.items[0].id);
+        const fetchedProviders = provRes.data.items || [];
+        setProviders(fetchedProviders);
+
+        if (user?.role === 'ServiceProvider') {
+          const matched = fetchedProviders.find((p) => p.userId === user.id);
+          if (matched) {
+            setInspectorProviderId(matched.id);
+          } else {
+            setInspectorProviderId('');
+            setError('Your account does not have an associated service provider profile. Please contact support.');
+          }
+        } else if (fetchedProviders.length > 0) {
+          setInspectorProviderId(fetchedProviders[0].id);
         }
       }
     } catch (err: any) {
@@ -69,6 +80,8 @@ export default function CreateInspectionModal({ isOpen, onClose, onCreated }: Cr
   };
 
   if (!isOpen || !canScheduleInspection) return null;
+
+  const isServiceProvider = user?.role === 'ServiceProvider';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,12 +164,23 @@ export default function CreateInspectionModal({ isOpen, onClose, onCreated }: Cr
 
           {/* Inspector / Provider Select */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700">Inspector / Service Contractor</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700">Inspector / Service Contractor</label>
+              {isServiceProvider && (
+                <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded-md">
+                  Assigned to your business
+                </span>
+              )}
+            </div>
             <select
               value={inspectorProviderId}
               onChange={(e) => setInspectorProviderId(e.target.value)}
-              disabled={loadingData || submitting}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 transition"
+              disabled={loadingData || submitting || isServiceProvider}
+              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 transition ${
+                isServiceProvider
+                  ? 'bg-slate-100 border-slate-200 text-slate-700 cursor-not-allowed'
+                  : 'bg-slate-50 border-slate-200 text-slate-800'
+              }`}
               required
             >
               {providers.length === 0 ? (
@@ -164,7 +188,7 @@ export default function CreateInspectionModal({ isOpen, onClose, onCreated }: Cr
               ) : (
                 providers.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.businessName} ({p.city} • ★{p.rating})
+                    {p.businessName} ({p.city} • ★{p.rating}){p.userId === user?.id ? ' (You)' : ''}
                   </option>
                 ))
               )}
@@ -207,7 +231,7 @@ export default function CreateInspectionModal({ isOpen, onClose, onCreated }: Cr
             </button>
             <button
               type="submit"
-              disabled={submitting || incidents.length === 0 || providers.length === 0}
+              disabled={submitting || incidents.length === 0 || providers.length === 0 || !inspectorProviderId}
               className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition flex items-center gap-2"
             >
               {submitting ? 'Scheduling...' : 'Schedule Inspection'}

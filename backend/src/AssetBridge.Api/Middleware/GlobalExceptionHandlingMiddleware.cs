@@ -48,9 +48,14 @@ public class GlobalExceptionHandlingMiddleware
                 notFoundEx.Message,
                 null),
 
-            UnauthorizedAccessException => (
+            ForbiddenAccessException forbiddenEx => (
+                HttpStatusCode.Forbidden,
+                forbiddenEx.Message,
+                null),
+
+            UnauthorizedAccessException unauthorizedEx => (
                 HttpStatusCode.Unauthorized,
-                "You are not authorized to access this resource.",
+                string.IsNullOrWhiteSpace(unauthorizedEx.Message) ? "You are not authorized to access this resource." : unauthorizedEx.Message,
                 null),
 
             DomainException domainEx => (

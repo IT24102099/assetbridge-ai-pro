@@ -48,6 +48,16 @@ public class InspectionService : IInspectionService
             throw new EntityNotFoundException(nameof(ServiceProvider), request.InspectorProviderId);
         }
 
+        // Defense-in-depth: Validate provider assignment before persistence
+        if (_currentUserService.Role == UserRole.ServiceProvider)
+        {
+            var currentUserId = GetAuthenticatedUserId();
+            if (provider.UserId != currentUserId)
+            {
+                throw new ForbiddenAccessException("Service providers can only schedule inspections for their own business.");
+            }
+        }
+
         var inspection = new Inspection
         {
             Id = Guid.NewGuid(),
@@ -240,14 +250,14 @@ public class InspectionService : IInspectionService
         {
             if (inspection.Incident.Asset.OwnerId != currentUserId)
             {
-                throw new UnauthorizedAccessException("You do not have permission to view this inspection.");
+                throw new ForbiddenAccessException("You do not have permission to view this inspection.");
             }
         }
         else if (_currentUserService.Role == UserRole.ServiceProvider && inspection.InspectorProvider != null)
         {
             if (inspection.InspectorProvider.UserId != currentUserId)
             {
-                throw new UnauthorizedAccessException("You do not have permission to view this inspection.");
+                throw new ForbiddenAccessException("You do not have permission to view this inspection.");
             }
         }
     }
@@ -265,12 +275,12 @@ public class InspectionService : IInspectionService
         {
             if (inspection.InspectorProvider == null || inspection.InspectorProvider.UserId != currentUserId)
             {
-                throw new UnauthorizedAccessException("You do not have permission to modify this inspection.");
+                throw new ForbiddenAccessException("You do not have permission to modify this inspection.");
             }
         }
         else
         {
-            throw new UnauthorizedAccessException("You do not have permission to modify this inspection.");
+            throw new ForbiddenAccessException("You do not have permission to modify this inspection.");
         }
     }
 

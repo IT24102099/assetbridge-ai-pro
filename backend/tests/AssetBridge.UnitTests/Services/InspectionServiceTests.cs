@@ -25,12 +25,16 @@ public class InspectionServiceTests : IDisposable
     private readonly InspectionFindingService _findingSut;
 
     private readonly Guid _ownerUserId = Guid.NewGuid();
+    private readonly Guid _otherOwnerUserId = Guid.NewGuid();
     private readonly Guid _providerUserId = Guid.NewGuid();
+    private readonly Guid _anotherProviderUserId = Guid.NewGuid();
     private readonly Guid _managerUserId = Guid.NewGuid();
+    private readonly Guid _adminUserId = Guid.NewGuid();
 
     private readonly Guid _assetId = Guid.NewGuid();
     private readonly Guid _incidentId = Guid.NewGuid();
     private readonly Guid _providerId = Guid.NewGuid();
+    private readonly Guid _anotherProviderId = Guid.NewGuid();
 
     public InspectionServiceTests()
     {
@@ -58,8 +62,11 @@ public class InspectionServiceTests : IDisposable
     {
         _dbContext.Users.AddRange(
             new User { Id = _ownerUserId, FullName = "Property Owner", Email = "owner@test.lk", Role = UserRole.Owner },
+            new User { Id = _otherOwnerUserId, FullName = "Other Owner", Email = "otherowner@test.lk", Role = UserRole.Owner },
             new User { Id = _providerUserId, FullName = "Plumber Provider", Email = "plumber@test.lk", Role = UserRole.ServiceProvider },
-            new User { Id = _managerUserId, FullName = "Ops Manager", Email = "manager@test.lk", Role = UserRole.Manager }
+            new User { Id = _anotherProviderUserId, FullName = "Electrician Provider", Email = "electrician@test.lk", Role = UserRole.ServiceProvider },
+            new User { Id = _managerUserId, FullName = "Ops Manager", Email = "manager@test.lk", Role = UserRole.Manager },
+            new User { Id = _adminUserId, FullName = "System Admin", Email = "admin@test.lk", Role = UserRole.Admin }
         );
 
         _dbContext.Assets.Add(new Asset
@@ -85,18 +92,32 @@ public class InspectionServiceTests : IDisposable
             EstimatedBudget = 50000
         });
 
-        _dbContext.ServiceProviders.Add(new ServiceProvider
-        {
-            Id = _providerId,
-            UserId = _providerUserId,
-            BusinessName = "Colombo Pipe Care",
-            ContactPerson = "Nimal",
-            PhoneNumber = "0771234567",
-            Email = "plumber@test.lk",
-            PrimaryDistrict = "Colombo",
-            City = "Colombo",
-            VerificationStatus = VerificationStatus.Verified
-        });
+        _dbContext.ServiceProviders.AddRange(
+            new ServiceProvider
+            {
+                Id = _providerId,
+                UserId = _providerUserId,
+                BusinessName = "Colombo Pipe Care",
+                ContactPerson = "Nimal",
+                PhoneNumber = "0771234567",
+                Email = "plumber@test.lk",
+                PrimaryDistrict = "Colombo",
+                City = "Colombo",
+                VerificationStatus = VerificationStatus.Verified
+            },
+            new ServiceProvider
+            {
+                Id = _anotherProviderId,
+                UserId = _anotherProviderUserId,
+                BusinessName = "Power Electricians",
+                ContactPerson = "Sunil",
+                PhoneNumber = "0777654321",
+                Email = "electrician@test.lk",
+                PrimaryDistrict = "Colombo",
+                City = "Colombo",
+                VerificationStatus = VerificationStatus.Verified
+            }
+        );
 
         _dbContext.SaveChanges();
     }
@@ -108,7 +129,7 @@ public class InspectionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateInspection_WithValidData_ShouldCreateScheduledInspection()
+    public async Task CreateInspection_AsManager_ShouldCreateScheduledInspection()
     {
         _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
         _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
@@ -128,6 +149,138 @@ public class InspectionServiceTests : IDisposable
         result.IncidentId.Should().Be(_incidentId);
         result.InspectorProviderId.Should().Be(_providerId);
         result.Status.Should().Be(InspectionStatus.Scheduled);
+    }
+
+    [Fact]
+    public async Task CreateInspection_AsAdmin_ForAnyProvider_ShouldSucceed()
+    {
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_adminUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Admin);
+
+        var request = new CreateInspectionRequestDto
+        {
+            IncidentId = _incidentId,
+            InspectorProviderId = _anotherProviderId,
+            ScheduledAtUtc = DateTime.UtcNow.AddDays(2),
+            Notes = "Admin scheduled electrical inspection"
+        };
+
+        var result = await _inspectionSut.CreateInspectionAsync(request);
+
+        result.Should().NotBeNull();
+        result.IncidentId.Should().Be(_incidentId);
+        result.InspectorProviderId.Should().Be(_anotherProviderId);
+        result.Status.Should().Be(InspectionStatus.Scheduled);
+    }
+
+    [Fact]
+    public async Task CreateInspection_AsServiceProvider_ForOwnProvider_ShouldSucceed()
+    {
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var request = new CreateInspectionRequestDto
+        {
+            IncidentId = _incidentId,
+            InspectorProviderId = _providerId,
+            ScheduledAtUtc = DateTime.UtcNow.AddDays(1),
+            Notes = "Self-scheduled inspection by provider"
+        };
+
+        var result = await _inspectionSut.CreateInspectionAsync(request);
+
+        result.Should().NotBeNull();
+        result.IncidentId.Should().Be(_incidentId);
+        result.InspectorProviderId.Should().Be(_providerId);
+        result.Status.Should().Be(InspectionStatus.Scheduled);
+    }
+
+    [Fact]
+    public async Task CreateInspection_AsServiceProvider_ForAnotherProvider_ShouldThrowForbiddenAccessException_AndNotPersist()
+    {
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var initialCount = await _dbContext.Inspections.CountAsync();
+
+        var request = new CreateInspectionRequestDto
+        {
+            IncidentId = _incidentId,
+            InspectorProviderId = _anotherProviderId, // Different provider
+            ScheduledAtUtc = DateTime.UtcNow.AddDays(1),
+            Notes = "Attempting to schedule for another provider"
+        };
+
+        var act = () => _inspectionSut.CreateInspectionAsync(request);
+
+        await act.Should().ThrowAsync<ForbiddenAccessException>()
+            .WithMessage("*Service providers can only schedule inspections for their own business*");
+
+        // Verify no inspection record was created in the database
+        var finalCount = await _dbContext.Inspections.CountAsync();
+        finalCount.Should().Be(initialCount);
+    }
+
+    [Fact]
+    public async Task GetInspectionById_AsOwner_ForOtherOwnerAsset_ShouldThrowForbiddenAccessException()
+    {
+        var inspection = new Inspection
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            InspectorProviderId = _providerId,
+            ScheduledAtUtc = DateTime.UtcNow.AddDays(1),
+            Status = InspectionStatus.Scheduled
+        };
+        _dbContext.Inspections.Add(inspection);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_otherOwnerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Owner);
+
+        var act = () => _inspectionSut.GetInspectionByIdAsync(inspection.Id);
+
+        await act.Should().ThrowAsync<ForbiddenAccessException>()
+            .WithMessage("*You do not have permission to view this inspection*");
+    }
+
+    [Fact]
+    public async Task GetInspections_AsServiceProvider_ShouldOnlyReturnOwnInspections()
+    {
+        var ownInspection = new Inspection
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            InspectorProviderId = _providerId,
+            ScheduledAtUtc = DateTime.UtcNow.AddDays(1),
+            Status = InspectionStatus.Scheduled,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        var otherInspection = new Inspection
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            InspectorProviderId = _anotherProviderId,
+            ScheduledAtUtc = DateTime.UtcNow.AddDays(1),
+            Status = InspectionStatus.Scheduled,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        _dbContext.Inspections.AddRange(ownInspection, otherInspection);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var result = await _inspectionSut.GetInspectionsAsync(new InspectionQueryParametersDto());
+
+        result.Should().NotBeNull();
+        result.Items.Should().Contain(i => i.Id == ownInspection.Id);
+        result.Items.Should().NotContain(i => i.Id == otherInspection.Id);
     }
 
     [Fact]
