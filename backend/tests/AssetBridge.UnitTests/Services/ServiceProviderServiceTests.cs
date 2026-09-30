@@ -184,6 +184,134 @@ public class ServiceProviderServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task AddAvailability_WithValidTimeSpan_ShouldSaveSuccessfully()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerUser1Id,
+            BusinessName = "Perera Plumbing",
+            ContactPerson = "Sunil",
+            PhoneNumber = "0771234567",
+            Email = "perera@plumbing.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Kandy"
+        };
+        _dbContext.ServiceProviders.Add(provider);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var request = new AddProviderAvailabilityRequestDto
+        {
+            AvailableDateUtc = DateTime.UtcNow.AddDays(2).Date,
+            StartTime = new TimeSpan(8, 0, 0), // 08:00:00
+            EndTime = new TimeSpan(17, 0, 0),   // 17:00:00
+            Status = AvailabilityStatus.Available,
+            Notes = "Working full day"
+        };
+
+        // Act
+        var result = await _availabilitySut.AddAvailabilityAsync(provider.Id, request);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.StartTime.Should().Be(new TimeSpan(8, 0, 0));
+        result.EndTime.Should().Be(new TimeSpan(17, 0, 0));
+        result.Status.Should().Be(AvailabilityStatus.Available);
+        result.Notes.Should().Be("Working full day");
+    }
+
+    [Fact]
+    public async Task UpdateAvailability_WithValidTimeSpan_ShouldUpdateSuccessfully()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerUser1Id,
+            BusinessName = "Perera Plumbing",
+            ContactPerson = "Sunil",
+            PhoneNumber = "0771234567",
+            Email = "perera@plumbing.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Kandy"
+        };
+        var slot = new ProviderAvailability
+        {
+            Id = Guid.NewGuid(),
+            ProviderId = provider.Id,
+            AvailableDateUtc = DateTime.UtcNow.AddDays(2).Date,
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(12, 0, 0),
+            Status = AvailabilityStatus.Available,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        _dbContext.ServiceProviders.Add(provider);
+        _dbContext.ProviderAvailability.Add(slot);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var updateRequest = new UpdateProviderAvailabilityRequestDto
+        {
+            AvailableDateUtc = slot.AvailableDateUtc,
+            StartTime = new TimeSpan(8, 30, 0),
+            EndTime = new TimeSpan(17, 30, 0),
+            Status = AvailabilityStatus.Busy,
+            Notes = "Updated afternoon shift"
+        };
+
+        // Act
+        var updated = await _availabilitySut.UpdateAvailabilityAsync(provider.Id, slot.Id, updateRequest);
+
+        // Assert
+        updated.Should().NotBeNull();
+        updated.StartTime.Should().Be(new TimeSpan(8, 30, 0));
+        updated.EndTime.Should().Be(new TimeSpan(17, 30, 0));
+        updated.Status.Should().Be(AvailabilityStatus.Busy);
+        updated.Notes.Should().Be("Updated afternoon shift");
+    }
+
+    [Fact]
+    public async Task AddAvailability_ForAnotherProvider_ShouldThrowForbiddenAccessException()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerUser1Id,
+            BusinessName = "Perera Plumbing",
+            ContactPerson = "Sunil",
+            PhoneNumber = "0771234567",
+            Email = "perera@plumbing.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Kandy"
+        };
+        _dbContext.ServiceProviders.Add(provider);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(Guid.NewGuid()); // Other user
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var request = new AddProviderAvailabilityRequestDto
+        {
+            AvailableDateUtc = DateTime.UtcNow.AddDays(2).Date,
+            StartTime = TimeSpan.FromHours(8),
+            EndTime = TimeSpan.FromHours(17)
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ForbiddenAccessException>(() => _availabilitySut.AddAvailabilityAsync(provider.Id, request));
+    }
+
+    [Fact]
     public async Task AddAvailability_InvalidTimeRange_ShouldThrowValidationException()
     {
         // Arrange

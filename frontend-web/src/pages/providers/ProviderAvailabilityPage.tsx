@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { providerApi } from '../../lib/api/providerApi';
 import { ServiceProviderResponseDto, ProviderAvailabilityResponseDto, AvailabilityStatus } from '../../types/provider';
 import { LoadingState, ErrorState } from '../../components/common/FeedbackStates';
+import { useAuth } from '../../context/AuthContext';
+import { toTimeSpanString } from '../../utils/timeUtils';
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export const ProviderAvailabilityPage: React.FC = () => {
-
+  const { user } = useAuth();
   const [providers, setProviders] = useState<ServiceProviderResponseDto[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string>('');
   const [availabilities, setAvailabilities] = useState<ProviderAvailabilityResponseDto[]>([]);
@@ -40,8 +42,14 @@ export const ProviderAvailabilityPage: React.FC = () => {
         setLoading(true);
         const res = await providerApi.getProviders({ pageSize: 50 });
         if (res.data && res.data.items.length > 0) {
-          setProviders(res.data.items);
-          setSelectedProviderId(res.data.items[0].id);
+          const items = res.data.items;
+          setProviders(items);
+          if (user?.role === 'ServiceProvider') {
+            const myProvider = items.find((p) => p.userId === user.id);
+            setSelectedProviderId(myProvider ? myProvider.id : items[0].id);
+          } else {
+            setSelectedProviderId(items[0].id);
+          }
         }
       } catch (err: any) {
         console.error('Failed to load providers:', err);
@@ -52,7 +60,7 @@ export const ProviderAvailabilityPage: React.FC = () => {
     };
 
     loadProviders();
-  }, []);
+  }, [user]);
 
   // 2. Fetch availability for selected provider
   const fetchAvailability = async () => {
@@ -125,8 +133,8 @@ export const ProviderAvailabilityPage: React.FC = () => {
       setSlotLoading(true);
       await providerApi.addAvailability(selectedProviderId, {
         availableDateUtc: new Date(slotDate).toISOString(),
-        startTime: slotStartTime,
-        endTime: slotEndTime,
+        startTime: toTimeSpanString(slotStartTime),
+        endTime: toTimeSpanString(slotEndTime),
         status: slotStatus,
         notes: slotNotes || undefined,
       });
@@ -146,6 +154,8 @@ export const ProviderAvailabilityPage: React.FC = () => {
   if (error) {
     return <ErrorState message={error} onRetry={() => window.location.reload()} />;
   }
+
+  const isServiceProvider = user?.role === 'ServiceProvider';
 
   return (
     <div className="space-y-6">
@@ -181,11 +191,16 @@ export const ProviderAvailabilityPage: React.FC = () => {
           <select
             value={selectedProviderId}
             onChange={(e) => setSelectedProviderId(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 transition"
+            disabled={isServiceProvider}
+            className={`w-full border rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+              isServiceProvider
+                ? 'bg-slate-100 border-slate-200 text-slate-700 cursor-not-allowed'
+                : 'bg-slate-50 border-slate-200 text-slate-800 focus:outline-none focus:border-blue-500'
+            }`}
           >
             {providers.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.businessName} ({p.city} • {p.skills?.[0]?.skillName || 'Contractor'})
+                {p.businessName} ({p.city} • {p.skills?.[0]?.skillName || 'Contractor'}){p.userId === user?.id ? ' (You)' : ''}
               </option>
             ))}
           </select>

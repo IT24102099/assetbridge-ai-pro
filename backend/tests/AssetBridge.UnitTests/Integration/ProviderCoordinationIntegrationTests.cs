@@ -187,4 +187,50 @@ public class ProviderCoordinationIntegrationTests : IClassFixture<WebApplication
         topCandidate.ExplanationReasons.Should().Contain(r => r.Contains("Master Pipe"));
         topCandidate.ExplanationReasons.Should().Contain(r => r.Contains("available"));
     }
+
+    [Fact]
+    public async Task AddAvailability_WithSerializedTimeSpanJson_ShouldSucceedWithCreated()
+    {
+        // 1. Create provider
+        var providerEmail = $"prov_slot_{Guid.NewGuid():N}@assetbridge.ai";
+        var providerToken = await RegisterAndLoginAsync("Slot Tester", providerEmail, "ServiceProvider");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", providerToken);
+        var createProviderDto = new CreateServiceProviderRequestDto
+        {
+            BusinessName = "Slot Test Electricians",
+            ContactPerson = "Test Person",
+            PhoneNumber = "+94771122334",
+            Email = providerEmail,
+            PrimaryDistrict = "Colombo",
+            City = "Colombo"
+        };
+        var provRes = await _client.PostAsJsonAsync("/api/providers", createProviderDto);
+        provRes.StatusCode.Should().Be(HttpStatusCode.Created);
+        var provPayload = await provRes.Content.ReadFromJsonAsync<ApiResponse<ServiceProviderResponseDto>>(_jsonOptions);
+        var providerId = provPayload!.Data!.Id;
+
+        // 2. Post availability using exact TimeSpan format "08:00:00" / "17:00:00"
+        var jsonContent = new StringContent(
+            $$"""
+            {
+                "availableDateUtc": "{{DateTime.UtcNow.AddDays(1):yyyy-MM-dd}}T00:00:00Z",
+                "startTime": "08:00:00",
+                "endTime": "17:00:00",
+                "status": "Available",
+                "notes": "Full day availability"
+            }
+            """,
+            System.Text.Encoding.UTF8,
+            "application/json");
+
+        var slotRes = await _client.PostAsync($"/api/providers/{providerId}/availability", jsonContent);
+        slotRes.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var slotPayload = await slotRes.Content.ReadFromJsonAsync<ApiResponse<ProviderAvailabilityResponseDto>>(_jsonOptions);
+        slotPayload.Should().NotBeNull();
+        slotPayload!.Success.Should().BeTrue();
+        slotPayload.Data!.StartTime.Should().Be(new TimeSpan(8, 0, 0));
+        slotPayload.Data.EndTime.Should().Be(new TimeSpan(17, 0, 0));
+    }
 }

@@ -17,6 +17,9 @@ import {
 } from '../../types/provider';
 import { UpdateVerificationRequestDto } from '../../types/representative';
 
+import { toTimeSpanString } from '../../utils/timeUtils';
+export { toTimeSpanString };
+
 export const providerApi = {
   getProviders: async (
     params?: ProviderQueryParametersDto
@@ -109,9 +112,14 @@ export const providerApi = {
     providerId: string,
     data: AddProviderAvailabilityRequestDto
   ): Promise<ApiResponse<ProviderAvailabilityResponseDto>> => {
+    const payload: AddProviderAvailabilityRequestDto = {
+      ...data,
+      startTime: toTimeSpanString(data.startTime),
+      endTime: toTimeSpanString(data.endTime),
+    };
     const response = await apiClient.post<ApiResponse<ProviderAvailabilityResponseDto>>(
       `/providers/${providerId}/availability`,
-      data
+      payload
     );
     return response.data;
   },
@@ -121,9 +129,14 @@ export const providerApi = {
     availabilityId: string,
     data: UpdateProviderAvailabilityRequestDto
   ): Promise<ApiResponse<ProviderAvailabilityResponseDto>> => {
+    const payload: UpdateProviderAvailabilityRequestDto = {
+      ...data,
+      startTime: toTimeSpanString(data.startTime),
+      endTime: toTimeSpanString(data.endTime),
+    };
     const response = await apiClient.put<ApiResponse<ProviderAvailabilityResponseDto>>(
       `/providers/${providerId}/availability/${availabilityId}`,
-      data
+      payload
     );
     return response.data;
   },

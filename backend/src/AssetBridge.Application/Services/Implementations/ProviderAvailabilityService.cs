@@ -187,9 +187,14 @@ public class ProviderAvailabilityService : IProviderAvailabilityService
             return;
         }
 
-        if (!_currentUserService.IsAuthenticated || !_currentUserService.UserId.HasValue || provider.UserId != _currentUserService.UserId.Value)
+        if (!_currentUserService.IsAuthenticated || !_currentUserService.UserId.HasValue)
         {
-            throw new UnauthorizedAccessException("You do not have permission to manage availability for this service provider.");
+            throw new UnauthorizedAccessException("User is not authenticated.");
+        }
+
+        if (provider.UserId != _currentUserService.UserId.Value)
+        {
+            throw new ForbiddenAccessException("You do not have permission to manage availability for this service provider.");
         }
     }
 
