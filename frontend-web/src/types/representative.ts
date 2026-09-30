@@ -1,4 +1,4 @@
-export type VerificationStatus = 'Pending' | 'Verified' | 'Rejected' | 'Expired';
+export type VerificationStatus = 'Pending' | 'Verified' | 'Rejected' | 'Suspended';
 
 export interface RepresentativeResponseDto {
   id: string;
@@ -11,7 +11,7 @@ export interface RepresentativeResponseDto {
   address?: string;
   nationalIdNumber?: string;
   verificationStatus: VerificationStatus;
-  verificationStatusName: string;
+  verificationStatusName?: string;
   verificationNotes?: string;
   bio?: string;
   isActive: boolean;
@@ -42,7 +42,9 @@ export interface UpdateRepresentativeRequestDto {
 }
 
 export interface UpdateVerificationRequestDto {
-  status: VerificationStatus;
+  verificationStatus?: VerificationStatus;
+  status?: VerificationStatus;
+  verificationNotes?: string;
   notes?: string;
 }
 

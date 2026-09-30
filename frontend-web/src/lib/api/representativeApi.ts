@@ -48,9 +48,17 @@ export const representativeApi = {
     id: string,
     data: UpdateVerificationRequestDto
   ): Promise<ApiResponse<RepresentativeResponseDto>> => {
+    const statusVal = data.verificationStatus || data.status || 'Pending';
+    const notesVal = data.verificationNotes || data.notes;
+    const payload = {
+      verificationStatus: statusVal,
+      status: statusVal,
+      verificationNotes: notesVal,
+      notes: notesVal,
+    };
     const response = await apiClient.patch<ApiResponse<RepresentativeResponseDto>>(
       `/representatives/${id}/verification`,
-      data
+      payload
     );
     return response.data;
   },

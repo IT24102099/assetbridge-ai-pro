@@ -59,9 +59,17 @@ export const providerApi = {
     id: string,
     data: UpdateVerificationRequestDto
   ): Promise<ApiResponse<ServiceProviderResponseDto>> => {
+    const statusVal = data.verificationStatus || data.status || 'Pending';
+    const notesVal = data.verificationNotes || data.notes;
+    const payload = {
+      verificationStatus: statusVal,
+      status: statusVal,
+      verificationNotes: notesVal,
+      notes: notesVal,
+    };
     const response = await apiClient.patch<ApiResponse<ServiceProviderResponseDto>>(
       `/providers/${id}/verification`,
-      data
+      payload
     );
     return response.data;
   },

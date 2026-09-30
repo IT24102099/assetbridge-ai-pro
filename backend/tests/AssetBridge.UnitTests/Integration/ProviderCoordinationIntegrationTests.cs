@@ -238,4 +238,102 @@ public class ProviderCoordinationIntegrationTests : IClassFixture<WebApplication
         slotPayload.Data.EndTime.Should().Be(new TimeSpan(17, 0, 0));
         slotPayload.Data.Status.Should().Be(expectedStatus);
     }
+
+    [Theory]
+    [InlineData("Verified", VerificationStatus.Verified, true)]
+    [InlineData("Rejected", VerificationStatus.Rejected, false)]
+    public async Task ManagerVerificationFlow_Representative_ApproveAndReject_ShouldUpdateStatus(
+        string statusString, VerificationStatus expectedStatus, bool expectedIsActive)
+    {
+        // 1. Manager & Representative login
+        var managerToken = await RegisterAndLoginAsync("Verification Manager", $"mgr_{Guid.NewGuid():N}@assetbridge.ai", "Manager");
+        var repEmail = $"rep_vetting_{Guid.NewGuid():N}@assetbridge.ai";
+        var repToken = await RegisterAndLoginAsync("Vetting Rep", repEmail, "Representative");
+
+        // 2. Representative registers profile (starts Pending & Active)
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", repToken);
+        var createRepDto = new CreateRepresentativeRequestDto
+        {
+            FullName = "Vetting Rep Person",
+            PhoneNumber = "+94771234567",
+            Email = repEmail,
+            District = "Colombo",
+            City = "Colombo 07"
+        };
+        var repRes = await _client.PostAsJsonAsync("/api/representatives", createRepDto);
+        repRes.StatusCode.Should().Be(HttpStatusCode.Created);
+        var repPayload = await repRes.Content.ReadFromJsonAsync<ApiResponse<RepresentativeResponseDto>>(_jsonOptions);
+        var repId = repPayload!.Data!.Id;
+        repPayload.Data.VerificationStatus.Should().Be(VerificationStatus.Pending);
+
+        // 3. Manager sends verification decision using frontend payload format { status, notes }
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
+        var jsonContent = new StringContent(
+            $$"""
+            {
+                "status": "{{statusString}}",
+                "notes": "Decision is {{statusString}}"
+            }
+            """,
+            System.Text.Encoding.UTF8,
+            "application/json");
+
+        var verifyRes = await _client.PatchAsync($"/api/representatives/{repId}/verification", jsonContent);
+        verifyRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var verifyPayload = await verifyRes.Content.ReadFromJsonAsync<ApiResponse<RepresentativeResponseDto>>(_jsonOptions);
+        verifyPayload.Should().NotBeNull();
+        verifyPayload!.Data!.VerificationStatus.Should().Be(expectedStatus);
+        verifyPayload.Data.IsActive.Should().Be(expectedIsActive);
+        verifyPayload.Data.VerificationNotes.Should().Be($"Decision is {statusString}");
+    }
+
+    [Theory]
+    [InlineData("Verified", VerificationStatus.Verified)]
+    [InlineData("Rejected", VerificationStatus.Rejected)]
+    public async Task ManagerVerificationFlow_ServiceProvider_ApproveAndReject_ShouldUpdateStatus(
+        string statusString, VerificationStatus expectedStatus)
+    {
+        // 1. Manager & Provider login
+        var managerToken = await RegisterAndLoginAsync("Verification Manager 2", $"mgr2_{Guid.NewGuid():N}@assetbridge.ai", "Manager");
+        var provEmail = $"prov_vetting_{Guid.NewGuid():N}@assetbridge.ai";
+        var provToken = await RegisterAndLoginAsync("Vetting Provider", provEmail, "ServiceProvider");
+
+        // 2. Provider registers profile (starts Pending)
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", provToken);
+        var createProvDto = new CreateServiceProviderRequestDto
+        {
+            BusinessName = "Vetting Trades Ltd",
+            ContactPerson = "Contractor One",
+            PhoneNumber = "+94779876543",
+            Email = provEmail,
+            PrimaryDistrict = "Gampaha",
+            City = "Negombo"
+        };
+        var provRes = await _client.PostAsJsonAsync("/api/providers", createProvDto);
+        provRes.StatusCode.Should().Be(HttpStatusCode.Created);
+        var provPayload = await provRes.Content.ReadFromJsonAsync<ApiResponse<ServiceProviderResponseDto>>(_jsonOptions);
+        var providerId = provPayload!.Data!.Id;
+        provPayload.Data.VerificationStatus.Should().Be(VerificationStatus.Pending);
+
+        // 3. Manager sends verification decision using frontend payload format { status, notes }
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
+        var jsonContent = new StringContent(
+            $$"""
+            {
+                "status": "{{statusString}}",
+                "notes": "Provider decision is {{statusString}}"
+            }
+            """,
+            System.Text.Encoding.UTF8,
+            "application/json");
+
+        var verifyRes = await _client.PatchAsync($"/api/providers/{providerId}/verification", jsonContent);
+        verifyRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var verifyPayload = await verifyRes.Content.ReadFromJsonAsync<ApiResponse<ServiceProviderResponseDto>>(_jsonOptions);
+        verifyPayload.Should().NotBeNull();
+        verifyPayload!.Data!.VerificationStatus.Should().Be(expectedStatus);
+        verifyPayload.Data.VerificationNotes.Should().Be($"Provider decision is {statusString}");
+    }
 }

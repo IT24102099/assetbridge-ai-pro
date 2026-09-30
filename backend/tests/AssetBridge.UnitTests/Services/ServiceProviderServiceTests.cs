@@ -393,4 +393,78 @@ public class ServiceProviderServiceTests : IDisposable
         updatedProvider!.CompletedJobsCount.Should().Be(3);
         updatedProvider.Rating.Should().Be(4.0);
     }
+
+    [Fact]
+    public async Task UpdateVerificationStatus_AsManager_ApproveProvider_ShouldSetStatusVerified()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerUser1Id,
+            BusinessName = "Perera Plumbing",
+            ContactPerson = "Sunil",
+            PhoneNumber = "0771234567",
+            Email = "perera@plumbing.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Kandy",
+            VerificationStatus = VerificationStatus.Pending
+        };
+        _dbContext.ServiceProviders.Add(provider);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        var request = new UpdateVerificationRequestDto
+        {
+            VerificationStatus = VerificationStatus.Verified,
+            VerificationNotes = "Verified trade certificates and NVQ qualification."
+        };
+
+        // Act
+        var result = await _providerSut.UpdateVerificationStatusAsync(provider.Id, request);
+
+        // Assert
+        result.VerificationStatus.Should().Be(VerificationStatus.Verified);
+        result.VerificationNotes.Should().Contain("trade certificates");
+    }
+
+    [Fact]
+    public async Task UpdateVerificationStatus_AsManager_RejectProvider_ShouldSetStatusRejected()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerUser1Id,
+            BusinessName = "Fake Trades",
+            ContactPerson = "Anonymous",
+            PhoneNumber = "0771234567",
+            Email = "fake@plumbing.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Kandy",
+            VerificationStatus = VerificationStatus.Pending
+        };
+        _dbContext.ServiceProviders.Add(provider);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        var request = new UpdateVerificationRequestDto
+        {
+            Status = VerificationStatus.Rejected,
+            Notes = "Documents failed authenticity validation."
+        };
+
+        // Act
+        var result = await _providerSut.UpdateVerificationStatusAsync(provider.Id, request);
+
+        // Assert
+        result.VerificationStatus.Should().Be(VerificationStatus.Rejected);
+        result.VerificationNotes.Should().Be("Documents failed authenticity validation.");
+    }
 }

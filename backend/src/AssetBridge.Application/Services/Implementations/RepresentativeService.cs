@@ -219,11 +219,19 @@ public class RepresentativeService : IRepresentativeService
 
         representative.VerificationStatus = request.VerificationStatus;
         representative.VerificationNotes = request.VerificationNotes?.Trim();
+        if (request.VerificationStatus == VerificationStatus.Rejected || request.VerificationStatus == VerificationStatus.Suspended)
+        {
+            representative.IsActive = false;
+        }
+        else if (request.VerificationStatus == VerificationStatus.Verified)
+        {
+            representative.IsActive = true;
+        }
         representative.UpdatedAtUtc = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Representative {RepresentativeId} verification status set to {Status} by User {UserId}",
-            representative.Id, representative.VerificationStatus, _currentUserService.UserId);
+        _logger.LogInformation("Representative {RepresentativeId} verification status set to {Status} (IsActive={IsActive}) by User {UserId}",
+            representative.Id, representative.VerificationStatus, representative.IsActive, _currentUserService.UserId);
 
         return MapToDto(representative);
     }

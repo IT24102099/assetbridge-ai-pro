@@ -141,7 +141,7 @@ export const RepresentativeDetailPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl font-bold text-slate-900">{rep.fullName}</h1>
             <StatusBadge
-              status={!rep.isActive ? 'Inactive' : rep.verificationStatus === 'Verified' ? 'Active' : 'Pending'}
+              status={!rep.isActive || rep.verificationStatus === 'Rejected' || rep.verificationStatus === 'Suspended' ? 'Inactive' : rep.verificationStatus === 'Verified' ? 'Active' : 'Pending'}
               size="md"
             />
           </div>

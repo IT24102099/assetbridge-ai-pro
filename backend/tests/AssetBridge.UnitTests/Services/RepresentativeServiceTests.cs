@@ -196,7 +196,46 @@ public class RepresentativeServiceTests : IDisposable
 
         // Assert
         result.VerificationStatus.Should().Be(VerificationStatus.Verified);
+        result.IsActive.Should().BeTrue();
         result.VerificationNotes.Should().Contain("National ID check");
+    }
+
+    [Fact]
+    public async Task UpdateVerificationStatus_AsManager_RejectRepresentative_ShouldSetStatusRejectedAndInactive()
+    {
+        // Arrange
+        var rep = new Representative
+        {
+            Id = Guid.NewGuid(),
+            UserId = _repUser1Id,
+            FullName = "Pending Rep",
+            PhoneNumber = "0771234567",
+            Email = "pending@assetbridge.ai",
+            District = "Kandy",
+            City = "Kandy",
+            VerificationStatus = VerificationStatus.Pending,
+            IsActive = true
+        };
+        _dbContext.Representatives.Add(rep);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        var request = new UpdateVerificationRequestDto
+        {
+            Status = VerificationStatus.Rejected,
+            Notes = "Invalid identification documentation submitted."
+        };
+
+        // Act
+        var result = await _sut.UpdateVerificationStatusAsync(rep.Id, request);
+
+        // Assert
+        result.VerificationStatus.Should().Be(VerificationStatus.Rejected);
+        result.IsActive.Should().BeFalse();
+        result.VerificationNotes.Should().Be("Invalid identification documentation submitted.");
     }
 
     [Fact]
