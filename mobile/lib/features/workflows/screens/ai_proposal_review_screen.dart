@@ -230,7 +230,7 @@ class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
                     const SizedBox(height: 12),
                     _buildRow('Target Asset', widget.workflow.assetName),
                     _buildRow('Incident', widget.workflow.incidentTitle),
-                    _buildRow('Recommended Contractor', widget.workflow.assignedProviderName ?? 'Apex Roofing Specialists'),
+                    _buildRow('Recommended Contractor', (widget.workflow.assignedProviderName?.isNotEmpty == true) ? widget.workflow.assignedProviderName! : 'Pending Assignment'),
                     _buildRow('Total Proposed Cost', 'LKR 48,500'),
                     _buildRow('Approved Budget', 'LKR 60,000'),
                     _buildRow('Budget Status', 'Within Budget (19% Savings)'),

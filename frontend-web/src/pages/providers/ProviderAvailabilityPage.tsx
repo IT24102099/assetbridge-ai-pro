@@ -108,7 +108,7 @@ export const ProviderAvailabilityPage: React.FC = () => {
     setSelectedDay(null);
   };
 
-  // Helper to get status for a particular day
+  // Helper to get status for a particular day (only from real database availability slots)
   const getDayStatus = (day: number): AvailabilityStatus | null => {
     const slot = availabilities.find((a) => {
       const d = new Date(a.availableDateUtc);
@@ -116,13 +116,6 @@ export const ProviderAvailabilityPage: React.FC = () => {
     });
 
     if (slot) return slot.status;
-
-    // Default wireframe demonstration pattern for September 2026
-    if (currentYear === 2026 && currentMonth === 8) {
-      if ([2, 5, 9, 18, 22].includes(day)) return 'Available';
-      if ([12, 15].includes(day)) return 'Busy';
-      if ([14, 28].includes(day)) return 'Unavailable';
-    }
     return null;
   };
 

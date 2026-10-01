@@ -118,6 +118,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 20),
 
+            // Approved Project Team Directory & Responsibilities
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.groups_rounded, size: 18, color: AppColors.primary),
+                        SizedBox(width: 8),
+                        Text(
+                          'Project Engineering Team',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Core operational module leads and system domain assignments.',
+                      style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildTeamLeadRow('Moosika', 'Asset & Incident Management', Icons.apartment_rounded),
+                    const SizedBox(height: 8),
+                    _buildTeamLeadRow('Kamsi', 'Representative & Service Provider Coordination', Icons.handyman_rounded),
+                    const SizedBox(height: 8),
+                    _buildTeamLeadRow('Jathu', 'Maintenance, Inspection & Quotations', Icons.build_circle_outlined),
+                    const SizedBox(height: 8),
+                    _buildTeamLeadRow('Mathuppriya', 'Workflow, Approval, Audit & Continuity', Icons.account_tree_outlined),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
             // Backend Endpoint Configuration (Developer / Demo Setting)
             Card(
               child: Padding(
@@ -171,6 +211,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTeamLeadRow(String name, String responsibility, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.primarySubtle.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: Colors.white, size: 16),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  responsibility,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

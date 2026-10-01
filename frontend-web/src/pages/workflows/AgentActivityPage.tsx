@@ -68,161 +68,8 @@ export default function AgentActivityPage() {
     loadAgentRuns(wfId);
   };
 
-  // Demo fallback runs if workflow hasn't executed runs yet
-  const displayedRuns: AgentRunDto[] =
-    agentRuns.length > 0
-      ? agentRuns
-      : [
-          {
-            id: 'run-01',
-            workflowInstanceId: selectedWorkflowId,
-            agentName: 'Incident Planning Agent',
-            agentType: AgentType.IncidentPlanning,
-            agentTypeName: 'Incident Planning',
-            status: 3,
-            statusName: 'Completed',
-            startedAtUtc: new Date(Date.now() - 3600000).toISOString(),
-            completedAtUtc: new Date(Date.now() - 3598500).toISOString(),
-            durationMs: 1420,
-            inputSummary: 'Evaluated ceiling water damage photos and room location tags.',
-            outputSummary: 'Scoped technical inspection requirement; estimated LKR 50,000 preliminary repair budget.',
-            retryCount: 0,
-            correlationId: 'corr-019283-plan',
-            toolExecutions: [
-              {
-                id: 'tool-01',
-                agentRunId: 'run-01',
-                toolName: 'GetIncidentContext',
-                startedAtUtc: new Date(Date.now() - 3600000).toISOString(),
-                completedAtUtc: new Date(Date.now() - 3599880).toISOString(),
-                durationMs: 120,
-                status: 2,
-                statusName: 'Success',
-                validationResult: 'Incident record & media tokens verified.'
-              },
-              {
-                id: 'tool-02',
-                agentRunId: 'run-01',
-                toolName: 'GetAssetHistory',
-                startedAtUtc: new Date(Date.now() - 3599800).toISOString(),
-                completedAtUtc: new Date(Date.now() - 3599720).toISOString(),
-                durationMs: 80,
-                status: 2,
-                statusName: 'Success',
-                validationResult: 'Retrieved 2 previous plumbing repair records.'
-              }
-            ]
-          },
-          {
-            id: 'run-02',
-            workflowInstanceId: selectedWorkflowId,
-            agentName: 'Provider Intelligence Agent',
-            agentType: AgentType.ProviderIntelligence,
-            agentTypeName: 'Provider Intelligence',
-            status: 3,
-            statusName: 'Completed',
-            startedAtUtc: new Date(Date.now() - 2400000).toISOString(),
-            completedAtUtc: new Date(Date.now() - 2397800).toISOString(),
-            durationMs: 2200,
-            inputSummary: 'Queried verified plumbers & ceiling specialists within 15km of property.',
-            outputSummary: 'Ranked top 3 contractors based on trade skill badges, availability and 4.5+ star rating.',
-            retryCount: 0,
-            correlationId: 'corr-019283-prov',
-            toolExecutions: [
-              {
-                id: 'tool-03',
-                agentRunId: 'run-02',
-                toolName: 'FindProviders',
-                startedAtUtc: new Date(Date.now() - 2400000).toISOString(),
-                completedAtUtc: new Date(Date.now() - 2399780).toISOString(),
-                durationMs: 220,
-                status: 2,
-                statusName: 'Success',
-                validationResult: 'Matched 3 verified trade providers in Colombo.'
-              },
-              {
-                id: 'tool-04',
-                agentRunId: 'run-02',
-                toolName: 'CheckProviderAvailability',
-                startedAtUtc: new Date(Date.now() - 2399700).toISOString(),
-                completedAtUtc: new Date(Date.now() - 2399610).toISOString(),
-                durationMs: 90,
-                status: 2,
-                statusName: 'Success',
-                validationResult: 'Confirmed contractor slot on scheduled date.'
-              }
-            ]
-          },
-          {
-            id: 'run-03',
-            workflowInstanceId: selectedWorkflowId,
-            agentName: 'Maintenance & Cost Recommendation Agent',
-            agentType: AgentType.MaintenanceRecommendation,
-            agentTypeName: 'Maintenance Recommendation',
-            status: 3,
-            statusName: 'Completed',
-            startedAtUtc: new Date(Date.now() - 1200000).toISOString(),
-            completedAtUtc: new Date(Date.now() - 1198900).toISOString(),
-            durationMs: 1100,
-            inputSummary: 'Compared 2 contractor bids against SLS 147 standard rates.',
-            outputSummary: 'Synthesized proposal recommending SafeHome Builders bid at LKR 48,500.',
-            retryCount: 0,
-            correlationId: 'corr-019283-cost',
-            toolExecutions: [
-              {
-                id: 'tool-05',
-                agentRunId: 'run-03',
-                toolName: 'CompareQuotations',
-                startedAtUtc: new Date(Date.now() - 1200000).toISOString(),
-                completedAtUtc: new Date(Date.now() - 1199850).toISOString(),
-                durationMs: 150,
-                status: 2,
-                statusName: 'Success',
-                validationResult: 'Calculated 14.2% cost savings on material line items.'
-              },
-              {
-                id: 'tool-06',
-                agentRunId: 'run-03',
-                toolName: 'CheckBudget',
-                startedAtUtc: new Date(Date.now() - 1199800).toISOString(),
-                completedAtUtc: new Date(Date.now() - 1199765).toISOString(),
-                durationMs: 35,
-                status: 2,
-                statusName: 'Success',
-                validationResult: 'Bid is within approved budget of LKR 60,000.'
-              }
-            ]
-          },
-          {
-            id: 'run-04',
-            workflowInstanceId: selectedWorkflowId,
-            agentName: 'Validation & Continuity Agent',
-            agentType: AgentType.ValidationAndContinuity,
-            agentTypeName: 'Validation & Continuity',
-            status: 3,
-            statusName: 'Completed',
-            startedAtUtc: new Date(Date.now() - 600000).toISOString(),
-            completedAtUtc: new Date(Date.now() - 599200).toISOString(),
-            durationMs: 800,
-            inputSummary: 'Evaluated completed repair evidence and generated 6-month warranty reminder.',
-            outputSummary: 'Passed post-repair verification check and scheduled continuity recheck task.',
-            retryCount: 0,
-            correlationId: 'corr-019283-val',
-            toolExecutions: [
-              {
-                id: 'tool-07',
-                agentRunId: 'run-04',
-                toolName: 'ValidateContinuityTask',
-                startedAtUtc: new Date(Date.now() - 600000).toISOString(),
-                completedAtUtc: new Date(Date.now() - 599940).toISOString(),
-                durationMs: 60,
-                status: 2,
-                statusName: 'Success',
-                validationResult: 'Scheduled 6-month preventive warranty follow-up.'
-              }
-            ]
-          }
-        ];
+  // Only display real agent runs returned from the backend API
+  const displayedRuns: AgentRunDto[] = agentRuns;
 
   const filteredRuns = displayedRuns.filter((r) => {
     const matchesAgent = agentTypeFilter === 'all' || r.agentType.toString() === agentTypeFilter;
@@ -336,8 +183,8 @@ export default function AgentActivityPage() {
         <ErrorState message={error} onRetry={loadWorkflows} />
       ) : filteredRuns.length === 0 ? (
         <EmptyState
-          title="No agent executions found"
-          description="Select a different workflow instance to review telemetry."
+          title="No AI agent executions recorded for this workflow yet."
+          description="Agent execution traces and tool telemetry will appear as AI agents run tasks for this workflow."
         />
       ) : (
         <div className="space-y-4">

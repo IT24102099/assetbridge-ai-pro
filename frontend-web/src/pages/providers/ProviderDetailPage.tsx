@@ -521,46 +521,12 @@ export const ProviderDetailPage: React.FC = () => {
         {activeTab === 'reviews' && (
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-slate-900">Job Performance & Reviews</h3>
-            <div className="divide-y divide-slate-100 text-xs">
-              <div className="py-3.5 space-y-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800">Ceiling Pipe Replacement</span>
-                    <div className="flex items-center text-amber-400">
-                      <Star className="h-3 w-3 fill-amber-400" />
-                      <Star className="h-3 w-3 fill-amber-400" />
-                      <Star className="h-3 w-3 fill-amber-400" />
-                      <Star className="h-3 w-3 fill-amber-400" />
-                      <Star className="h-3 w-3 fill-amber-400" />
-                    </div>
-                  </div>
-                  <span className="text-[11px] text-slate-400 font-mono">15 Aug 2026</span>
-                </div>
-                <p className="text-slate-600 leading-relaxed">
-                  "Prompt arrival, clean copper soldering work and full cleanup afterwards. Highly recommended."
-                </p>
-                <p className="text-[11px] text-slate-400">— Owner Silva (Lotus Villa)</p>
-              </div>
-
-              <div className="py-3.5 space-y-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800">Bathroom Pressure Pump Fitting</span>
-                    <div className="flex items-center text-amber-400">
-                      <Star className="h-3 w-3 fill-amber-400" />
-                      <Star className="h-3 w-3 fill-amber-400" />
-                      <Star className="h-3 w-3 fill-amber-400" />
-                      <Star className="h-3 w-3 fill-amber-400" />
-                      <Star className="h-3 w-3 text-slate-300" />
-                    </div>
-                  </div>
-                  <span className="text-[11px] text-slate-400 font-mono">02 Jul 2026</span>
-                </div>
-                <p className="text-slate-600 leading-relaxed">
-                  "Work was done accurately within estimate. Arrived on time with all required fittings."
-                </p>
-                <p className="text-[11px] text-slate-400">— Representative Nimal Perera</p>
-              </div>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6 text-center">
+              <Star className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-slate-700">No verified client reviews available</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Client reviews and ratings are automatically populated upon completion of verified work orders.
+              </p>
             </div>
           </div>
         )}

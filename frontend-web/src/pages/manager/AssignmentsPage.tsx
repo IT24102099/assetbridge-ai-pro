@@ -91,8 +91,8 @@ export const AssignmentsPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
                 {incidents.map((incident, idx) => {
-                  const assignedRep = reps[idx % (reps.length || 1)]?.fullName || 'Nimal Perera';
-                  const assignedProvider = providers[idx % (providers.length || 1)]?.businessName || 'ABC Plumbing';
+                  const assignedRep = reps.length > 0 ? (reps[idx % reps.length]?.fullName || 'Unassigned') : 'Unassigned';
+                  const assignedProvider = providers.length > 0 ? (providers[idx % providers.length]?.businessName || 'Pending Assignment') : 'Pending Assignment';
 
                   return (
                     <tr

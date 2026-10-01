@@ -145,10 +145,10 @@ export default function AiProposalReviewPage() {
   if (loading) return <LoadingState message="Synthesizing multi-agent proposal & policy checks..." />;
   if (error || !workflow) return <ErrorState message={error || 'Proposal not found'} onRetry={loadData} />;
 
-  // Budget calculations in LKR
-  const totalCost = quotation ? quotation.totalAmount : 48500;
-  const approvedBudget = incident ? incident.estimatedBudget || 60000 : 60000;
-  const isWithinBudget = totalCost <= approvedBudget;
+  // Budget calculations in LKR from real API responses
+  const totalCost = quotation?.totalAmount || incident?.estimatedBudget || 0;
+  const approvedBudget = incident?.estimatedBudget || quotation?.totalAmount || 0;
+  const isWithinBudget = approvedBudget > 0 ? totalCost <= approvedBudget : true;
 
   return (
     <div className="space-y-6">
@@ -240,11 +240,11 @@ export default function AiProposalReviewPage() {
             </div>
 
             <h2 className="text-lg font-bold text-white">
-              Recommended Contractor: {quotation ? quotation.providerBusinessName : 'SafeHome Builders & Repairs'}
+              Recommended Contractor: {quotation?.providerBusinessName || 'Pending Contractor Selection'}
             </h2>
 
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              Synthesized by Maintenance & Cost Recommendation Agent based on verified trade skills, SLS 147 standard pricing benchmarks, and prompt availability in Colombo district.
+              Synthesized by Maintenance & Cost Recommendation Agent based on verified trade skills, SLS 147 standard pricing benchmarks, and prompt contractor availability.
             </p>
           </div>
 
@@ -378,7 +378,9 @@ export default function AiProposalReviewPage() {
             ) : (
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs flex items-center justify-between">
                 <span>Standard Trade Labor & Material Package</span>
-                <span className="font-bold text-slate-900">LKR {totalCost.toLocaleString()}</span>
+                <span className="font-bold text-slate-900">
+                  {totalCost > 0 ? `LKR ${totalCost.toLocaleString()}` : 'Pending Contractor Quotation'}
+                </span>
               </div>
             )}
           </div>

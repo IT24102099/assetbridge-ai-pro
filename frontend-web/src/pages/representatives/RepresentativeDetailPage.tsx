@@ -211,7 +211,7 @@ export const RepresentativeDetailPage: React.FC = () => {
                 <span className="text-slate-400 font-semibold block uppercase text-[10px] tracking-wider mb-1">
                   NIC / ID
                 </span>
-                <p className="font-bold text-slate-800">{rep.nationalIdNumber || '912345678V'}</p>
+                <p className="font-bold text-slate-800">{rep.nationalIdNumber || 'Not provided'}</p>
               </div>
 
               <div>
@@ -292,7 +292,7 @@ export const RepresentativeDetailPage: React.FC = () => {
                   Notes & Bio
                 </span>
                 <p className="text-slate-700 bg-slate-50 p-3.5 rounded-xl border border-slate-100 leading-relaxed font-medium">
-                  {rep.bio || 'Trusted local family contact for overseas real estate oversight.'}
+                  {rep.bio || 'Not provided'}
                 </p>
               </div>
             </div>
@@ -302,32 +302,12 @@ export const RepresentativeDetailPage: React.FC = () => {
         {activeTab === 'assets' && (
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-slate-900">Properties Managed by {rep.fullName}</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <div
-                onClick={() => navigate('/assets')}
-                className="p-4 rounded-2xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/20 transition cursor-pointer flex items-center gap-3 shadow-xs"
-              >
-                <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                  <Building2 className="h-5 w-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-xs text-slate-900">Nuwara Eliya Tea Estate Bungalow</h4>
-                  <p className="text-[11px] text-slate-400">Nuwara Eliya • Active</p>
-                </div>
-              </div>
-
-              <div
-                onClick={() => navigate('/assets')}
-                className="p-4 rounded-2xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/20 transition cursor-pointer flex items-center gap-3 shadow-xs"
-              >
-                <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                  <Building2 className="h-5 w-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-xs text-slate-900">Lotus Villa</h4>
-                  <p className="text-[11px] text-slate-400">Colombo • Active</p>
-                </div>
-              </div>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6 text-center">
+              <Building2 className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-slate-700">No property assigned</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Properties assigned to this representative for inspections will appear here.
+              </p>
             </div>
           </div>
         )}

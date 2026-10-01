@@ -270,7 +270,7 @@ class _HomeOverviewTabState extends State<_HomeOverviewTab> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
-    final fullName = user?.fullName ?? 'Owner Silva';
+    final fullName = (user?.fullName.isNotEmpty == true) ? user!.fullName : (user?.email.isNotEmpty == true ? user!.email : 'User');
     final role = user?.role ?? 'Owner';
 
     final activeDefects = _recentIncidents.where((i) => i.status != 'Resolved' && i.status != 'Closed').toList();
@@ -851,6 +851,7 @@ class _HomeOverviewTabState extends State<_HomeOverviewTab> {
   }
 
   Widget _buildRecentActivitySection() {
+    final recentItems = _recentIncidents.take(3).toList();
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -877,26 +878,30 @@ class _HomeOverviewTabState extends State<_HomeOverviewTab> {
             ],
           ),
           const SizedBox(height: 14),
-          _buildActivityItem(
-            icon: Icons.report_problem_rounded,
-            color: AppColors.warning,
-            title: 'Defect ticket logged for Kandy Villa',
-            time: '2 hours ago',
-          ),
-          const SizedBox(height: 10),
-          _buildActivityItem(
-            icon: Icons.verified_outlined,
-            color: AppColors.success,
-            title: 'Roofing inspection approved by Owner',
-            time: '1 day ago',
-          ),
-          const SizedBox(height: 10),
-          _buildActivityItem(
-            icon: Icons.auto_awesome,
-            color: const Color(0xFF8B5CF6),
-            title: 'Deterministic AI matched 3 verified plumbers',
-            time: '2 days ago',
-          ),
+          if (recentItems.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: Text(
+                'Live continuity stream active. No recent tickets pending.',
+                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+              ),
+            )
+          else
+            ...recentItems.map((inc) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10.0),
+                child: _buildActivityItem(
+                  icon: inc.status == 'Resolved' || inc.status == 'Closed'
+                      ? Icons.verified_outlined
+                      : Icons.report_problem_rounded,
+                  color: inc.status == 'Resolved' || inc.status == 'Closed'
+                      ? AppColors.success
+                      : AppColors.warning,
+                  title: '${inc.title} • ${inc.assetName}',
+                  time: inc.status,
+                ),
+              );
+            }),
         ],
       ),
     );

@@ -132,6 +132,8 @@ class ApiClient {
     }
   }
 
+  static void Function()? onUnauthorized;
+
   dynamic _handleResponse(http.Response response) {
     dynamic decoded;
     try {
@@ -142,6 +144,11 @@ class ApiClient {
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return decoded;
+    }
+
+    if (response.statusCode == 401) {
+      TokenStorage.clear();
+      onUnauthorized?.call();
     }
 
     String errorMessage = 'Request failed with status code ${response.statusCode}';

@@ -15,7 +15,6 @@ import {
   PlusCircle,
   Clock,
   ChevronRight,
-  Calendar,
 } from 'lucide-react';
 import { CreateRepresentativeModal } from '../representatives/CreateRepresentativeModal';
 import { CreateProviderModal } from '../providers/CreateProviderModal';
@@ -280,55 +279,39 @@ export const ManagerDashboardPage: React.FC = () => {
             {providers.length === 0 && representatives.length === 0 ? (
               <div className="p-8 text-center text-slate-500">
                 <Clock className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                <p className="font-semibold text-slate-700 text-xs">No recent activities logged</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Activities will appear as contractors register and visit sites.</p>
+                <p className="font-semibold text-slate-700 text-xs">No recent governance events recorded.</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Events will appear as contractors and representatives are registered and verified.</p>
               </div>
             ) : (
-              <>
-                <div className="py-3 flex items-start gap-3">
-                  <div className="h-8 w-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <Briefcase className="h-4 w-4" />
+              [
+                ...providers.slice(0, 3).map((p) => ({
+                  id: `prov-${p.id}`,
+                  icon: <Briefcase className="h-4 w-4 text-blue-600" />,
+                  iconBg: 'bg-blue-50',
+                  title: `Service Provider: ${p.businessName}`,
+                  subtitle: `${p.city || 'Sri Lanka'} • ${p.skills?.[0]?.skillName || 'Contractor'}`,
+                  status: p.verificationStatus,
+                })),
+                ...representatives.slice(0, 2).map((r) => ({
+                  id: `rep-${r.id}`,
+                  icon: <Users className="h-4 w-4 text-emerald-600" />,
+                  iconBg: 'bg-emerald-50',
+                  title: `Field Representative: ${r.fullName}`,
+                  subtitle: `${r.city || 'Sri Lanka'} • ${r.isActive ? 'Active' : 'Inactive'}`,
+                  status: r.verificationStatus,
+                })),
+              ].slice(0, 4).map((item) => (
+                <div key={item.id} className="py-3 flex items-start gap-3">
+                  <div className={`h-8 w-8 rounded-full ${item.iconBg} flex items-center justify-center shrink-0 mt-0.5`}>
+                    {item.icon}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-800">New provider registered: ABC Plumbing</p>
-                    <p className="text-[11px] text-slate-400">Kandy district • 3 verified skills attached</p>
+                    <p className="text-xs font-bold text-slate-800">{item.title}</p>
+                    <p className="text-[11px] text-slate-400">{item.subtitle}</p>
                   </div>
-                  <span className="text-[10px] text-slate-400 shrink-0 font-medium">2 hours ago</span>
+                  <span className="text-[10px] font-semibold text-slate-500 shrink-0">{item.status}</span>
                 </div>
-
-                <div className="py-3 flex items-start gap-3">
-                  <div className="h-8 w-8 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <ShieldCheck className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-800">Provider verification pending: SafeHome Builders</p>
-                    <p className="text-[11px] text-slate-400">Trade license document submitted for review</p>
-                  </div>
-                  <span className="text-[10px] text-slate-400 shrink-0 font-medium">4 hours ago</span>
-                </div>
-
-                <div className="py-3 flex items-start gap-3">
-                  <div className="h-8 w-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <Users className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-800">Representative assigned: Nimal Perera</p>
-                    <p className="text-[11px] text-slate-400">Assigned to INC-1021 site inspection in Kandy</p>
-                  </div>
-                  <span className="text-[10px] text-slate-400 shrink-0 font-medium">5 hours ago</span>
-                </div>
-
-                <div className="py-3 flex items-start gap-3">
-                  <div className="h-8 w-8 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <Calendar className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-800">Provider availability updated</p>
-                    <p className="text-[11px] text-slate-400">Cool Air Solutions marked available for September 2026</p>
-                  </div>
-                  <span className="text-[10px] text-slate-400 shrink-0 font-medium">1 day ago</span>
-                </div>
-              </>
+              ))
             )}
           </div>
         </div>

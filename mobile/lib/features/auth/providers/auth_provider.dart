@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../../../core/networking/api_client.dart';
 import '../../../core/storage/token_storage.dart';
 import '../../../shared/models/user_model.dart';
 import '../services/auth_service.dart';
@@ -21,6 +22,7 @@ class AuthProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   AuthProvider() {
+    ApiClient.onUnauthorized = logout;
     _initializeAuth();
   }
 
