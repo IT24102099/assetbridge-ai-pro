@@ -15,6 +15,18 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const isTokenExpired = (jwtToken: string): boolean => {
+  try {
+    const parts = jwtToken.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (!payload.exp) return false;
+    return Date.now() >= payload.exp * 1000;
+  } catch {
+    return true;
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -27,8 +39,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(res.data);
         localStorage.setItem('assetbridge_user', JSON.stringify(res.data));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to refresh user profile from /api/auth/me', err);
+      if (err?.response?.status === 401) {
+        localStorage.removeItem('assetbridge_token');
+        localStorage.removeItem('assetbridge_user');
+        setToken(null);
+        setUser(null);
+      }
     }
   };
 
@@ -38,11 +56,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const storedUser = localStorage.getItem('assetbridge_user');
 
       if (storedToken && storedUser) {
-        setToken(storedToken);
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-        // Refresh authenticated profile in background to ensure dynamic real full name
-        fetchFreshUser();
+        if (isTokenExpired(storedToken)) {
+          console.warn('Persisted session token has expired. Clearing session.');
+          localStorage.removeItem('assetbridge_token');
+          localStorage.removeItem('assetbridge_user');
+          setToken(null);
+          setUser(null);
+        } else {
+          setToken(storedToken);
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          // Refresh authenticated profile in background to ensure dynamic real full name
+          fetchFreshUser();
+        }
       }
     } catch (e) {
       console.error('Failed to parse stored auth session:', e);

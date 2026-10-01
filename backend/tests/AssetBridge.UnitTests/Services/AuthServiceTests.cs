@@ -18,6 +18,7 @@ public class AuthServiceTests : IDisposable
     private readonly AssetBridgeDbContext _dbContext;
     private readonly Mock<IPasswordHasher> _passwordHasherMock;
     private readonly Mock<IJwtTokenGenerator> _jwtTokenGeneratorMock;
+    private readonly Mock<IGoogleAuthValidator> _googleAuthValidatorMock;
     private readonly Mock<ILogger<AuthService>> _loggerMock;
     private readonly AuthService _sut;
 
@@ -30,12 +31,14 @@ public class AuthServiceTests : IDisposable
         _dbContext = new AssetBridgeDbContext(dbOptions);
         _passwordHasherMock = new Mock<IPasswordHasher>();
         _jwtTokenGeneratorMock = new Mock<IJwtTokenGenerator>();
+        _googleAuthValidatorMock = new Mock<IGoogleAuthValidator>();
         _loggerMock = new Mock<ILogger<AuthService>>();
 
         _sut = new AuthService(
             _dbContext,
             _passwordHasherMock.Object,
             _jwtTokenGeneratorMock.Object,
+            _googleAuthValidatorMock.Object,
             _loggerMock.Object);
     }
 
@@ -176,5 +179,77 @@ public class AuthServiceTests : IDisposable
         // Assert
         await act.Should().ThrowAsync<ValidationException>()
             .WithMessage("Invalid email or password.");
+    }
+
+    [Fact]
+    public async Task GoogleLoginAsync_ShouldAuthenticateExistingUser_AndReturnValidToken()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "moosika@assetbridge.lk",
+            FullName = "Moosika",
+            PasswordHash = "some_hash",
+            Role = UserRole.Owner,
+            IsActive = true
+        };
+        _dbContext.Users.Add(user);
+        await _dbContext.SaveChangesAsync();
+
+        _googleAuthValidatorMock.Setup(x => x.ValidateIdTokenAsync("valid-id-token", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GoogleUserPayload
+            {
+                Email = "moosika@assetbridge.lk",
+                Name = "Moosika",
+                EmailVerified = true,
+                Subject = "google-subject-123"
+            });
+
+        _jwtTokenGeneratorMock.Setup(x => x.GenerateToken(It.Is<User>(u => u.Id == user.Id)))
+            .Returns("generated-jwt-for-google-user");
+
+        // Act
+        var result = await _sut.GoogleLoginAsync(new GoogleAuthRequestDto { IdToken = "valid-id-token" });
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Token.Should().Be("generated-jwt-for-google-user");
+        result.User.Email.Should().Be("moosika@assetbridge.lk");
+        result.User.FullName.Should().Be("Moosika");
+    }
+
+    [Fact]
+    public async Task GoogleLoginAsync_ShouldProvisionNewUser_WhenUserDoesNotExist()
+    {
+        // Arrange
+        _googleAuthValidatorMock.Setup(x => x.ValidateIdTokenAsync("new-user-token", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GoogleUserPayload
+            {
+                Email = "newgoogleuser@example.com",
+                Name = "New Google User",
+                EmailVerified = true,
+                Subject = "google-sub-456"
+            });
+
+        _passwordHasherMock.Setup(x => x.HashPassword(It.IsAny<string>()))
+            .Returns("random_secure_hash");
+
+        _jwtTokenGeneratorMock.Setup(x => x.GenerateToken(It.IsAny<User>()))
+            .Returns("token-for-new-google-user");
+
+        // Act
+        var result = await _sut.GoogleLoginAsync(new GoogleAuthRequestDto { IdToken = "new-user-token" });
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Token.Should().Be("token-for-new-google-user");
+        result.User.Email.Should().Be("newgoogleuser@example.com");
+        result.User.FullName.Should().Be("New Google User");
+        result.User.Role.Should().Be(UserRole.Owner);
+
+        var dbUser = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == "newgoogleuser@example.com");
+        dbUser.Should().NotBeNull();
+        dbUser!.IsActive.Should().BeTrue();
     }
 }

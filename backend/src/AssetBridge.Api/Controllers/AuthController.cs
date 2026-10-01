@@ -30,6 +30,16 @@ public class AuthController : BaseApiController
         return HandleSuccess(response, "Login successful.");
     }
 
+    [HttpPost("google")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleAuthRequestDto request, CancellationToken cancellationToken)
+    {
+        var response = await _authService.GoogleLoginAsync(request, cancellationToken);
+        return HandleSuccess(response, "Google authentication successful.");
+    }
+
     [HttpPost("register")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status201Created)]

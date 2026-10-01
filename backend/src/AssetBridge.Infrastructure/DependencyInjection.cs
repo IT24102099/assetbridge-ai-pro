@@ -81,6 +81,7 @@ public static class DependencyInjection
         services.AddHttpContextAccessor();
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddScoped<IGoogleAuthValidator, GoogleAuthValidator>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
 

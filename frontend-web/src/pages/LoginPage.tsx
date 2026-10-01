@@ -133,6 +133,12 @@ const LandIllustration: React.FC = () => (
   </svg>
 );
 
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
+
 /* ==========================================================================
    LOGIN PAGE COMPONENT
    ========================================================================== */
@@ -147,6 +153,69 @@ export const LoginPage: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
+  const handleGoogleCredentialResponse = async (response: any) => {
+    if (!response || !response.credential) {
+      setErrorMessage('Google authentication did not return a valid credential.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setErrorMessage(null);
+      const res = await authApi.googleLogin(response.credential);
+
+      if (res.data) {
+        login(res.data.token, res.data.user);
+        navigate('/dashboard');
+      } else {
+        setErrorMessage(res.message || 'Google authentication failed.');
+      }
+    } catch (err: any) {
+      console.error('Google login error:', err);
+      setErrorMessage(
+        err?.response?.data?.message ||
+          err?.message ||
+          'Google authentication failed. Please ensure your account exists or contact administrator.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!googleClientId || googleClientId.includes('your-google-client-id')) {
+      return;
+    }
+
+    const initGoogle = () => {
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+      }
+    };
+
+    if (window.google?.accounts?.id) {
+      initGoogle();
+    } else {
+      const existingScript = document.getElementById('google-gsi-script');
+      if (!existingScript) {
+        const script = document.createElement('script');
+        script.id = 'google-gsi-script';
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        script.onload = initGoogle;
+        document.body.appendChild(script);
+      }
+    }
+  }, [googleClientId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,7 +248,26 @@ export const LoginPage: React.FC = () => {
   };
 
   const handleGoogleSignIn = () => {
-    setErrorMessage('Google sign-in is not configured for this deployment yet.');
+    if (!googleClientId || googleClientId.trim() === '' || googleClientId.includes('your-google-client-id')) {
+      setErrorMessage('Google sign-in is not configured for this deployment yet.');
+      return;
+    }
+
+    if (!window.google?.accounts?.id) {
+      setErrorMessage('Google Identity Services is currently loading. Please try again in a moment.');
+      return;
+    }
+
+    try {
+      window.google.accounts.id.prompt((notification: any) => {
+        if (notification.isNotDisplayed()) {
+          console.warn('Google One-Tap prompt not displayed:', notification.getNotDisplayedReason());
+        }
+      });
+    } catch (err: any) {
+      console.error('Error invoking Google One-Tap:', err);
+      setErrorMessage('Could not open Google sign-in dialog.');
+    }
   };
 
   const handleQuickFill = (demoEmail: string) => {

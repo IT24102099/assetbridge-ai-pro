@@ -87,16 +87,18 @@ public class DatabaseSeeder : IDatabaseSeeder
         var demoUsers = new List<(string Email, string FullName, UserRole Role, string Phone)>
         {
             // Primary demo credentials (@assetbridge.lk) matching UI quick-fill
-            ("manager@assetbridge.lk", "Manager Perera", UserRole.Manager, "+94771234561"),
-            ("owner@assetbridge.lk", "Owner Silva", UserRole.Owner, "+94771234562"),
-            ("provider@assetbridge.lk", "Provider Repairs", UserRole.ServiceProvider, "+94771234563"),
-            ("rep@assetbridge.lk", "Representative Fernando", UserRole.Representative, "+94771234564"),
+            ("manager@assetbridge.lk", "Mathuppriya", UserRole.Manager, "+94771234561"),
+            ("owner@assetbridge.lk", "Moosika", UserRole.Owner, "+94771234562"),
+            ("provider@assetbridge.lk", "Jathu", UserRole.ServiceProvider, "+94771234563"),
+            ("rep@assetbridge.lk", "Kamsiga", UserRole.Representative, "+94771234564"),
+            ("admin@assetbridge.lk", "AssetBridge Administrator", UserRole.Admin, "+94771234560"),
 
             // Alternate domain aliases (@assetbridge.ai)
-            ("manager@assetbridge.ai", "Manager Perera", UserRole.Manager, "+94771234561"),
-            ("owner@assetbridge.ai", "Owner Silva", UserRole.Owner, "+94771234562"),
-            ("provider@assetbridge.ai", "Provider Repairs", UserRole.ServiceProvider, "+94771234563"),
-            ("rep@assetbridge.ai", "Representative Fernando", UserRole.Representative, "+94771234564")
+            ("manager@assetbridge.ai", "Mathuppriya", UserRole.Manager, "+94771234561"),
+            ("owner@assetbridge.ai", "Moosika", UserRole.Owner, "+94771234562"),
+            ("provider@assetbridge.ai", "Jathu", UserRole.ServiceProvider, "+94771234563"),
+            ("rep@assetbridge.ai", "Kamsiga", UserRole.Representative, "+94771234564"),
+            ("admin@assetbridge.ai", "AssetBridge Administrator", UserRole.Admin, "+94771234560")
         };
 
         const string demoPassword = "SecurePassword123!";
@@ -127,13 +129,14 @@ public class DatabaseSeeder : IDatabaseSeeder
             }
             else
             {
-                // Ensure password hash and active status are up-to-date for demo users
+                // In-place update existing demo records so deployed database safely reflects correct team member names
+                existingUser.FullName = fullName;
+                existingUser.Role = role;
+                existingUser.PhoneNumber = phone;
                 if (!existingUser.IsActive || !_passwordHasher.VerifyPassword(demoPassword, existingUser.PasswordHash))
                 {
                     existingUser.PasswordHash = passwordHash;
                     existingUser.IsActive = true;
-                    existingUser.Role = role;
-                    existingUser.FullName = fullName;
                     _logger.LogInformation("Updated demo user {Email} credentials", email);
                 }
             }
@@ -191,7 +194,7 @@ public class DatabaseSeeder : IDatabaseSeeder
                     District = "Kandy",
                     City = "Kandy",
                     Address = "123, Peradeniya Road, Kandy",
-                    NationalIdNumber = "912345678V",
+                    NationalIdNumber = null,
                     VerificationStatus = VerificationStatus.Verified,
                     VerificationNotes = "Background check verified. Identity documents verified on 12 Jan 2024.",
                     Bio = "Experienced local representative covering Kandy, Peradeniya, and Katugastota. Trusted family contact for overseas property oversight.",
@@ -427,6 +430,45 @@ public class DatabaseSeeder : IDatabaseSeeder
             await _context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Seeded demo service providers with skills and availability slots.");
         }
+
+        // 3. Update existing demo representative and provider profiles in-place
+        var repUsers = await _context.Users
+            .Where(u => u.Email == "rep@assetbridge.lk" || u.Email == "rep@assetbridge.ai")
+            .ToListAsync(cancellationToken);
+        foreach (var ru in repUsers)
+        {
+            var existingRep = await _context.Representatives.FirstOrDefaultAsync(r => r.UserId == ru.Id, cancellationToken);
+            if (existingRep != null)
+            {
+                existingRep.FullName = "Kamsiga";
+            }
+        }
+
+        var providerUsers = await _context.Users
+            .Where(u => u.Email == "provider@assetbridge.lk" || u.Email == "provider@assetbridge.ai")
+            .ToListAsync(cancellationToken);
+        foreach (var pu in providerUsers)
+        {
+            var existingProv = await _context.ServiceProviders.FirstOrDefaultAsync(p => p.UserId == pu.Id, cancellationToken);
+            if (existingProv != null)
+            {
+                existingProv.ContactPerson = "Jathu";
+            }
+        }
+
+        // 4. Sanitize fake sample NIC from all existing representative records if present
+        var legacyReps = await _context.Representatives
+            .Where(r => r.NationalIdNumber == "912345678V")
+            .ToListAsync(cancellationToken);
+        if (legacyReps.Any())
+        {
+            foreach (var r in legacyReps)
+            {
+                r.NationalIdNumber = null;
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     private async Task SeedDemoAssetsAndIncidentsAsync(CancellationToken cancellationToken)

@@ -8,6 +8,7 @@ namespace AssetBridge.Application.Services.Interfaces;
 public interface IAuthService
 {
     Task<LoginResponseDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken = default);
+    Task<LoginResponseDto> GoogleLoginAsync(GoogleAuthRequestDto request, CancellationToken cancellationToken = default);
     Task<UserProfileDto> RegisterAsync(RegisterRequestDto request, CancellationToken cancellationToken = default);
     Task<UserProfileDto> GetCurrentUserProfileAsync(Guid userId, CancellationToken cancellationToken = default);
 }
