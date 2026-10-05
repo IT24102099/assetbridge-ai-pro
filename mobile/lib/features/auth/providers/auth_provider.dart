@@ -22,24 +22,31 @@ class AuthProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   AuthProvider() {
+    debugPrint('[AUTH_PROVIDER] constructor called');
     ApiClient.onUnauthorized = logout;
     _initializeAuth();
   }
 
   Future<void> _initializeAuth() async {
+    debugPrint('[AUTH_PROVIDER] _initializeAuth started');
     try {
       _token = await TokenStorage.getToken();
+      debugPrint('[AUTH_PROVIDER] _token loaded: ${_token != null ? "EXISTS (${_token!.length} chars)" : "NULL"}');
       final userJson = await TokenStorage.getUserJson();
+      debugPrint('[AUTH_PROVIDER] userJson loaded: ${userJson != null ? "EXISTS" : "NULL"}');
 
       if (_token != null && userJson != null) {
         _user = UserModel.fromJson(jsonDecode(userJson) as Map<String, dynamic>);
+        debugPrint('[AUTH_PROVIDER] UserModel parsed: ${_user?.fullName} (${_user?.role})');
       }
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('[AUTH_PROVIDER] Exception in _initializeAuth: $e\n$stack');
       await TokenStorage.clear();
       _token = null;
       _user = null;
     } finally {
       _isInitializing = false;
+      debugPrint('[AUTH_PROVIDER] _isInitializing set to false, calling notifyListeners()');
       notifyListeners();
     }
   }

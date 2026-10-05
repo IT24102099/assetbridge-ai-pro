@@ -11,6 +11,7 @@ class ApiEndpoints {
   static const String incidents = '/incidents';
   static String incidentDetails(String id) => '/incidents/$id';
   static String incidentEvidence(String id) => '/incidents/$id/evidence';
+  static String incidentEvidenceUpload(String id) => '/incidents/$id/evidence/upload';
 
   // Member 2: Providers & Representatives
   static const String providers = '/providers';

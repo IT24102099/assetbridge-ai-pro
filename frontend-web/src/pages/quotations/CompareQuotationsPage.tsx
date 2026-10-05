@@ -3,8 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Sparkles,
   ArrowLeft,
-  CheckCircle2
+  CheckCircle2,
+  ShieldAlert
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { quotationApi } from '../../lib/api/quotationApi';
 import { incidentApi } from '../../lib/api/incidentApi';
 import { IncidentResponseDto } from '../../types/incident';
@@ -14,9 +16,12 @@ import {
 import { LoadingState, ErrorState, EmptyState } from '../../components/common/FeedbackStates';
 
 export default function CompareQuotationsPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialIncidentId = searchParams.get('incidentId') || '';
+
+  const isServiceProvider = user?.role === 'ServiceProvider';
 
   const [incidents, setIncidents] = useState<IncidentResponseDto[]>([]);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string>(initialIncidentId);
@@ -26,8 +31,10 @@ export default function CompareQuotationsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadIncidents();
-  }, []);
+    if (!isServiceProvider) {
+      loadIncidents();
+    }
+  }, [isServiceProvider]);
 
   const loadIncidents = async () => {
     try {
@@ -44,10 +51,10 @@ export default function CompareQuotationsPage() {
   };
 
   useEffect(() => {
-    if (selectedIncidentId) {
+    if (!isServiceProvider && selectedIncidentId) {
       runComparison(selectedIncidentId);
     }
-  }, [selectedIncidentId]);
+  }, [selectedIncidentId, isServiceProvider]);
 
   const runComparison = async (incidentId: string) => {
     try {
@@ -66,6 +73,38 @@ export default function CompareQuotationsPage() {
       setLoading(false);
     }
   };
+
+  if (isServiceProvider) {
+    return (
+      <div className="space-y-6">
+        <button
+          onClick={() => navigate('/quotations')}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition mb-1"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to Quotations
+        </button>
+
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-xs text-center max-w-lg mx-auto space-y-4 my-8">
+          <div className="h-12 w-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold mx-auto">
+            <ShieldAlert className="h-6 w-6" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-900">Quotation Comparison Restricted</h2>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            In accordance with AssetBridge procurement governance, competitive quotation comparison and bid evaluation are reserved for Property Owners, Representatives, and Managers.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => navigate('/quotations')}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
+            >
+              Return to My Quotations & Bids
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const recommendedCandidate = comparisonResult?.candidates?.find(
     (c) => c.quotationId === comparisonResult.recommendedQuotationId

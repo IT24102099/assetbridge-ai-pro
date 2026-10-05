@@ -60,4 +60,19 @@ class WorkflowService {
     final body = {'revisionReason': revisionReason};
     await _apiClient.post(ApiEndpoints.requestWorkflowChanges(workflowId), body: body);
   }
+
+  Future<List<AgentRunModel>> getAgentRuns(String workflowId) async {
+    final json = await _apiClient.get(ApiEndpoints.workflowAgentRuns(workflowId));
+    final apiResponse = ApiResponse<List<dynamic>>.fromJson(
+      json,
+      (data) => data as List<dynamic>,
+    );
+
+    if (apiResponse.success && apiResponse.data != null) {
+      return apiResponse.data!
+          .map((item) => AgentRunModel.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  }
 }

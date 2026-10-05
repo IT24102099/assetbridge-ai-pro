@@ -23,6 +23,7 @@ export default function QuotationListPage() {
   const [error, setError] = useState<string | null>(null);
 
   const canCreateQuotation = user?.role === 'ServiceProvider' || user?.role === 'Manager' || user?.role === 'Admin';
+  const canCompareQuotations = user?.role !== 'ServiceProvider';
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -82,13 +83,15 @@ export default function QuotationListPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => navigate('/quotations/compare')}
-            className="px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
-          >
-            <Sparkles className="h-4 w-4 text-cyan-600" />
-            Compare Quotations
-          </button>
+          {canCompareQuotations && (
+            <button
+              onClick={() => navigate('/quotations/compare')}
+              className="px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+            >
+              <Sparkles className="h-4 w-4 text-cyan-600" />
+              Compare Quotations
+            </button>
+          )}
           {canCreateQuotation && (
             <button
               onClick={() => setIsCreateModalOpen(true)}

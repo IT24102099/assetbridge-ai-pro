@@ -14,10 +14,14 @@ import {
 } from '../../types/quotation';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingState, ErrorState } from '../../components/common/FeedbackStates';
+import { useAuth } from '../../context/AuthContext';
 
 export default function QuotationDetailPage() {
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+
+  const canCompare = user?.role !== 'ServiceProvider';
 
   const [quotation, setQuotation] = useState<QuotationResponseDto | null>(null);
   const [budgetCheck, setBudgetCheck] = useState<BudgetCheckResultDto | null>(null);
@@ -131,13 +135,15 @@ export default function QuotationDetailPage() {
             </button>
           )}
 
-          <button
-            onClick={() => navigate('/quotations/compare')}
-            className="px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
-          >
-            <Sparkles className="h-4 w-4 text-cyan-600" />
-            Compare with Others
-          </button>
+          {canCompare && (
+            <button
+              onClick={() => navigate('/quotations/compare')}
+              className="px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+            >
+              <Sparkles className="h-4 w-4 text-cyan-600" />
+              Compare with Others
+            </button>
+          )}
         </div>
       </div>
 

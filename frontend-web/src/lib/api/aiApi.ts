@@ -51,9 +51,62 @@ export interface DownloadedDocResult {
   filename: string;
 }
 
+export interface AiOrchestrationRequest {
+  workflow_instance_id: string;
+  asset_id: string;
+  incident_id: string;
+}
+
+export interface AiToolExecutionSummary {
+  tool_name: string;
+  started_at_utc?: string;
+  completed_at_utc?: string;
+  duration_ms?: number;
+  input_summary?: string;
+  output_summary?: string;
+  status?: string;
+  validation_result?: string;
+  error_message?: string;
+}
+
+export interface AiAgentSummary {
+  agent_run_id: string;
+  workflow_instance_id: string;
+  agent_name: string;
+  agent_type: string;
+  status: string;
+  started_at_utc?: string;
+  completed_at_utc?: string;
+  duration_ms?: number;
+  retry_count: number;
+  decision_summary: string;
+  structured_payload?: any;
+  tool_executions: AiToolExecutionSummary[];
+  error_message?: string;
+}
+
+export interface AiOrchestrationResponse {
+  workflow_instance_id: string;
+  asset_id: string;
+  incident_id: string;
+  status: string;
+  total_duration_ms: number;
+  executed_agents_count: number;
+  governance_status: string;
+  agent_summaries?: AiAgentSummary[];
+  final_proposal?: any;
+  approval_request?: any;
+  follow_up_scheduled: boolean;
+}
+
 export const aiApi = {
   sendChatMessage: async (data: AiChatRequest): Promise<ApiResponse<AiChatResponse>> => {
     const response = await apiClient.post<ApiResponse<AiChatResponse>>('/ai/chat', data);
+    return response.data;
+  },
+
+  orchestrateWorkflow: async (data: AiOrchestrationRequest): Promise<ApiResponse<AiOrchestrationResponse>> => {
+    const response = await apiClient.post<ApiResponse<AiOrchestrationResponse>>('/ai/orchestrate', data);
     return response.data;
   },
 
@@ -110,4 +163,5 @@ export const aiApi = {
     return `/api/ai/documents/${documentId}/download`;
   }
 };
+
 

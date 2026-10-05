@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_text_field.dart';
@@ -23,6 +25,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
 
   final AssetService _assetService = AssetService();
   final IncidentService _incidentService = IncidentService();
+  final ImagePicker _imagePicker = ImagePicker();
 
   List<AssetModel> _assets = [];
   String? _selectedAssetId;
@@ -32,8 +35,8 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
   bool _isLoadingAssets = true;
   bool _isSubmitting = false;
 
-  // Selected photo evidence mocks/previews
-  final List<String> _attachedPhotoNames = [];
+  // Real user-selected photo evidence files
+  final List<File> _selectedPhotos = [];
 
   final List<String> _categories = [
     'Plumbing',
@@ -77,15 +80,38 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     }
   }
 
-  void _addSamplePhoto() {
-    setState(() {
-      _attachedPhotoNames.add('defect_photo_${_attachedPhotoNames.length + 1}.jpg');
-    });
+  Future<void> _pickPhotos() async {
+    try {
+      final List<XFile> picked = await _imagePicker.pickMultiImage();
+      if (picked.isNotEmpty) {
+        setState(() {
+          _selectedPhotos.addAll(picked.map((x) => File(x.path)));
+        });
+      }
+    } catch (e) {
+      // Fallback to single image pick if multi-image picker is not supported on this platform/device
+      try {
+        final XFile? singlePicked = await _imagePicker.pickImage(source: ImageSource.gallery);
+        if (singlePicked != null) {
+          setState(() {
+            _selectedPhotos.add(File(singlePicked.path));
+          });
+        }
+      } catch (err) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open gallery: $err'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   void _removePhoto(int index) {
     setState(() {
-      _attachedPhotoNames.removeAt(index);
+      _selectedPhotos.removeAt(index);
     });
   }
 
@@ -114,14 +140,17 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
 
       final created = await _incidentService.createIncident(req);
 
-      // Attach any selected photo evidence
-      for (final photoName in _attachedPhotoNames) {
-        await _incidentService.addEvidence(
-          created.id,
-          'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=800',
-          photoName,
-          'Mobile initial evidence capture',
-        );
+      // Upload actual selected photo files if any
+      for (final photoFile in _selectedPhotos) {
+        try {
+          await _incidentService.uploadEvidenceFile(
+            created.id,
+            photoFile,
+            caption: 'Mobile defect evidence capture',
+          );
+        } catch (uploadErr) {
+          debugPrint('Notice: evidence file upload error: $uploadErr');
+        }
       }
 
       if (!mounted) return;
@@ -170,15 +199,22 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                     ),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: _selectedAssetId,
                       items: _assets.map((a) {
                         return DropdownMenuItem(
                           value: a.id,
-                          child: Text('${a.name} (${a.city})'),
+                          child: Text(
+                            '${a.name} (${a.city})',
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
                         );
                       }).toList(),
                       onChanged: (val) => setState(() => _selectedAssetId = val),
-                      decoration: const InputDecoration(),
+                      decoration: const InputDecoration(
+                        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
                     ),
                     const SizedBox(height: 16),
 
@@ -211,12 +247,18 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                               ),
                               const SizedBox(height: 6),
                               DropdownButtonFormField<String>(
+                                isExpanded: true,
                                 value: _selectedCategory,
                                 items: _categories
-                                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                                    .map((c) => DropdownMenuItem(
+                                          value: c,
+                                          child: Text(c, overflow: TextOverflow.ellipsis),
+                                        ))
                                     .toList(),
                                 onChanged: (val) => setState(() => _selectedCategory = val!),
-                                decoration: const InputDecoration(),
+                                decoration: const InputDecoration(
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                ),
                               ),
                             ],
                           ),
@@ -236,12 +278,18 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                               ),
                               const SizedBox(height: 6),
                               DropdownButtonFormField<String>(
+                                isExpanded: true,
                                 value: _selectedPriority,
                                 items: _priorities
-                                    .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                                    .map((p) => DropdownMenuItem(
+                                          value: p,
+                                          child: Text(p, overflow: TextOverflow.ellipsis),
+                                        ))
                                     .toList(),
                                 onChanged: (val) => setState(() => _selectedPriority = val!),
-                                decoration: const InputDecoration(),
+                                decoration: const InputDecoration(
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                ),
                               ),
                             ],
                           ),
@@ -302,54 +350,61 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                     ),
                     const SizedBox(height: 10),
 
-                    // Evidence Preview Row
+                    // Evidence Preview Grid
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: 10,
+                      runSpacing: 10,
                       children: [
-                        ..._attachedPhotoNames.asMap().entries.map((entry) {
+                        ..._selectedPhotos.asMap().entries.map((entry) {
                           final idx = entry.key;
-                          final name = entry.value;
-                          return Container(
-                            width: 100,
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: Column(
-                              children: [
-                                const Icon(Icons.image, size: 32, color: AppColors.primary),
-                                const SizedBox(height: 4),
-                                Text(
-                                  name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                          final file = entry.value;
+                          return Stack(
+                            children: [
+                              Container(
+                                width: 88,
+                                height: 88,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.border),
                                 ),
-                                const SizedBox(height: 4),
-                                InkWell(
-                                  onTap: () => _removePhoto(idx),
-                                  child: const Text(
-                                    'Remove',
-                                    style: TextStyle(fontSize: 10, color: AppColors.error, fontWeight: FontWeight.bold),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.file(
+                                    file,
+                                    width: 88,
+                                    height: 88,
+                                    fit: BoxFit.cover,
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                              Positioned(
+                                top: 4,
+                                right: 4,
+                                child: InkWell(
+                                  onTap: () => _removePhoto(idx),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.black54,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.close, size: 14, color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ],
                           );
                         }),
                         InkWell(
-                          onTap: _addSamplePhoto,
+                          onTap: _pickPhotos,
                           borderRadius: BorderRadius.circular(12),
                           child: Container(
-                            width: 100,
-                            height: 85,
+                            width: 88,
+                            height: 88,
                             decoration: BoxDecoration(
                               color: AppColors.primarySubtle,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.primaryLight, style: BorderStyle.solid),
+                              border: Border.all(color: AppColors.primaryLight),
                             ),
                             child: const Column(
                               mainAxisAlignment: MainAxisAlignment.center,

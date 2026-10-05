@@ -24,6 +24,7 @@ import { LoadingState, ErrorState, EmptyState } from '../../components/common/Fe
 export default function MaintenanceDashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const canCompare = user?.role !== 'ServiceProvider';
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,13 +112,15 @@ export default function MaintenanceDashboardPage() {
             <ClipboardCheck className="h-4 w-4 text-slate-600" />
             Inspections
           </button>
-          <button
-            onClick={() => navigate('/quotations/compare')}
-            className="px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
-          >
-            <Sparkles className="h-4 w-4 text-cyan-600" />
-            Compare Quotes
-          </button>
+          {canCompare && (
+            <button
+              onClick={() => navigate('/quotations/compare')}
+              className="px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+            >
+              <Sparkles className="h-4 w-4 text-cyan-600" />
+              Compare Quotes
+            </button>
+          )}
           <button
             onClick={() => navigate('/maintenance/jobs')}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition flex items-center gap-1.5"
@@ -243,11 +246,11 @@ export default function MaintenanceDashboardPage() {
               Compare multiple contractor quotes with verified Sri Lankan material catalog benchmarks, warranty terms, and budget adherence.
             </p>
             <button
-              onClick={() => navigate('/quotations/compare')}
+              onClick={() => navigate(canCompare ? '/quotations/compare' : '/quotations')}
               className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2"
             >
               <FileText className="h-4 w-4" />
-              Compare Incident Quotations
+              {canCompare ? 'Compare Incident Quotations' : 'View Quotations & Bids'}
             </button>
           </div>
 

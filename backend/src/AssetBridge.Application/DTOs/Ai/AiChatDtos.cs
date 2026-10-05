@@ -113,6 +113,78 @@ public class AiOrchestrationRequestDto
     public Guid IncidentId { get; set; }
 }
 
+public class AiToolExecutionRecordDto
+{
+    [JsonPropertyName("tool_name")]
+    public string ToolName { get; set; } = string.Empty;
+
+    [JsonPropertyName("started_at_utc")]
+    public DateTime? StartedAtUtc { get; set; }
+
+    [JsonPropertyName("completed_at_utc")]
+    public DateTime? CompletedAtUtc { get; set; }
+
+    [JsonPropertyName("duration_ms")]
+    public long? DurationMs { get; set; }
+
+    [JsonPropertyName("input_summary")]
+    public string? InputSummary { get; set; }
+
+    [JsonPropertyName("output_summary")]
+    public string? OutputSummary { get; set; }
+
+    [JsonPropertyName("status")]
+    public string? Status { get; set; }
+
+    [JsonPropertyName("validation_result")]
+    public string? ValidationResult { get; set; }
+
+    [JsonPropertyName("error_message")]
+    public string? ErrorMessage { get; set; }
+}
+
+public class AiAgentSummaryDto
+{
+    [JsonPropertyName("agent_run_id")]
+    public string AgentRunId { get; set; } = string.Empty;
+
+    [JsonPropertyName("workflow_instance_id")]
+    public string WorkflowInstanceId { get; set; } = string.Empty;
+
+    [JsonPropertyName("agent_name")]
+    public string AgentName { get; set; } = string.Empty;
+
+    [JsonPropertyName("agent_type")]
+    public string AgentType { get; set; } = string.Empty;
+
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = string.Empty;
+
+    [JsonPropertyName("started_at_utc")]
+    public DateTime? StartedAtUtc { get; set; }
+
+    [JsonPropertyName("completed_at_utc")]
+    public DateTime? CompletedAtUtc { get; set; }
+
+    [JsonPropertyName("duration_ms")]
+    public long? DurationMs { get; set; }
+
+    [JsonPropertyName("retry_count")]
+    public int RetryCount { get; set; }
+
+    [JsonPropertyName("decision_summary")]
+    public string DecisionSummary { get; set; } = string.Empty;
+
+    [JsonPropertyName("structured_payload")]
+    public object? StructuredPayload { get; set; }
+
+    [JsonPropertyName("tool_executions")]
+    public List<AiToolExecutionRecordDto> ToolExecutions { get; set; } = new();
+
+    [JsonPropertyName("error_message")]
+    public string? ErrorMessage { get; set; }
+}
+
 public class AiOrchestrationResponseDto
 {
     [JsonPropertyName("workflow_instance_id")]
@@ -135,6 +207,12 @@ public class AiOrchestrationResponseDto
 
     [JsonPropertyName("governance_status")]
     public string GovernanceStatus { get; set; } = string.Empty;
+
+    [JsonPropertyName("agent_summaries")]
+    public List<AiAgentSummaryDto> AgentSummaries { get; set; } = new();
+
+    [JsonPropertyName("final_proposal")]
+    public object? FinalProposal { get; set; }
 
     [JsonPropertyName("approval_request")]
     public object? ApprovalRequest { get; set; }

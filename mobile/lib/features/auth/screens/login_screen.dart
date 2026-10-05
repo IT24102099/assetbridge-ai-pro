@@ -55,6 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[LOGIN_SCREEN] build() called');
     final auth = context.watch<AuthProvider>();
 
     return Scaffold(

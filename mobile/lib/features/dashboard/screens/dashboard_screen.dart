@@ -29,6 +29,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[DASHBOARD_SCREEN] build() called');
     final user = context.watch<AuthProvider>().user;
     final role = user?.role ?? 'Owner';
 

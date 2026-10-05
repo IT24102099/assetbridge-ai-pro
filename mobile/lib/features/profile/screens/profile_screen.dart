@@ -118,7 +118,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Approved Project Team Directory & Responsibilities
+            const SizedBox(height: 16),
+
+            // Account & Security Overview
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -127,10 +129,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     const Row(
                       children: [
-                        Icon(Icons.groups_rounded, size: 18, color: AppColors.primary),
+                        Icon(Icons.shield_outlined, size: 18, color: AppColors.primary),
                         SizedBox(width: 8),
                         Text(
-                          'Project Engineering Team',
+                          'Account & Security',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -139,58 +141,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Core operational module leads and system domain assignments.',
-                      style: TextStyle(fontSize: 11, color: AppColors.textMuted),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildTeamLeadRow('Moosika', 'Asset & Incident Management', Icons.apartment_rounded),
-                    const SizedBox(height: 8),
-                    _buildTeamLeadRow('Kamsi', 'Representative & Service Provider Coordination', Icons.handyman_rounded),
-                    const SizedBox(height: 8),
-                    _buildTeamLeadRow('Jathu', 'Maintenance, Inspection & Quotations', Icons.build_circle_outlined),
-                    const SizedBox(height: 8),
-                    _buildTeamLeadRow('Mathuppriya', 'Workflow, Approval, Audit & Continuity', Icons.account_tree_outlined),
+                    const SizedBox(height: 14),
+                    _buildInfoRow(Icons.phone_outlined, 'Phone Number', user?.phoneNumber ?? 'Not provided'),
+                    const Divider(height: 16, color: AppColors.border),
+                    _buildInfoRow(Icons.verified_user_outlined, 'Account Status', user?.isActive == true ? 'Active • Verified' : 'Standard'),
+                    const Divider(height: 16, color: AppColors.border),
+                    _buildInfoRow(Icons.lock_clock_outlined, 'Authentication', 'Encrypted JWT • RBAC Protected'),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Backend Endpoint Configuration (Developer / Demo Setting)
+            // Developer / Advanced Server Connection (Collapsible)
             Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              child: Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  leading: const Icon(Icons.settings_ethernet_rounded, size: 20, color: AppColors.textSecondary),
+                  title: const Text(
+                    'Server Endpoint Settings',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                  ),
+                  subtitle: Text(
+                    AppConfig.baseUrl,
+                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.tune_rounded, size: 18, color: AppColors.primary),
-                        SizedBox(width: 8),
-                        Text(
-                          'Backend Endpoint Settings',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
                     const Text(
-                      'Configure the ASP.NET Core Web API target host for emulator (10.0.2.2:5206) or physical device.',
+                      'Configure API target host (e.g. https://assetbridge-api-3v3z.onrender.com/api or http://10.0.2.2:5206/api)',
                       style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     TextField(
                       controller: _urlController,
-                      style: const TextStyle(fontSize: 13),
+                      style: const TextStyle(fontSize: 12),
                       decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         suffixIcon: IconButton(
-                          icon: const Icon(Icons.check, color: AppColors.primary),
+                          icon: const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 20),
                           onPressed: _updateBaseUrl,
                         ),
                       ),
@@ -215,50 +207,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildTeamLeadRow(String name, String responsibility, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.primarySubtle.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: Colors.white, size: 16),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                Text(
-                  responsibility,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppColors.textMuted),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 }

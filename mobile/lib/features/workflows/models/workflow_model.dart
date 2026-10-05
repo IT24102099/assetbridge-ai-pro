@@ -88,3 +88,79 @@ class WorkflowStepModel {
     );
   }
 }
+
+class AgentRunModel {
+  final String id;
+  final String workflowInstanceId;
+  final String agentName;
+  final String agentTypeName;
+  final String statusName;
+  final String? outputSummary;
+  final String? inputSummary;
+  final String? errorMessage;
+  final int durationMs;
+  final String startedAtUtc;
+  final String? completedAtUtc;
+  final List<ToolExecutionModel> toolExecutions;
+
+  AgentRunModel({
+    required this.id,
+    required this.workflowInstanceId,
+    required this.agentName,
+    required this.agentTypeName,
+    required this.statusName,
+    this.outputSummary,
+    this.inputSummary,
+    this.errorMessage,
+    this.durationMs = 0,
+    required this.startedAtUtc,
+    this.completedAtUtc,
+    this.toolExecutions = const [],
+  });
+
+  factory AgentRunModel.fromJson(Map<String, dynamic> json) {
+    final rawTools = json['toolExecutions'] as List<dynamic>? ?? [];
+    return AgentRunModel(
+      id: json['id'] ?? '',
+      workflowInstanceId: json['workflowInstanceId'] ?? '',
+      agentName: json['agentName'] ?? 'Agentic AI Agent',
+      agentTypeName: json['agentTypeName'] ?? '',
+      statusName: json['statusName'] ?? 'Completed',
+      outputSummary: json['outputSummary'],
+      inputSummary: json['inputSummary'],
+      errorMessage: json['errorMessage'],
+      durationMs: json['durationMs'] ?? 0,
+      startedAtUtc: json['startedAtUtc'] ?? '',
+      completedAtUtc: json['completedAtUtc'],
+      toolExecutions: rawTools
+          .map((t) => ToolExecutionModel.fromJson(t as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
+class ToolExecutionModel {
+  final String id;
+  final String toolName;
+  final String statusName;
+  final String? outputSummary;
+  final int durationMs;
+
+  ToolExecutionModel({
+    required this.id,
+    required this.toolName,
+    required this.statusName,
+    this.outputSummary,
+    this.durationMs = 0,
+  });
+
+  factory ToolExecutionModel.fromJson(Map<String, dynamic> json) {
+    return ToolExecutionModel(
+      id: json['id'] ?? '',
+      toolName: json['toolName'] ?? '',
+      statusName: json['statusName'] ?? 'Success',
+      outputSummary: json['outputSummary'],
+      durationMs: json['durationMs'] ?? 0,
+    );
+  }
+}

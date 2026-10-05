@@ -1,9 +1,12 @@
 using AssetBridge.Application.Common.Interfaces;
-using AssetBridge.Domain.Entities.Users;
-using AssetBridge.Domain.Entities.Representatives;
-using AssetBridge.Domain.Entities.Providers;
 using AssetBridge.Domain.Entities.Assets;
 using AssetBridge.Domain.Entities.Incidents;
+using AssetBridge.Domain.Entities.Inspections;
+using AssetBridge.Domain.Entities.Maintenance;
+using AssetBridge.Domain.Entities.Providers;
+using AssetBridge.Domain.Entities.Representatives;
+using AssetBridge.Domain.Entities.Users;
+using AssetBridge.Domain.Entities.Workflow;
 using AssetBridge.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -87,18 +90,22 @@ public class DatabaseSeeder : IDatabaseSeeder
         var demoUsers = new List<(string Email, string FullName, UserRole Role, string Phone)>
         {
             // Primary demo credentials (@assetbridge.lk) matching UI quick-fill
-            ("manager@assetbridge.lk", "Mathuppriya", UserRole.Manager, "+94771234561"),
-            ("owner@assetbridge.lk", "Moosika", UserRole.Owner, "+94771234562"),
-            ("provider@assetbridge.lk", "Jathu", UserRole.ServiceProvider, "+94771234563"),
-            ("rep@assetbridge.lk", "Kamsiga", UserRole.Representative, "+94771234564"),
+            ("manager@assetbridge.lk", "Mathuppriya Naguleswaran", UserRole.Manager, "+94771234561"),
+            ("owner@assetbridge.lk", "Moosika Ramanathan", UserRole.Owner, "+94771234562"),
+            ("provider@assetbridge.lk", "Jathurshan", UserRole.ServiceProvider, "+94771234563"),
+            ("rep@assetbridge.lk", "Kamsiga Ganesan", UserRole.Representative, "+94771234564"),
             ("admin@assetbridge.lk", "AssetBridge Administrator", UserRole.Admin, "+94771234560"),
 
             // Alternate domain aliases (@assetbridge.ai)
-            ("manager@assetbridge.ai", "Mathuppriya", UserRole.Manager, "+94771234561"),
-            ("owner@assetbridge.ai", "Moosika", UserRole.Owner, "+94771234562"),
-            ("provider@assetbridge.ai", "Jathu", UserRole.ServiceProvider, "+94771234563"),
-            ("rep@assetbridge.ai", "Kamsiga", UserRole.Representative, "+94771234564"),
-            ("admin@assetbridge.ai", "AssetBridge Administrator", UserRole.Admin, "+94771234560")
+            ("manager@assetbridge.ai", "Mathuppriya Naguleswaran", UserRole.Manager, "+94771234561"),
+            ("owner@assetbridge.ai", "Moosika Ramanathan", UserRole.Owner, "+94771234562"),
+            ("provider@assetbridge.ai", "Jathurshan", UserRole.ServiceProvider, "+94771234563"),
+            ("rep@assetbridge.ai", "Kamsiga Ganesan", UserRole.Representative, "+94771234564"),
+            ("admin@assetbridge.ai", "AssetBridge Administrator", UserRole.Admin, "+94771234560"),
+
+            // Quotation comparison commercial partner accounts
+            ("partner@assetbridge.lk", "Apex Engineering & Facilities", UserRole.ServiceProvider, "+94719992222"),
+            ("associate@assetbridge.lk", "Islandwide Technical Services", UserRole.ServiceProvider, "+94761113333")
         };
 
         const string demoPassword = "SecurePassword123!";
@@ -129,7 +136,7 @@ public class DatabaseSeeder : IDatabaseSeeder
             }
             else
             {
-                // In-place update existing demo records so deployed database safely reflects correct team member names
+                // In-place update known demo records so deployed database safely reflects correct team member names
                 existingUser.FullName = fullName;
                 existingUser.Role = role;
                 existingUser.PhoneNumber = phone;
@@ -145,335 +152,238 @@ public class DatabaseSeeder : IDatabaseSeeder
         await _context.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Demo users verified and seeded successfully.");
 
-        await SeedDemoRepresentativesAndProvidersAsync(cancellationToken);
+        await SeedDemoRepresentativeAsync(cancellationToken);
+        await SeedDemoProvidersAsync(cancellationToken);
         await SeedDemoAssetsAndIncidentsAsync(cancellationToken);
+        await SeedDemoInspectionsQuotationsAndJobsAsync(cancellationToken);
     }
 
-    private async Task<User> GetOrCreateSeedUserAsync(string email, string fullName, UserRole role, CancellationToken cancellationToken)
+    private async Task SeedDemoRepresentativeAsync(CancellationToken cancellationToken)
     {
-        var existing = await _context.Users.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
-        if (existing != null) return existing;
+        var repUser = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email == "rep@assetbridge.lk" || u.Email == "rep@assetbridge.ai", cancellationToken);
 
-        var passwordHash = _passwordHasher.HashPassword("SecurePassword123!");
-        var user = new User
+        if (repUser == null) return;
+
+        var rep = await _context.Representatives
+            .FirstOrDefaultAsync(r => r.UserId == repUser.Id, cancellationToken);
+
+        if (rep == null)
         {
-            Id = Guid.NewGuid(),
-            Email = email,
-            FullName = fullName,
-            PasswordHash = passwordHash,
-            Role = role,
-            PhoneNumber = "+94 77 000 0000",
-            IsActive = true,
-            CreatedAtUtc = DateTime.UtcNow
-        };
-        await _context.Users.AddAsync(user, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
-        return user;
-    }
-
-    private async Task SeedDemoRepresentativesAndProvidersAsync(CancellationToken cancellationToken)
-    {
-        // 1. Seed Representatives if table is empty
-        if (!await _context.Representatives.AnyAsync(cancellationToken))
-        {
-            var u1 = await GetOrCreateSeedUserAsync("nimal.perera@email.com", "Nimal Perera", UserRole.Representative, cancellationToken);
-            var u2 = await GetOrCreateSeedUserAsync("samanthi.silva@email.com", "Samanthi Silva", UserRole.Representative, cancellationToken);
-            var u3 = await GetOrCreateSeedUserAsync("ravi.fernando@email.com", "Ravi Fernando", UserRole.Representative, cancellationToken);
-            var u4 = await GetOrCreateSeedUserAsync("kavindu.j@email.com", "Kavindu Jayasekara", UserRole.Representative, cancellationToken);
-            var u5 = await GetOrCreateSeedUserAsync("tharushi.p@email.com", "Tharushi Perera", UserRole.Representative, cancellationToken);
-
-            var reps = new List<Representative>
-            {
-                new Representative
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = u1.Id,
-                    FullName = "Nimal Perera",
-                    PhoneNumber = "077 123 4567",
-                    Email = "nimal.perera@email.com",
-                    District = "Kandy",
-                    City = "Kandy",
-                    Address = "123, Peradeniya Road, Kandy",
-                    NationalIdNumber = null,
-                    VerificationStatus = VerificationStatus.Verified,
-                    VerificationNotes = "Background check verified. Identity documents verified on 12 Jan 2024.",
-                    Bio = "Experienced local representative covering Kandy, Peradeniya, and Katugastota. Trusted family contact for overseas property oversight.",
-                    IsActive = true,
-                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-6)
-                },
-                new Representative
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = u2.Id,
-                    FullName = "Samanthi Silva",
-                    PhoneNumber = "071 234 5678",
-                    Email = "samanthi.silva@email.com",
-                    District = "Colombo",
-                    City = "Colombo",
-                    Address = "45, Galle Road, Colombo 03",
-                    NationalIdNumber = "894561234V",
-                    VerificationStatus = VerificationStatus.Verified,
-                    VerificationNotes = "Verified licensed property inspection representative.",
-                    Bio = "Specializing in luxury apartment and villa site inspections across Western Province.",
-                    IsActive = true,
-                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-4)
-                },
-                new Representative
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = u3.Id,
-                    FullName = "Ravi Fernando",
-                    PhoneNumber = "076 345 6789",
-                    Email = "ravi.fernando@email.com",
-                    District = "Galle",
-                    City = "Galle",
-                    Address = "12, Lighthouse Street, Galle Fort",
-                    NationalIdNumber = "781234567V",
-                    VerificationStatus = VerificationStatus.Verified,
-                    VerificationNotes = "Verified representative.",
-                    Bio = "Southern province coordinator for coastal properties and historic estates.",
-                    IsActive = false,
-                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-8)
-                },
-                new Representative
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = u4.Id,
-                    FullName = "Kavindu Jayasekara",
-                    PhoneNumber = "077 987 6543",
-                    Email = "kavindu.j@email.com",
-                    District = "Matara",
-                    City = "Matara",
-                    Address = "89, Beach Road, Matara",
-                    NationalIdNumber = "951234567V",
-                    VerificationStatus = VerificationStatus.Verified,
-                    VerificationNotes = "Identity verified and references checked.",
-                    Bio = "Active representative managing residential estates in Matara district.",
-                    IsActive = true,
-                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-3)
-                },
-                new Representative
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = u5.Id,
-                    FullName = "Tharushi Perera",
-                    PhoneNumber = "070 555 1234",
-                    Email = "tharushi.p@email.com",
-                    District = "Gampaha",
-                    City = "Negombo",
-                    Address = "24, Poruthota Road, Negombo",
-                    NationalIdNumber = "981234567V",
-                    VerificationStatus = VerificationStatus.Pending,
-                    VerificationNotes = "Identity documentation pending final manager sign-off.",
-                    Bio = "New coordinator covering Negombo and northern coastal belt.",
-                    IsActive = true,
-                    CreatedAtUtc = DateTime.UtcNow.AddDays(-5)
-                }
-            };
-
-            await _context.Representatives.AddRangeAsync(reps, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Seeded demo representatives.");
-        }
-
-        // 2. Seed Service Providers if table is empty
-        if (!await _context.ServiceProviders.AnyAsync(cancellationToken))
-        {
-            var up1 = await GetOrCreateSeedUserAsync("info@abcplumbing.lk", "Lahiru Fernando", UserRole.ServiceProvider, cancellationToken);
-            var up2 = await GetOrCreateSeedUserAsync("contact@powerelectrics.lk", "Sunil Jayawardena", UserRole.ServiceProvider, cancellationToken);
-            var up3 = await GetOrCreateSeedUserAsync("info@safehome.lk", "Kamal Rajapaksha", UserRole.ServiceProvider, cancellationToken);
-            var up4 = await GetOrCreateSeedUserAsync("sales@coolairsolutions.lk", "Nuwan Bandara", UserRole.ServiceProvider, cancellationToken);
-            var up5 = await GetOrCreateSeedUserAsync("info@cleanpro.lk", "Anusha Dissanayake", UserRole.ServiceProvider, cancellationToken);
-
-            var p1 = new ServiceProvider
+            rep = new Representative
             {
                 Id = Guid.NewGuid(),
-                UserId = up1.Id,
-                BusinessName = "ABC Plumbing",
-                ContactPerson = "Lahiru Fernando",
-                PhoneNumber = "077 888 1111",
-                Email = "info@abcplumbing.lk",
+                UserId = repUser.Id,
+                FullName = "Kamsiga Ganesan",
+                PhoneNumber = "+94 77 123 4564",
+                Email = repUser.Email,
+                District = "Kandy",
+                City = "Kandy",
+                Address = "123, Peradeniya Road, Kandy",
+                NationalIdNumber = null,
+                VerificationStatus = VerificationStatus.Verified,
+                VerificationNotes = "Verified on-site property representative in Central Province.",
+                Bio = "Experienced local representative covering Kandy and Central Province, coordinating owner inspections and contractor oversight.",
+                IsActive = true,
+                CreatedAtUtc = DateTime.UtcNow.AddMonths(-6)
+            };
+            await _context.Representatives.AddAsync(rep, cancellationToken);
+            _logger.LogInformation("Created demo representative Kamsiga Ganesan.");
+        }
+        else
+        {
+            rep.FullName = "Kamsiga Ganesan";
+            rep.VerificationStatus = VerificationStatus.Verified;
+            rep.IsActive = true;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SeedDemoProvidersAsync(CancellationToken cancellationToken)
+    {
+        var p1User = await _context.Users.FirstOrDefaultAsync(u => u.Email == "provider@assetbridge.lk" || u.Email == "provider@assetbridge.ai", cancellationToken);
+        var p2User = await _context.Users.FirstOrDefaultAsync(u => u.Email == "partner@assetbridge.lk", cancellationToken);
+        var p3User = await _context.Users.FirstOrDefaultAsync(u => u.Email == "associate@assetbridge.lk", cancellationToken);
+
+        if (p1User == null) return;
+
+        // Provider 1: Jathu Technical Solutions (Jathurshan)
+        var p1 = await _context.ServiceProviders.FirstOrDefaultAsync(p => p.UserId == p1User.Id, cancellationToken);
+        if (p1 == null)
+        {
+            p1 = new ServiceProvider
+            {
+                Id = Guid.NewGuid(),
+                UserId = p1User.Id,
+                BusinessName = "Jathu Technical Solutions",
+                ContactPerson = "Jathurshan",
+                PhoneNumber = "+94 77 123 4563",
+                Email = "provider@assetbridge.lk",
                 PrimaryDistrict = "Kandy",
                 City = "Kandy",
                 Address = "45, Dalada Veediya, Kandy",
                 BaseLatitude = 7.2906,
                 BaseLongitude = 80.6337,
-                ServiceRadiusKm = 35.0,
-                VerificationStatus = VerificationStatus.Verified,
-                VerificationNotes = "Business registration PV123456 verified with liability insurance.",
-                Rating = 4.8,
-                CompletedJobsCount = 24,
-                IsActive = true,
-                CreatedAtUtc = DateTime.UtcNow.AddMonths(-5)
-            };
-
-            var p2 = new ServiceProvider
-            {
-                Id = Guid.NewGuid(),
-                UserId = up2.Id,
-                BusinessName = "Power Electrics",
-                ContactPerson = "Sunil Jayawardena",
-                PhoneNumber = "071 999 2222",
-                Email = "contact@powerelectrics.lk",
-                PrimaryDistrict = "Colombo",
-                City = "Colombo",
-                Address = "88, Duplication Road, Colombo 04",
-                BaseLatitude = 6.9271,
-                BaseLongitude = 79.8612,
                 ServiceRadiusKm = 40.0,
                 VerificationStatus = VerificationStatus.Verified,
-                VerificationNotes = "CEB certified master electricians.",
-                Rating = 4.5,
-                CompletedJobsCount = 18,
-                IsActive = true,
-                CreatedAtUtc = DateTime.UtcNow.AddMonths(-4)
-            };
-
-            var p3 = new ServiceProvider
-            {
-                Id = Guid.NewGuid(),
-                UserId = up3.Id,
-                BusinessName = "SafeHome Builders",
-                ContactPerson = "Kamal Rajapaksha",
-                PhoneNumber = "076 111 3333",
-                Email = "info@safehome.lk",
-                PrimaryDistrict = "Galle",
-                City = "Galle",
-                Address = "34, Matara Road, Galle",
-                BaseLatitude = 6.0535,
-                BaseLongitude = 80.2210,
-                ServiceRadiusKm = 50.0,
-                VerificationStatus = VerificationStatus.Pending,
-                VerificationNotes = "Awaiting trade license document renewal.",
-                Rating = 4.2,
-                CompletedJobsCount = 12,
-                IsActive = true,
-                CreatedAtUtc = DateTime.UtcNow.AddMonths(-2)
-            };
-
-            var p4 = new ServiceProvider
-            {
-                Id = Guid.NewGuid(),
-                UserId = up4.Id,
-                BusinessName = "Cool Air Solutions",
-                ContactPerson = "Nuwan Bandara",
-                PhoneNumber = "077 222 4444",
-                Email = "sales@coolairsolutions.lk",
-                PrimaryDistrict = "Kandy",
-                City = "Kandy",
-                Address = "102, William Gopallawa Mawatha, Kandy",
-                BaseLatitude = 7.2950,
-                BaseLongitude = 80.6380,
-                ServiceRadiusKm = 45.0,
-                VerificationStatus = VerificationStatus.Verified,
-                VerificationNotes = "Commercial and residential HVAC certified.",
-                Rating = 4.7,
-                CompletedJobsCount = 30,
+                VerificationNotes = "Business registration PV123456 verified with ICTAD grade certification.",
+                Rating = 4.9,
+                CompletedJobsCount = 28,
                 IsActive = true,
                 CreatedAtUtc = DateTime.UtcNow.AddMonths(-6)
             };
-
-            var p5 = new ServiceProvider
-            {
-                Id = Guid.NewGuid(),
-                UserId = up5.Id,
-                BusinessName = "CleanPro Services",
-                ContactPerson = "Anusha Dissanayake",
-                PhoneNumber = "070 333 5555",
-                Email = "info@cleanpro.lk",
-                PrimaryDistrict = "Gampaha",
-                City = "Negombo",
-                Address = "56, Main Street, Negombo",
-                BaseLatitude = 7.2008,
-                BaseLongitude = 79.8736,
-                ServiceRadiusKm = 30.0,
-                VerificationStatus = VerificationStatus.Rejected,
-                VerificationNotes = "Unverified - incomplete insurance coverage.",
-                Rating = 4.3,
-                CompletedJobsCount = 15,
-                IsActive = true,
-                CreatedAtUtc = DateTime.UtcNow.AddMonths(-3)
-            };
-
-            await _context.ServiceProviders.AddRangeAsync(new[] { p1, p2, p3, p4, p5 }, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            // Seed Skills
-            var skills = new List<ProviderSkill>
-            {
-                new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p1.Id, Category = IncidentCategory.Plumbing, SkillName = "Plumbing", YearsOfExperience = 8, IsPrimary = true, LicenseNumber = "PL-9921", CreatedAtUtc = DateTime.UtcNow },
-                new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p1.Id, Category = IncidentCategory.Plumbing, SkillName = "Pipe Repair", YearsOfExperience = 8, IsPrimary = false, CreatedAtUtc = DateTime.UtcNow },
-                new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p1.Id, Category = IncidentCategory.Plumbing, SkillName = "Leak Detection", YearsOfExperience = 6, IsPrimary = false, CreatedAtUtc = DateTime.UtcNow },
-                new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p2.Id, Category = IncidentCategory.Electrical, SkillName = "Electrical", YearsOfExperience = 10, IsPrimary = true, LicenseNumber = "EL-4402", CreatedAtUtc = DateTime.UtcNow },
-                new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p2.Id, Category = IncidentCategory.Electrical, SkillName = "Wiring & Rewiring", YearsOfExperience = 10, IsPrimary = false, CreatedAtUtc = DateTime.UtcNow },
-                new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p3.Id, Category = IncidentCategory.Structural, SkillName = "Masonry", YearsOfExperience = 12, IsPrimary = true, CreatedAtUtc = DateTime.UtcNow },
-                new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p3.Id, Category = IncidentCategory.Roofing, SkillName = "Roofing Repair", YearsOfExperience = 8, IsPrimary = false, CreatedAtUtc = DateTime.UtcNow },
-                new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p4.Id, Category = IncidentCategory.HVAC, SkillName = "AC Service", YearsOfExperience = 7, IsPrimary = true, LicenseNumber = "HVAC-102", CreatedAtUtc = DateTime.UtcNow },
-                new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p4.Id, Category = IncidentCategory.HVAC, SkillName = "Duct Cleaning", YearsOfExperience = 5, IsPrimary = false, CreatedAtUtc = DateTime.UtcNow },
-                new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p5.Id, Category = IncidentCategory.General, SkillName = "Cleaning", YearsOfExperience = 4, IsPrimary = true, CreatedAtUtc = DateTime.UtcNow },
-                new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p5.Id, Category = IncidentCategory.PestControl, SkillName = "Pest Control", YearsOfExperience = 3, IsPrimary = false, CreatedAtUtc = DateTime.UtcNow },
-            };
-            await _context.ProviderSkills.AddRangeAsync(skills, cancellationToken);
-
-            // Seed Availability Slots for September 2026
-            var now = DateTime.UtcNow;
-            var availabilities = new List<ProviderAvailability>
-            {
-                new ProviderAvailability { Id = Guid.NewGuid(), ProviderId = p1.Id, AvailableDateUtc = new DateTime(now.Year, now.Month, 2, 0, 0, 0, DateTimeKind.Utc), StartTime = TimeSpan.FromHours(8), EndTime = TimeSpan.FromHours(17), Status = AvailabilityStatus.Available, CreatedAtUtc = DateTime.UtcNow },
-                new ProviderAvailability { Id = Guid.NewGuid(), ProviderId = p1.Id, AvailableDateUtc = new DateTime(now.Year, now.Month, 5, 0, 0, 0, DateTimeKind.Utc), StartTime = TimeSpan.FromHours(8), EndTime = TimeSpan.FromHours(17), Status = AvailabilityStatus.Available, CreatedAtUtc = DateTime.UtcNow },
-                new ProviderAvailability { Id = Guid.NewGuid(), ProviderId = p1.Id, AvailableDateUtc = new DateTime(now.Year, now.Month, 9, 0, 0, 0, DateTimeKind.Utc), StartTime = TimeSpan.FromHours(8), EndTime = TimeSpan.FromHours(17), Status = AvailabilityStatus.Available, CreatedAtUtc = DateTime.UtcNow },
-                new ProviderAvailability { Id = Guid.NewGuid(), ProviderId = p1.Id, AvailableDateUtc = new DateTime(now.Year, now.Month, 12, 0, 0, 0, DateTimeKind.Utc), StartTime = TimeSpan.FromHours(8), EndTime = TimeSpan.FromHours(17), Status = AvailabilityStatus.Busy, Notes = "Site visit booked", CreatedAtUtc = DateTime.UtcNow },
-                new ProviderAvailability { Id = Guid.NewGuid(), ProviderId = p1.Id, AvailableDateUtc = new DateTime(now.Year, now.Month, 15, 0, 0, 0, DateTimeKind.Utc), StartTime = TimeSpan.FromHours(8), EndTime = TimeSpan.FromHours(17), Status = AvailabilityStatus.Busy, Notes = "Inspection scheduled", CreatedAtUtc = DateTime.UtcNow },
-                new ProviderAvailability { Id = Guid.NewGuid(), ProviderId = p1.Id, AvailableDateUtc = new DateTime(now.Year, now.Month, 18, 0, 0, 0, DateTimeKind.Utc), StartTime = TimeSpan.FromHours(8), EndTime = TimeSpan.FromHours(17), Status = AvailabilityStatus.Available, CreatedAtUtc = DateTime.UtcNow }
-            };
-            await _context.ProviderAvailability.AddRangeAsync(availabilities, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Seeded demo service providers with skills and availability slots.");
+            await _context.ServiceProviders.AddAsync(p1, cancellationToken);
+        }
+        else
+        {
+            p1.BusinessName = "Jathu Technical Solutions";
+            p1.ContactPerson = "Jathurshan";
+            p1.VerificationStatus = VerificationStatus.Verified;
+            p1.Rating = 4.9;
+            p1.IsActive = true;
         }
 
-        // 3. Update existing demo representative and provider profiles in-place
-        var repUsers = await _context.Users
-            .Where(u => u.Email == "rep@assetbridge.lk" || u.Email == "rep@assetbridge.ai")
-            .ToListAsync(cancellationToken);
-        foreach (var ru in repUsers)
+        // Provider 2: Apex Engineering & Facilities (Service Desk)
+        if (p2User != null)
         {
-            var existingRep = await _context.Representatives.FirstOrDefaultAsync(r => r.UserId == ru.Id, cancellationToken);
-            if (existingRep != null)
+            var p2 = await _context.ServiceProviders.FirstOrDefaultAsync(p => p.UserId == p2User.Id, cancellationToken);
+            if (p2 == null)
             {
-                existingRep.FullName = "Kamsiga";
+                p2 = new ServiceProvider
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = p2User.Id,
+                    BusinessName = "Apex Engineering & Facilities",
+                    ContactPerson = "Service Desk",
+                    PhoneNumber = "+94 71 999 2222",
+                    Email = "partner@assetbridge.lk",
+                    PrimaryDistrict = "Kandy",
+                    City = "Kandy",
+                    Address = "102, William Gopallawa Mawatha, Kandy",
+                    BaseLatitude = 7.2950,
+                    BaseLongitude = 80.6380,
+                    ServiceRadiusKm = 35.0,
+                    VerificationStatus = VerificationStatus.Verified,
+                    VerificationNotes = "Certified engineering and building services partner.",
+                    Rating = 4.6,
+                    CompletedJobsCount = 19,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-4)
+                };
+                await _context.ServiceProviders.AddAsync(p2, cancellationToken);
+            }
+            else
+            {
+                p2.BusinessName = "Apex Engineering & Facilities";
+                p2.ContactPerson = "Service Desk";
+                p2.VerificationStatus = VerificationStatus.Verified;
+                p2.Rating = 4.6;
+                p2.IsActive = true;
             }
         }
 
-        var providerUsers = await _context.Users
-            .Where(u => u.Email == "provider@assetbridge.lk" || u.Email == "provider@assetbridge.ai")
-            .ToListAsync(cancellationToken);
-        foreach (var pu in providerUsers)
+        // Provider 3: Islandwide Technical Services (Technical Team)
+        if (p3User != null)
         {
-            var existingProv = await _context.ServiceProviders.FirstOrDefaultAsync(p => p.UserId == pu.Id, cancellationToken);
-            if (existingProv != null)
+            var p3 = await _context.ServiceProviders.FirstOrDefaultAsync(p => p.UserId == p3User.Id, cancellationToken);
+            if (p3 == null)
             {
-                existingProv.ContactPerson = "Jathu";
+                p3 = new ServiceProvider
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = p3User.Id,
+                    BusinessName = "Islandwide Technical Services",
+                    ContactPerson = "Technical Team",
+                    PhoneNumber = "+94 76 111 3333",
+                    Email = "associate@assetbridge.lk",
+                    PrimaryDistrict = "Colombo",
+                    City = "Colombo",
+                    Address = "88, Duplication Road, Colombo 04",
+                    BaseLatitude = 6.9271,
+                    BaseLongitude = 79.8612,
+                    ServiceRadiusKm = 50.0,
+                    VerificationStatus = VerificationStatus.Verified,
+                    VerificationNotes = "Verified licensed electrical and plumbing contractors.",
+                    Rating = 4.4,
+                    CompletedJobsCount = 15,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-3)
+                };
+                await _context.ServiceProviders.AddAsync(p3, cancellationToken);
             }
-        }
-
-        // 4. Sanitize fake sample NIC from all existing representative records if present
-        var legacyReps = await _context.Representatives
-            .Where(r => r.NationalIdNumber == "912345678V")
-            .ToListAsync(cancellationToken);
-        if (legacyReps.Any())
-        {
-            foreach (var r in legacyReps)
+            else
             {
-                r.NationalIdNumber = null;
+                p3.BusinessName = "Islandwide Technical Services";
+                p3.ContactPerson = "Technical Team";
+                p3.VerificationStatus = VerificationStatus.Verified;
+                p3.Rating = 4.4;
+                p3.IsActive = true;
             }
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Seed provider skills idempotently
+        var currentP1 = await _context.ServiceProviders.FirstOrDefaultAsync(p => p.UserId == p1User.Id, cancellationToken);
+        if (currentP1 != null)
+        {
+            var hasP1Skills = await _context.ProviderSkills.AnyAsync(s => s.ProviderId == currentP1.Id, cancellationToken);
+            if (!hasP1Skills)
+            {
+                var skills1 = new List<ProviderSkill>
+                {
+                    new ProviderSkill { Id = Guid.NewGuid(), ProviderId = currentP1.Id, Category = IncidentCategory.Plumbing, SkillName = "Plumbing", YearsOfExperience = 8, IsPrimary = true, LicenseNumber = "PL-9921", CreatedAtUtc = DateTime.UtcNow },
+                    new ProviderSkill { Id = Guid.NewGuid(), ProviderId = currentP1.Id, Category = IncidentCategory.Plumbing, SkillName = "Pipe Repair & Sealing", YearsOfExperience = 8, IsPrimary = false, CreatedAtUtc = DateTime.UtcNow },
+                    new ProviderSkill { Id = Guid.NewGuid(), ProviderId = currentP1.Id, Category = IncidentCategory.Plumbing, SkillName = "Leak Detection", YearsOfExperience = 6, IsPrimary = false, CreatedAtUtc = DateTime.UtcNow }
+                };
+                await _context.ProviderSkills.AddRangeAsync(skills1, cancellationToken);
+            }
+        }
+
+        if (p2User != null)
+        {
+            var currentP2 = await _context.ServiceProviders.FirstOrDefaultAsync(p => p.UserId == p2User.Id, cancellationToken);
+            if (currentP2 != null)
+            {
+                var hasP2Skills = await _context.ProviderSkills.AnyAsync(s => s.ProviderId == currentP2.Id, cancellationToken);
+                if (!hasP2Skills)
+                {
+                    var skills2 = new List<ProviderSkill>
+                    {
+                        new ProviderSkill { Id = Guid.NewGuid(), ProviderId = currentP2.Id, Category = IncidentCategory.Plumbing, SkillName = "Plumbing", YearsOfExperience = 10, IsPrimary = true, LicenseNumber = "PL-4402", CreatedAtUtc = DateTime.UtcNow },
+                        new ProviderSkill { Id = Guid.NewGuid(), ProviderId = currentP2.Id, Category = IncidentCategory.General, SkillName = "General Maintenance", YearsOfExperience = 8, IsPrimary = false, CreatedAtUtc = DateTime.UtcNow }
+                    };
+                    await _context.ProviderSkills.AddRangeAsync(skills2, cancellationToken);
+                }
+            }
+        }
+
+        if (p3User != null)
+        {
+            var currentP3 = await _context.ServiceProviders.FirstOrDefaultAsync(p => p.UserId == p3User.Id, cancellationToken);
+            if (currentP3 != null)
+            {
+                var hasP3Skills = await _context.ProviderSkills.AnyAsync(s => s.ProviderId == currentP3.Id, cancellationToken);
+                if (!hasP3Skills)
+                {
+                    var skills3 = new List<ProviderSkill>
+                    {
+                        new ProviderSkill { Id = Guid.NewGuid(), ProviderId = currentP3.Id, Category = IncidentCategory.Plumbing, SkillName = "Plumbing", YearsOfExperience = 7, IsPrimary = true, CreatedAtUtc = DateTime.UtcNow },
+                        new ProviderSkill { Id = Guid.NewGuid(), ProviderId = currentP3.Id, Category = IncidentCategory.Roofing, SkillName = "Roofing / General Building Maintenance", YearsOfExperience = 8, IsPrimary = false, CreatedAtUtc = DateTime.UtcNow }
+                    };
+                    await _context.ProviderSkills.AddRangeAsync(skills3, cancellationToken);
+                }
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Seeded and verified demo service providers.");
     }
 
     private async Task SeedDemoAssetsAndIncidentsAsync(CancellationToken cancellationToken)
     {
-        var owner = await _context.Users.FirstOrDefaultAsync(u => u.Email == "owner@assetbridge.lk", cancellationToken);
+        var owner = await _context.Users.FirstOrDefaultAsync(u => u.Email == "owner@assetbridge.lk" || u.Email == "owner@assetbridge.ai", cancellationToken);
         if (owner == null) return;
 
         // 1. Seed demo assets if none exist for Owner
@@ -560,32 +470,6 @@ public class DatabaseSeeder : IDatabaseSeeder
                         Caption = "Hillside villa front elevation & landscaped gardens",
                         CreatedAtUtc = DateTime.UtcNow.AddMonths(-6)
                     });
-                    mediaItems.Add(new AssetMedia
-                    {
-                        Id = Guid.NewGuid(),
-                        AssetId = asset.Id,
-                        UploadedByUserId = owner.Id,
-                        FileName = "kandy_villa_living_room.jpg",
-                        FileUrl = "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80",
-                        FileType = "image/jpeg",
-                        FileSizeBytes = 1024 * 520,
-                        IsThumbnail = false,
-                        Caption = "Colonial timber high-ceiling living lounge",
-                        CreatedAtUtc = DateTime.UtcNow.AddMonths(-5)
-                    });
-                    mediaItems.Add(new AssetMedia
-                    {
-                        Id = Guid.NewGuid(),
-                        AssetId = asset.Id,
-                        UploadedByUserId = owner.Id,
-                        FileName = "kandy_villa_tea_garden.jpg",
-                        FileUrl = "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80",
-                        FileType = "image/jpeg",
-                        FileSizeBytes = 1024 * 710,
-                        IsThumbnail = false,
-                        Caption = "Private landscaped tea garden pathway",
-                        CreatedAtUtc = DateTime.UtcNow.AddMonths(-4)
-                    });
                 }
                 else if (asset.City == "Colombo")
                 {
@@ -601,19 +485,6 @@ public class DatabaseSeeder : IDatabaseSeeder
                         IsThumbnail = true,
                         Caption = "Tower B panoramic view & master balcony",
                         CreatedAtUtc = DateTime.UtcNow.AddMonths(-4)
-                    });
-                    mediaItems.Add(new AssetMedia
-                    {
-                        Id = Guid.NewGuid(),
-                        AssetId = asset.Id,
-                        UploadedByUserId = owner.Id,
-                        FileName = "havelock_interior_suite.jpg",
-                        FileUrl = "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80",
-                        FileType = "image/jpeg",
-                        FileSizeBytes = 1024 * 490,
-                        IsThumbnail = false,
-                        Caption = "Open concept dining and modern kitchen",
-                        CreatedAtUtc = DateTime.UtcNow.AddMonths(-3)
                     });
                 }
                 else
@@ -637,57 +508,26 @@ public class DatabaseSeeder : IDatabaseSeeder
                 {
                     await _context.AssetMedia.AddRangeAsync(mediaItems, cancellationToken);
                     await _context.SaveChangesAsync(cancellationToken);
-                    _logger.LogInformation("Seeded demo persistent media gallery for asset {AssetName}.", asset.Name);
                 }
             }
         }
 
-        // 3. Sanitize any legacy records with non-HTTP URLs (e.g., relative filenames paint.jpg, water1.jpg, water2.jpg or blob: URLs)
-        var legacyAssetMedia = await _context.AssetMedia
-            .Where(m => !m.FileUrl.StartsWith("http://") && !m.FileUrl.StartsWith("https://"))
-            .ToListAsync(cancellationToken);
+        // 3. Seed demo incidents if none exist for Owner
+        var kandyAsset = existingAssets.FirstOrDefault(a => a.City == "Kandy") ?? existingAssets.First();
+        var colomboAsset = existingAssets.FirstOrDefault(a => a.City == "Colombo") ?? existingAssets.First();
 
-        if (legacyAssetMedia.Any())
+        var existingInc1 = await _context.Incidents
+            .FirstOrDefaultAsync(i => i.AssetId == kandyAsset.Id && i.Title.Contains("Kitchen"), cancellationToken);
+
+        if (existingInc1 == null)
         {
-            foreach (var m in legacyAssetMedia)
-            {
-                _logger.LogWarning("Sanitizing legacy AssetMedia record {Id} with non-persistent FileUrl '{FileUrl}' -> updating to persistent demo storage URL.", m.Id, m.FileUrl);
-                m.FileUrl = "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=1200&q=80";
-            }
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-
-        var legacyIncidentEvidence = await _context.IncidentEvidence
-            .Where(e => !e.FileUrl.StartsWith("http://") && !e.FileUrl.StartsWith("https://"))
-            .ToListAsync(cancellationToken);
-
-        if (legacyIncidentEvidence.Any())
-        {
-            foreach (var e in legacyIncidentEvidence)
-            {
-                _logger.LogWarning("Sanitizing legacy IncidentEvidence record {Id} with non-persistent FileUrl '{FileUrl}' -> updating to persistent demo storage URL.", e.Id, e.FileUrl);
-                e.FileUrl = "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80";
-            }
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-
-        // 4. Seed demo incidents if none exist for Owner
-        var existingIncidents = await _context.Incidents
-            .Where(i => existingAssets.Select(a => a.Id).Contains(i.AssetId))
-            .ToListAsync(cancellationToken);
-
-        if (!existingIncidents.Any())
-        {
-            var kandyAsset = existingAssets.First(a => a.City == "Kandy");
-            var colomboAsset = existingAssets.First(a => a.City == "Colombo");
-
             var inc1 = new Incident
             {
                 Id = Guid.NewGuid(),
                 AssetId = kandyAsset.Id,
                 ReportedByUserId = owner.Id,
                 Title = "Kitchen Main Water Pipe Leak",
-                Description = "Concealed pipe joint beneath the ground floor kitchen sink cabinetry has failed. Constant water seepage spreading to adjacent timber pantry floor.",
+                Description = "Concealed pipe joint beneath ground floor kitchen pantry cabinetry has failed. Constant water seepage spreading to adjacent timber pantry floor. Owner is overseas and requires remote coordination.",
                 Category = IncidentCategory.Plumbing,
                 Priority = IncidentPriority.High,
                 Status = IncidentStatus.WorkInProgress,
@@ -712,6 +552,14 @@ public class DatabaseSeeder : IDatabaseSeeder
             };
             inc1.EvidenceItems.Add(ev1);
 
+            await _context.Incidents.AddAsync(inc1, cancellationToken);
+        }
+
+        var existingInc2 = await _context.Incidents
+            .FirstOrDefaultAsync(i => i.AssetId == colomboAsset.Id && i.Category == IncidentCategory.HVAC, cancellationToken);
+
+        if (existingInc2 == null)
+        {
             var inc2 = new Incident
             {
                 Id = Guid.NewGuid(),
@@ -743,13 +591,21 @@ public class DatabaseSeeder : IDatabaseSeeder
             };
             inc2.EvidenceItems.Add(ev2);
 
+            await _context.Incidents.AddAsync(inc2, cancellationToken);
+        }
+
+        var existingInc3 = await _context.Incidents
+            .FirstOrDefaultAsync(i => i.AssetId == kandyAsset.Id && i.Category == IncidentCategory.Roofing, cancellationToken);
+
+        if (existingInc3 == null)
+        {
             var inc3 = new Incident
             {
                 Id = Guid.NewGuid(),
                 AssetId = kandyAsset.Id,
                 ReportedByUserId = owner.Id,
                 Title = "Roof Terracotta Tile Shift",
-                Description = "Heavy monsoon gusts dislodged three terracotta roof tiles above the front verandah, exposing timber rafters to rain.",
+                Description = "Heavy monsoon gusts dislodged three terracotta roof tiles above front verandah, exposing timber rafters to rain.",
                 Category = IncidentCategory.Roofing,
                 Priority = IncidentPriority.Medium,
                 Status = IncidentStatus.Resolved,
@@ -759,9 +615,381 @@ public class DatabaseSeeder : IDatabaseSeeder
                 CreatedAtUtc = DateTime.UtcNow.AddDays(-7)
             };
 
-            await _context.Incidents.AddRangeAsync(new[] { inc1, inc2, inc3 }, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Seeded demo maintenance incidents with evidence for {Email}.", owner.Email);
+            await _context.Incidents.AddAsync(inc3, cancellationToken);
         }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Seeded and verified demo maintenance incidents.");
+    }
+
+    private async Task SeedDemoInspectionsQuotationsAndJobsAsync(CancellationToken cancellationToken)
+    {
+        var inc1 = await _context.Incidents
+            .FirstOrDefaultAsync(i => i.Title.Contains("Kitchen") && i.Category == IncidentCategory.Plumbing, cancellationToken);
+        var inc3 = await _context.Incidents
+            .FirstOrDefaultAsync(i => i.Title.Contains("Roof") && i.Category == IncidentCategory.Roofing, cancellationToken);
+
+        if (inc1 == null) return;
+
+        var p1User = await _context.Users.FirstOrDefaultAsync(u => u.Email == "provider@assetbridge.lk" || u.Email == "provider@assetbridge.ai", cancellationToken);
+        var p2User = await _context.Users.FirstOrDefaultAsync(u => u.Email == "partner@assetbridge.lk", cancellationToken);
+        var p3User = await _context.Users.FirstOrDefaultAsync(u => u.Email == "associate@assetbridge.lk", cancellationToken);
+
+        var p1 = p1User != null ? await _context.ServiceProviders.FirstOrDefaultAsync(p => p.UserId == p1User.Id, cancellationToken) : null;
+        var p2 = p2User != null ? await _context.ServiceProviders.FirstOrDefaultAsync(p => p.UserId == p2User.Id, cancellationToken) : null;
+        var p3 = p3User != null ? await _context.ServiceProviders.FirstOrDefaultAsync(p => p.UserId == p3User.Id, cancellationToken) : null;
+
+        if (p1 == null) return;
+
+        // 1. Seed Inspections
+        var existingInsp1 = await _context.Inspections.FirstOrDefaultAsync(i => i.IncidentId == inc1.Id, cancellationToken);
+        if (existingInsp1 == null)
+        {
+            var insp1 = new Inspection
+            {
+                Id = Guid.NewGuid(),
+                IncidentId = inc1.Id,
+                InspectorProviderId = p1.Id,
+                ScheduledAtUtc = DateTime.UtcNow.AddDays(1),
+                Status = InspectionStatus.Scheduled,
+                Summary = "Scheduled on-site plumbing defect assessment for kitchen cabinet water seepage.",
+                Notes = "Will perform hydrostatic pressure leak testing and inspect timber floor substructure.",
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-1)
+            };
+            await _context.Inspections.AddAsync(insp1, cancellationToken);
+            _logger.LogInformation("Seeded scheduled inspection for incident {IncidentTitle}.", inc1.Title);
+        }
+
+        if (inc3 != null)
+        {
+            var existingInsp3 = await _context.Inspections.FirstOrDefaultAsync(i => i.IncidentId == inc3.Id, cancellationToken);
+            if (existingInsp3 == null)
+            {
+                var insp3 = new Inspection
+                {
+                    Id = Guid.NewGuid(),
+                    IncidentId = inc3.Id,
+                    InspectorProviderId = p1.Id,
+                    ScheduledAtUtc = DateTime.UtcNow.AddDays(-6),
+                    CompletedAtUtc = DateTime.UtcNow.AddDays(-6).AddHours(2),
+                    Status = InspectionStatus.Completed,
+                    Summary = "Comprehensive roof and verandah inspection completed. Identified three dislodged tiles and minor rainwater ingress on timber rafters.",
+                    EstimatedSeverity = FindingSeverity.Medium,
+                    Notes = "Structural rafter integrity is intact. Immediate tile mortar realignment recommended.",
+                    CreatedAtUtc = DateTime.UtcNow.AddDays(-6)
+                };
+
+                insp3.Findings.Add(new InspectionFinding
+                {
+                    Id = Guid.NewGuid(),
+                    InspectionId = insp3.Id,
+                    Description = "Dislodged terracotta roof tiles on front entrance verandah",
+                    Severity = FindingSeverity.Medium,
+                    Recommendation = "Re-align and apply mortar bedding to tiles",
+                    CreatedAtUtc = DateTime.UtcNow.AddDays(-6)
+                });
+
+                insp3.Findings.Add(new InspectionFinding
+                {
+                    Id = Guid.NewGuid(),
+                    InspectionId = insp3.Id,
+                    Description = "Moisture staining on timber rafters",
+                    Severity = FindingSeverity.Low,
+                    Recommendation = "Apply anti-fungal wood treatment sealant",
+                    CreatedAtUtc = DateTime.UtcNow.AddDays(-6)
+                });
+
+                await _context.Inspections.AddAsync(insp3, cancellationToken);
+                _logger.LogInformation("Seeded completed inspection with findings for incident {IncidentTitle}.", inc3.Title);
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // 2. Seed 3 Quotations for Incident 1 (for Quotation Comparison & AI Recommendation)
+        // Quotation 1 (Jathu Technical Solutions - Jathurshan)
+        var q1Exists = await _context.Quotations.AnyAsync(q => q.IncidentId == inc1.Id && q.ProviderId == p1.Id, cancellationToken);
+        if (!q1Exists)
+        {
+            var q1 = new Quotation
+            {
+                Id = Guid.NewGuid(),
+                IncidentId = inc1.Id,
+                ProviderId = p1.Id,
+                ValidUntilUtc = DateTime.UtcNow.AddDays(30),
+                Notes = "Comprehensive plumbing rectification with 32mm SLS 147 PVC lines, brass isolation valves, and 12-month structural warranty.",
+                Subtotal = 55000m,
+                TaxAndOtherCharges = 3500m,
+                TotalAmount = 58500m,
+                Status = QuotationStatus.UnderReview,
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-12)
+            };
+
+            q1.Items.Add(new QuotationItem
+            {
+                Id = Guid.NewGuid(),
+                QuotationId = q1.Id,
+                Description = "Heavy-Duty PVC Pressure Pipe & Elbow Joints (32mm SLS 147)",
+                Quantity = 3,
+                UnitPrice = 3500m,
+                TotalPrice = 10500m,
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-12)
+            });
+
+            q1.Items.Add(new QuotationItem
+            {
+                Id = Guid.NewGuid(),
+                QuotationId = q1.Id,
+                Description = "Brass Isolation Valves & High-Grade Solvent Cement",
+                Quantity = 2,
+                UnitPrice = 4000m,
+                TotalPrice = 8000m,
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-12)
+            });
+
+            q1.Items.Add(new QuotationItem
+            {
+                Id = Guid.NewGuid(),
+                QuotationId = q1.Id,
+                Description = "Under-Sink Pantry Waterproof Sealant & Gasket Pack",
+                Quantity = 1,
+                UnitPrice = 6500m,
+                TotalPrice = 6500m,
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-12)
+            });
+
+            q1.Items.Add(new QuotationItem
+            {
+                Id = Guid.NewGuid(),
+                QuotationId = q1.Id,
+                Description = "Master Plumber On-Site Labor & Joint Welding",
+                Quantity = 1,
+                UnitPrice = 24000m,
+                TotalPrice = 24000m,
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-12)
+            });
+
+            q1.Items.Add(new QuotationItem
+            {
+                Id = Guid.NewGuid(),
+                QuotationId = q1.Id,
+                Description = "Hydrostatic Pressure Leak & Flow Verification Testing",
+                Quantity = 1,
+                UnitPrice = 6000m,
+                TotalPrice = 6000m,
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-12)
+            });
+
+            await _context.Quotations.AddAsync(q1, cancellationToken);
+        }
+
+        // Quotation 2 (Apex Engineering & Facilities)
+        if (p2 != null)
+        {
+            var q2Exists = await _context.Quotations.AnyAsync(q => q.IncidentId == inc1.Id && q.ProviderId == p2.Id, cancellationToken);
+            if (!q2Exists)
+            {
+                var q2 = new Quotation
+                {
+                    Id = Guid.NewGuid(),
+                    IncidentId = inc1.Id,
+                    ProviderId = p2.Id,
+                    ValidUntilUtc = DateTime.UtcNow.AddDays(25),
+                    Notes = "Standard commercial plumbing restoration and pipe replacement with 6-month warranty.",
+                    Subtotal = 63500m,
+                    TaxAndOtherCharges = 4000m,
+                    TotalAmount = 67500m,
+                    Status = QuotationStatus.UnderReview,
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-10)
+                };
+
+                q2.Items.Add(new QuotationItem
+                {
+                    Id = Guid.NewGuid(),
+                    QuotationId = q2.Id,
+                    Description = "Replacement Plumbing Pipework & Fittings",
+                    Quantity = 1,
+                    UnitPrice = 22500m,
+                    TotalPrice = 22500m,
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-10)
+                });
+
+                q2.Items.Add(new QuotationItem
+                {
+                    Id = Guid.NewGuid(),
+                    QuotationId = q2.Id,
+                    Description = "Sealants, Adhesive & Hardware",
+                    Quantity = 1,
+                    UnitPrice = 10000m,
+                    TotalPrice = 10000m,
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-10)
+                });
+
+                q2.Items.Add(new QuotationItem
+                {
+                    Id = Guid.NewGuid(),
+                    QuotationId = q2.Id,
+                    Description = "Skilled Labor & Plumbing Installation",
+                    Quantity = 1,
+                    UnitPrice = 31000m,
+                    TotalPrice = 31000m,
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-10)
+                });
+
+                await _context.Quotations.AddAsync(q2, cancellationToken);
+            }
+        }
+
+        // Quotation 3 (Islandwide Technical Services)
+        if (p3 != null)
+        {
+            var q3Exists = await _context.Quotations.AnyAsync(q => q.IncidentId == inc1.Id && q.ProviderId == p3.Id, cancellationToken);
+            if (!q3Exists)
+            {
+                var q3 = new Quotation
+                {
+                    Id = Guid.NewGuid(),
+                    IncidentId = inc1.Id,
+                    ProviderId = p3.Id,
+                    ValidUntilUtc = DateTime.UtcNow.AddDays(20),
+                    Notes = "Emergency dispatch rate for kitchen plumbing rectification and drainage alignment.",
+                    Subtotal = 68000m,
+                    TaxAndOtherCharges = 4000m,
+                    TotalAmount = 72000m,
+                    Status = QuotationStatus.UnderReview,
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-8)
+                };
+
+                q3.Items.Add(new QuotationItem
+                {
+                    Id = Guid.NewGuid(),
+                    QuotationId = q3.Id,
+                    Description = "Emergency Plumbing Materials & Pipe Sleeves",
+                    Quantity = 1,
+                    UnitPrice = 28000m,
+                    TotalPrice = 28000m,
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-8)
+                });
+
+                q3.Items.Add(new QuotationItem
+                {
+                    Id = Guid.NewGuid(),
+                    QuotationId = q3.Id,
+                    Description = "Cabinetry Protection & Leak Containment",
+                    Quantity = 1,
+                    UnitPrice = 12000m,
+                    TotalPrice = 12000m,
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-8)
+                });
+
+                q3.Items.Add(new QuotationItem
+                {
+                    Id = Guid.NewGuid(),
+                    QuotationId = q3.Id,
+                    Description = "Rapid Response Labor",
+                    Quantity = 1,
+                    UnitPrice = 28000m,
+                    TotalPrice = 28000m,
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-8)
+                });
+
+                await _context.Quotations.AddAsync(q3, cancellationToken);
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Seeded 3 realistic competitive quotations with line items for Incident {IncidentTitle}.", inc1.Title);
+
+        // 3. Seed Maintenance Jobs
+        var existingJob1 = await _context.MaintenanceJobs.FirstOrDefaultAsync(j => j.IncidentId == inc1.Id, cancellationToken);
+        if (existingJob1 == null)
+        {
+            var job1 = new MaintenanceJob
+            {
+                Id = Guid.NewGuid(),
+                IncidentId = inc1.Id,
+                ProviderId = p1.Id,
+                Title = "Kitchen Main Water Pipe Leak Rectification",
+                Description = "Concealed pipe joint replacement, pressure leak testing, and under-sink waterproofing.",
+                ScheduledStartUtc = DateTime.UtcNow.AddDays(2),
+                ScheduledEndUtc = DateTime.UtcNow.AddDays(3),
+                Status = MaintenanceJobStatus.Scheduled,
+                ApprovedBudget = 58500m,
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-6)
+            };
+            await _context.MaintenanceJobs.AddAsync(job1, cancellationToken);
+            _logger.LogInformation("Seeded scheduled maintenance job for incident {IncidentTitle}.", inc1.Title);
+        }
+
+        if (inc3 != null)
+        {
+            var existingJob3 = await _context.MaintenanceJobs.FirstOrDefaultAsync(j => j.IncidentId == inc3.Id, cancellationToken);
+            if (existingJob3 == null)
+            {
+                var job3 = new MaintenanceJob
+                {
+                    Id = Guid.NewGuid(),
+                    IncidentId = inc3.Id,
+                    ProviderId = p1.Id,
+                    Title = "Roof Terracotta Tile Re-alignment & Timber Sealing",
+                    Description = "Verandah eaves tile repositioning, mortar bedding, and timber rafter waterproofing.",
+                    ScheduledStartUtc = DateTime.UtcNow.AddDays(-5),
+                    ScheduledEndUtc = DateTime.UtcNow.AddDays(-4),
+                    CompletedAtUtc = DateTime.UtcNow.AddDays(-4),
+                    Status = MaintenanceJobStatus.Completed,
+                    ApprovedBudget = 35000m,
+                    ActualCost = 34500m,
+                    CompletionNotes = "All terracotta tiles securely mortared. Passed monsoon storm resistance check.",
+                    CreatedAtUtc = DateTime.UtcNow.AddDays(-5)
+                };
+                await _context.MaintenanceJobs.AddAsync(job3, cancellationToken);
+                _logger.LogInformation("Seeded completed maintenance job for incident {IncidentTitle}.", inc3.Title);
+            }
+        }
+
+        // 4. Seed Demo Workflow for Incident 1 (if none exists)
+        var existingWf1 = await _context.WorkflowInstances.FirstOrDefaultAsync(w => w.IncidentId == inc1.Id, cancellationToken);
+        if (existingWf1 == null)
+        {
+            var ownerUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == "owner@assetbridge.lk" || u.Email == "owner@assetbridge.ai", cancellationToken);
+            var wf1 = new WorkflowInstance
+            {
+                Id = Guid.NewGuid(),
+                IncidentId = inc1.Id,
+                CurrentState = WorkflowState.Created,
+                CreatedByUserId = ownerUser?.Id ?? Guid.NewGuid(),
+                CorrelationId = Guid.NewGuid().ToString("N"),
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-12)
+            };
+
+            var step1 = new WorkflowStep
+            {
+                Id = Guid.NewGuid(),
+                WorkflowInstanceId = wf1.Id,
+                StepState = WorkflowState.Created,
+                Status = WorkflowStepStatus.InProgress,
+                StartedAtUtc = DateTime.UtcNow.AddHours(-12),
+                StartedBy = "System",
+                Notes = "Workflow initiated for kitchen leak remediation."
+            };
+
+            var audit1 = new AuditEvent
+            {
+                Id = Guid.NewGuid(),
+                WorkflowInstanceId = wf1.Id,
+                UserId = ownerUser?.Id,
+                EventType = AuditEventType.WorkflowCreated,
+                Description = $"Workflow initiated for Incident: {inc1.Title}",
+                CorrelationId = wf1.CorrelationId,
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-12)
+            };
+
+            await _context.WorkflowInstances.AddAsync(wf1, cancellationToken);
+            await _context.WorkflowSteps.AddAsync(step1, cancellationToken);
+            await _context.AuditEvents.AddAsync(audit1, cancellationToken);
+            _logger.LogInformation("Seeded demo workflow instance for incident {IncidentTitle}.", inc1.Title);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
     }
 }

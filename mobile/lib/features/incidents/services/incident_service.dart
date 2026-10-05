@@ -1,3 +1,4 @@
+import 'dart:io';
 import '../../../core/networking/api_client.dart';
 import '../../../core/networking/api_endpoints.dart';
 import '../../../shared/models/api_response.dart';
@@ -70,5 +71,14 @@ class IncidentService {
       'caption': caption,
     };
     await _apiClient.post(ApiEndpoints.incidentEvidence(incidentId), body: body);
+  }
+
+  Future<void> uploadEvidenceFile(String incidentId, File file, {String? caption}) async {
+    await _apiClient.uploadFile(
+      ApiEndpoints.incidentEvidenceUpload(incidentId),
+      file: file,
+      fileField: 'file',
+      additionalFields: caption != null ? {'caption': caption} : null,
+    );
   }
 }
