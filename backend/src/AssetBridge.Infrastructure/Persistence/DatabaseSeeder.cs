@@ -57,29 +57,32 @@ public class DatabaseSeeder : IDatabaseSeeder
             }
         }
 
-        try
+        if (_context.Database.IsRelational())
         {
-            await _context.Database.ExecuteSqlRawAsync(@"
-                CREATE TABLE IF NOT EXISTS ""AssetMedia"" (
-                    ""Id"" uuid NOT NULL PRIMARY KEY,
-                    ""AssetId"" uuid NOT NULL REFERENCES ""Assets""(""Id"") ON DELETE CASCADE,
-                    ""UploadedByUserId"" uuid NOT NULL REFERENCES ""Users""(""Id"") ON DELETE RESTRICT,
-                    ""FileName"" character varying(255) NOT NULL,
-                    ""FileUrl"" character varying(2000) NOT NULL,
-                    ""FileType"" character varying(100),
-                    ""FileSizeBytes"" bigint NOT NULL,
-                    ""IsThumbnail"" boolean NOT NULL DEFAULT FALSE,
-                    ""Caption"" character varying(500),
-                    ""CreatedAtUtc"" timestamp with time zone NOT NULL,
-                    ""UpdatedAtUtc"" timestamp with time zone
-                );
-                CREATE INDEX IF NOT EXISTS ""IX_AssetMedia_AssetId"" ON ""AssetMedia""(""AssetId"");
-                CREATE INDEX IF NOT EXISTS ""IX_AssetMedia_AssetId_IsThumbnail"" ON ""AssetMedia""(""AssetId"", ""IsThumbnail"");
-            ", cancellationToken);
-        }
-        catch (Exception rawEx)
-        {
-            _logger.LogWarning(rawEx, "Note on ensuring AssetMedia schema: {Message}", rawEx.Message);
+            try
+            {
+                await _context.Database.ExecuteSqlRawAsync(@"
+                    CREATE TABLE IF NOT EXISTS ""AssetMedia"" (
+                        ""Id"" uuid NOT NULL PRIMARY KEY,
+                        ""AssetId"" uuid NOT NULL REFERENCES ""Assets""(""Id"") ON DELETE CASCADE,
+                        ""UploadedByUserId"" uuid NOT NULL REFERENCES ""Users""(""Id"") ON DELETE RESTRICT,
+                        ""FileName"" character varying(255) NOT NULL,
+                        ""FileUrl"" character varying(2000) NOT NULL,
+                        ""FileType"" character varying(100),
+                        ""FileSizeBytes"" bigint NOT NULL,
+                        ""IsThumbnail"" boolean NOT NULL DEFAULT FALSE,
+                        ""Caption"" character varying(500),
+                        ""CreatedAtUtc"" timestamp with time zone NOT NULL,
+                        ""UpdatedAtUtc"" timestamp with time zone
+                    );
+                    CREATE INDEX IF NOT EXISTS ""IX_AssetMedia_AssetId"" ON ""AssetMedia""(""AssetId"");
+                    CREATE INDEX IF NOT EXISTS ""IX_AssetMedia_AssetId_IsThumbnail"" ON ""AssetMedia""(""AssetId"", ""IsThumbnail"");
+                ", cancellationToken);
+            }
+            catch (Exception rawEx)
+            {
+                _logger.LogWarning(rawEx, "Note on ensuring AssetMedia schema: {Message}", rawEx.Message);
+            }
         }
 
         await SeedDemoUsersAsync(cancellationToken);
@@ -517,7 +520,8 @@ public class DatabaseSeeder : IDatabaseSeeder
         var colomboAsset = existingAssets.FirstOrDefault(a => a.City == "Colombo") ?? existingAssets.First();
 
         var existingInc1 = await _context.Incidents
-            .FirstOrDefaultAsync(i => i.AssetId == kandyAsset.Id && i.Title.Contains("Kitchen"), cancellationToken);
+            .Include(i => i.EvidenceItems)
+            .FirstOrDefaultAsync(i => i.AssetId == kandyAsset.Id && (i.Title.Contains("Kitchen") || i.Title.Contains("Water Leak") || i.Category == IncidentCategory.Plumbing), cancellationToken);
 
         if (existingInc1 == null)
         {
@@ -553,6 +557,33 @@ public class DatabaseSeeder : IDatabaseSeeder
             inc1.EvidenceItems.Add(ev1);
 
             await _context.Incidents.AddAsync(inc1, cancellationToken);
+        }
+        else
+        {
+            // Normalize canonical incident fields
+            existingInc1.Title = "Kitchen Main Water Pipe Leak";
+            existingInc1.Category = IncidentCategory.Plumbing;
+            existingInc1.Priority = IncidentPriority.High;
+            existingInc1.EstimatedBudget = 75000m;
+            existingInc1.Status = IncidentStatus.WorkInProgress;
+            existingInc1.LocationDetails = "Ground floor main kitchen pantry cabinetry";
+
+            if (!existingInc1.EvidenceItems.Any())
+            {
+                existingInc1.EvidenceItems.Add(new IncidentEvidence
+                {
+                    Id = Guid.NewGuid(),
+                    IncidentId = existingInc1.Id,
+                    UploadedByUserId = owner.Id,
+                    FileName = "kitchen_under_sink_leak.jpg",
+                    FileUrl = "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=800",
+                    FileType = "image/jpeg",
+                    FileSizeBytes = 1024 * 480,
+                    EvidenceType = EvidenceType.Photo,
+                    Caption = "Water pooling under main copper junction",
+                    CreatedAtUtc = DateTime.UtcNow.AddDays(-2)
+                });
+            }
         }
 
         var existingInc2 = await _context.Incidents
@@ -624,10 +655,11 @@ public class DatabaseSeeder : IDatabaseSeeder
 
     private async Task SeedDemoInspectionsQuotationsAndJobsAsync(CancellationToken cancellationToken)
     {
+        var kandyAsset = await _context.Assets.FirstOrDefaultAsync(a => a.City == "Kandy", cancellationToken);
         var inc1 = await _context.Incidents
-            .FirstOrDefaultAsync(i => i.Title.Contains("Kitchen") && i.Category == IncidentCategory.Plumbing, cancellationToken);
+            .FirstOrDefaultAsync(i => (kandyAsset != null && i.AssetId == kandyAsset.Id && (i.Title.Contains("Kitchen") || i.Title.Contains("Water Leak") || i.Category == IncidentCategory.Plumbing)) || (i.Title.Contains("Kitchen") && i.Category == IncidentCategory.Plumbing), cancellationToken);
         var inc3 = await _context.Incidents
-            .FirstOrDefaultAsync(i => i.Title.Contains("Roof") && i.Category == IncidentCategory.Roofing, cancellationToken);
+            .FirstOrDefaultAsync(i => (kandyAsset != null && i.AssetId == kandyAsset.Id && i.Category == IncidentCategory.Roofing) || (i.Title.Contains("Roof") && i.Category == IncidentCategory.Roofing), cancellationToken);
 
         if (inc1 == null) return;
 

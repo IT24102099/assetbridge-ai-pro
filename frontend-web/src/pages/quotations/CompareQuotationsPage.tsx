@@ -40,9 +40,15 @@ export default function CompareQuotationsPage() {
     try {
       const res = await incidentApi.getIncidents({ pageSize: 50 });
       if (res.success && res.data) {
-        setIncidents(res.data.items || []);
-        if (!selectedIncidentId && res.data.items?.length > 0) {
-          setSelectedIncidentId(res.data.items[0].id);
+        const items = res.data.items || [];
+        setIncidents(items);
+        if (!selectedIncidentId && items.length > 0) {
+          const canonical = items.find(
+            (i) =>
+              i.title?.toLowerCase().includes('kitchen') ||
+              i.title?.toLowerCase().includes('water pipe')
+          );
+          setSelectedIncidentId(canonical ? canonical.id : items[0].id);
         }
       }
     } catch {
