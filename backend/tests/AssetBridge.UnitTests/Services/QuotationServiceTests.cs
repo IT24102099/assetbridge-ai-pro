@@ -193,4 +193,256 @@ public class QuotationServiceTests : IDisposable
         updatedQuotation.Subtotal.Should().Be(9500);
         updatedQuotation.TotalAmount.Should().Be(10500);
     }
+
+    [Fact]
+    public async Task CreateQuotationAsync_ShouldThrowEntityNotFoundException_WhenIncidentNotFound()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var nonExistentIncidentId = Guid.NewGuid();
+        var request = new CreateQuotationRequestDto
+        {
+            IncidentId = nonExistentIncidentId,
+            ProviderId = _providerId,
+            Items = new List<CreateQuotationItemRequestDto>
+            {
+                new() { Description = "Test", Quantity = 1, UnitPrice = 1000 }
+            }
+        };
+
+        // Act
+        Func<Task> act = async () => await _quotationSut.CreateQuotationAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task CreateQuotationAsync_ShouldThrowEntityNotFoundException_WhenProviderNotFound()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var nonExistentProviderId = Guid.NewGuid();
+        var request = new CreateQuotationRequestDto
+        {
+            IncidentId = _incidentId,
+            ProviderId = nonExistentProviderId,
+            Items = new List<CreateQuotationItemRequestDto>
+            {
+                new() { Description = "Test", Quantity = 1, UnitPrice = 1000 }
+            }
+        };
+
+        // Act
+        Func<Task> act = async () => await _quotationSut.CreateQuotationAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task CreateQuotationAsync_ShouldThrowValidationException_WhenNoItemsProvided()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var request = new CreateQuotationRequestDto
+        {
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            Items = new List<CreateQuotationItemRequestDto>() // Empty items
+        };
+
+        // Act
+        Func<Task> act = async () => await _quotationSut.CreateQuotationAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task CreateQuotationAsync_ShouldThrowValidationException_WhenTaxIsNegative()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var request = new CreateQuotationRequestDto
+        {
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            TaxAndOtherCharges = -500,
+            Items = new List<CreateQuotationItemRequestDto>
+            {
+                new() { Description = "Test", Quantity = 1, UnitPrice = 1000 }
+            }
+        };
+
+        // Act
+        Func<Task> act = async () => await _quotationSut.CreateQuotationAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task GetQuotationByIdAsync_ShouldThrowEntityNotFoundException_WhenQuotationNotFound()
+    {
+        // Arrange
+        var nonExistentId = Guid.NewGuid();
+
+        // Act
+        Func<Task> act = async () => await _quotationSut.GetQuotationByIdAsync(nonExistentId);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task GetQuotationsAsync_ShouldFilterByIncidentProviderStatusAndExcludeExpired()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        _dbContext.Quotations.AddRange(
+            new Quotation { Id = Guid.NewGuid(), IncidentId = _incidentId, ProviderId = _providerId, Status = QuotationStatus.Submitted, Subtotal = 10000, TotalAmount = 11000, ValidUntilUtc = DateTime.UtcNow.AddDays(7), CreatedAtUtc = DateTime.UtcNow.AddDays(-2) },
+            new Quotation { Id = Guid.NewGuid(), IncidentId = _incidentId, ProviderId = _providerId, Status = QuotationStatus.Submitted, Subtotal = 20000, TotalAmount = 22000, ValidUntilUtc = DateTime.UtcNow.AddDays(-3), CreatedAtUtc = DateTime.UtcNow.AddDays(-5) }
+        );
+        await _dbContext.SaveChangesAsync();
+
+        var query = new QuotationQueryParametersDto
+        {
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            Status = QuotationStatus.Submitted,
+            ExcludeExpired = true,
+            SortBy = "totalamount",
+            SortDescending = false,
+            PageNumber = 1,
+            PageSize = 10
+        };
+
+        // Act
+        var result = await _quotationSut.GetQuotationsAsync(query);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.TotalCount.Should().Be(1);
+        result.Items.First().TotalAmount.Should().Be(11000);
+    }
+
+    [Fact]
+    public async Task UpdateQuotationAsync_ShouldThrowValidationException_WhenQuotationIsAlreadyAccepted()
+    {
+        // Arrange
+        var quotation = new Quotation
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            Status = QuotationStatus.Accepted,
+            Subtotal = 10000,
+            TotalAmount = 10000,
+            ValidUntilUtc = DateTime.UtcNow.AddDays(7)
+        };
+        _dbContext.Quotations.Add(quotation);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var updateDto = new UpdateQuotationRequestDto
+        {
+            Notes = "Trying to edit accepted quotation",
+            TaxAndOtherCharges = 0
+        };
+
+        // Act
+        Func<Task> act = async () => await _quotationSut.UpdateQuotationAsync(quotation.Id, updateDto);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors["Status"].Should().Contain("Accepted quotations cannot be modified.");
+    }
+
+    [Fact]
+    public async Task UpdateQuotationStatusAsync_ShouldAllowOwnerToAccept()
+    {
+        // Arrange
+        var quotation = new Quotation
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            Status = QuotationStatus.Submitted,
+            Subtotal = 25000,
+            TotalAmount = 25000,
+            ValidUntilUtc = DateTime.UtcNow.AddDays(7)
+        };
+        _dbContext.Quotations.Add(quotation);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_ownerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Owner);
+
+        var statusRequest = new UpdateQuotationStatusRequestDto
+        {
+            Status = QuotationStatus.Accepted
+        };
+
+        // Act
+        var result = await _quotationSut.UpdateQuotationStatusAsync(quotation.Id, statusRequest);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(QuotationStatus.Accepted);
+    }
+
+    [Fact]
+    public async Task AddItemAsync_ShouldThrowValidationException_WhenQuotationIsAlreadyAccepted()
+    {
+        // Arrange
+        var quotation = new Quotation
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            Status = QuotationStatus.Accepted,
+            Subtotal = 10000,
+            TotalAmount = 10000
+        };
+        _dbContext.Quotations.Add(quotation);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var newItemRequest = new CreateQuotationItemRequestDto
+        {
+            Description = "Extra part",
+            Quantity = 1,
+            UnitPrice = 500
+        };
+
+        // Act
+        Func<Task> act = async () => await _quotationSut.AddItemAsync(quotation.Id, newItemRequest);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors["Status"].Should().Contain("Cannot add items to an accepted quotation.");
+    }
 }

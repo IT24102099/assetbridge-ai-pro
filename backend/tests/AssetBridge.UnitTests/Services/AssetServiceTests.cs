@@ -526,4 +526,261 @@ public class AssetServiceTests : IDisposable
         remainingMedia[0].Id.Should().Be(media2.Id);
         remainingMedia[0].IsThumbnail.Should().BeTrue("Remaining media should be promoted to thumbnail");
     }
+
+    [Fact]
+    public async Task GetAssetByIdAsync_ShouldThrowEntityNotFoundException_WhenAssetNotFound()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var nonExistentId = Guid.NewGuid();
+
+        // Act
+        Func<Task> act = async () => await _sut.GetAssetByIdAsync(nonExistentId);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task GetAssetsAsync_ShouldFilterBySearchCityDistrictStatusAndSortDescending()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_managerId);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Manager);
+
+        _dbContext.Assets.AddRange(
+            new Asset { Id = Guid.NewGuid(), OwnerId = _owner1Id, Name = "Alpha Villa", City = "Kandy", District = "Kandy", AddressLine1 = "1 Alpha Rd", Status = AssetStatus.Active, CreatedAtUtc = DateTime.UtcNow.AddDays(-2) },
+            new Asset { Id = Guid.NewGuid(), OwnerId = _owner1Id, Name = "Beta Bungalow", City = "Kandy", District = "Kandy", AddressLine1 = "2 Beta Rd", Status = AssetStatus.Active, CreatedAtUtc = DateTime.UtcNow.AddDays(-1) },
+            new Asset { Id = Guid.NewGuid(), OwnerId = _owner2Id, Name = "Gamma Apartment", City = "Colombo", District = "Colombo", AddressLine1 = "3 Gamma Rd", Status = AssetStatus.Archived, CreatedAtUtc = DateTime.UtcNow }
+        );
+        await _dbContext.SaveChangesAsync();
+
+        var query = new AssetQueryParametersDto
+        {
+            City = "Kandy",
+            District = "Kandy",
+            Status = AssetStatus.Active,
+            SortBy = "name",
+            SortDescending = true,
+            PageNumber = 1,
+            PageSize = 10
+        };
+
+        // Act
+        var result = await _sut.GetAssetsAsync(query);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.TotalCount.Should().Be(2);
+        result.Items.First().Name.Should().Be("Beta Bungalow");
+    }
+
+    [Fact]
+    public async Task UpdateAssetAsync_ShouldThrowEntityNotFoundException_WhenAssetDoesNotExist()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var nonExistentId = Guid.NewGuid();
+        var updateDto = new UpdateAssetRequestDto
+        {
+            Name = "Updated Name",
+            PropertyType = PropertyType.Villa,
+            AddressLine1 = "12 New Rd",
+            City = "Kandy",
+            District = "Kandy",
+            Status = AssetStatus.Active
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.UpdateAssetAsync(nonExistentId, updateDto);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task DeleteAssetAsync_ShouldThrowEntityNotFoundException_WhenAssetDoesNotExist()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var nonExistentId = Guid.NewGuid();
+
+        // Act
+        Func<Task> act = async () => await _sut.DeleteAssetAsync(nonExistentId);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task DeleteAssetAsync_ShouldThrowUnauthorizedAccessException_WhenOtherOwnerDeletes()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner2Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var asset = new Asset
+        {
+            Id = Guid.NewGuid(),
+            OwnerId = _owner1Id,
+            Name = "Owner1 Protected Villa",
+            City = "Kandy",
+            District = "Kandy",
+            AddressLine1 = "100 Hill St",
+            Status = AssetStatus.Active
+        };
+        _dbContext.Assets.Add(asset);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        Func<Task> act = async () => await _sut.DeleteAssetAsync(asset.Id);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
+    public async Task AddMediaAsync_ShouldThrowValidationException_WhenInvalidUrlProvided()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var asset = new Asset
+        {
+            Id = Guid.NewGuid(),
+            OwnerId = _owner1Id,
+            Name = "Invalid URL Villa",
+            City = "Kandy",
+            District = "Kandy",
+            AddressLine1 = "100 Hill St",
+            Status = AssetStatus.Active
+        };
+        _dbContext.Assets.Add(asset);
+        await _dbContext.SaveChangesAsync();
+
+        var request = new AddAssetMediaRequestDto
+        {
+            FileName = "photo.jpg",
+            FileUrl = "ftp://invalid-storage.com/photo.jpg",
+            FileType = "image/jpeg",
+            FileSizeBytes = 1024
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.AddMediaAsync(asset.Id, request);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*valid absolute HTTPS*");
+    }
+
+    [Fact]
+    public async Task CreateAssetAsync_ShouldThrowValidationException_WhenDistrictAndCityAreInconsistent()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var request = new CreateAssetRequestDto
+        {
+            Name = "Inconsistent Location Property",
+            PropertyType = PropertyType.SingleFamilyHouse,
+            AddressLine1 = "Main Street",
+            District = "Puttalam",
+            City = "Jaffna", // Inconsistent: Jaffna is not in Puttalam district
+            Description = "Testing district-city validation"
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.CreateAssetAsync(request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("City");
+        ex.Which.Errors["City"].Should().Contain(e => e.Contains("Puttalam"));
+    }
+
+    [Fact]
+    public async Task UpdateAssetAsync_ShouldThrowValidationException_WhenDistrictAndCityAreInconsistent()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var asset = new Asset
+        {
+            Id = Guid.NewGuid(),
+            OwnerId = _owner1Id,
+            Name = "Valid Initial Property",
+            District = "Colombo",
+            City = "Colombo",
+            AddressLine1 = "123 Galle Road",
+            Status = AssetStatus.Active
+        };
+        _dbContext.Assets.Add(asset);
+        await _dbContext.SaveChangesAsync();
+
+        var updateRequest = new UpdateAssetRequestDto
+        {
+            Name = "Updated Name",
+            PropertyType = PropertyType.Apartment,
+            AddressLine1 = "123 Galle Road",
+            District = "Puttalam",
+            City = "Jaffna", // Inconsistent
+            Status = AssetStatus.Active
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.UpdateAssetAsync(asset.Id, updateRequest);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("City");
+    }
+
+    [Fact]
+    public async Task CreateAssetAsync_ShouldSafelyStoreDescription_WhenContainingScriptTags()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        const string xssPayload = "<script>alert('XSS')</script>";
+        var request = new CreateAssetRequestDto
+        {
+            Name = "Security Verification Property",
+            PropertyType = PropertyType.SingleFamilyHouse,
+            AddressLine1 = "77 Lotus Road",
+            District = "Colombo",
+            City = "Colombo",
+            Description = xssPayload
+        };
+
+        // Act
+        var result = await _sut.CreateAssetAsync(request);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Description.Should().Be(xssPayload);
+
+        var savedAsset = await _dbContext.Assets.FindAsync(result.Id);
+        savedAsset.Should().NotBeNull();
+        savedAsset!.Description.Should().Be(xssPayload);
+    }
 }

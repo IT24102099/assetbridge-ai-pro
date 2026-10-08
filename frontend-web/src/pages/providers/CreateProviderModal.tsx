@@ -10,33 +10,8 @@ interface CreateProviderModalProps {
   onSuccess: () => void;
 }
 
-const SRI_LANKA_DISTRICTS = [
-  'Colombo',
-  'Gampaha',
-  'Kalutara',
-  'Kandy',
-  'Matale',
-  'Nuwara Eliya',
-  'Galle',
-  'Matara',
-  'Hambantota',
-  'Jaffna',
-  'Kilinochchi',
-  'Mannar',
-  'Vavuniya',
-  'Mullaitivu',
-  'Batticaloa',
-  'Ampara',
-  'Trincomalee',
-  'Kurunegala',
-  'Puttalam',
-  'Anuradhapura',
-  'Polonnaruwa',
-  'Badulla',
-  'Monaragala',
-  'Ratnapura',
-  'Kegalle',
-];
+import { SRI_LANKA_DISTRICTS } from '../../constants/sriLankaLocations';
+import { isValidEmail } from '../../utils/validationUtils';
 
 const SKILL_OPTIONS: { category: IncidentCategory; name: string }[] = [
   { category: 'Plumbing', name: 'Plumbing' },
@@ -84,6 +59,10 @@ export const CreateProviderModal: React.FC<CreateProviderModalProps> = ({
     e.preventDefault();
     if (!formData.businessName.trim() || !formData.contactPerson.trim() || !formData.email.trim() || !formData.phoneNumber.trim()) {
       setError('Please provide business name, contact person, email, and phone number.');
+      return;
+    }
+    if (!isValidEmail(formData.email)) {
+      setError('Please provide a valid email address.');
       return;
     }
 

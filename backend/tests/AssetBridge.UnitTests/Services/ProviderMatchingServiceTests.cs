@@ -5,6 +5,7 @@ using AssetBridge.Domain.Entities.Incidents;
 using AssetBridge.Domain.Entities.Providers;
 using AssetBridge.Domain.Entities.Users;
 using AssetBridge.Domain.Enums;
+using AssetBridge.Domain.Exceptions;
 using AssetBridge.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -257,5 +258,119 @@ public class ProviderMatchingServiceTests : IDisposable
         result.Candidates[0].IsAvailableOnRequiredDate.Should().BeTrue();
         result.Candidates[1].IsAvailableOnRequiredDate.Should().BeFalse();
         result.Candidates[0].MatchScore.Should().BeGreaterThan(result.Candidates[1].MatchScore);
+    }
+
+    [Fact]
+    public async Task MatchProvidersAsync_ShouldResolveCriteriaFromIncident_WhenIncidentIdProvided()
+    {
+        // Arrange
+        var ownerId = Guid.NewGuid();
+        var asset = new Asset
+        {
+            Id = Guid.NewGuid(),
+            OwnerId = ownerId,
+            Name = "Matching Test Villa",
+            City = "Kandy",
+            District = "Kandy",
+            AddressLine1 = "100 Hill St",
+            Latitude = 7.2906,
+            Longitude = 80.6337,
+            Status = AssetStatus.Active
+        };
+
+        var incident = new Incident
+        {
+            Id = Guid.NewGuid(),
+            AssetId = asset.Id,
+            ReportedByUserId = ownerId,
+            Title = "Roof Leak",
+            Description = "Roof tiles damaged",
+            Category = IncidentCategory.Roofing,
+            Priority = IncidentPriority.High,
+            Status = IncidentStatus.Reported,
+            RequiredByUtc = DateTime.UtcNow.AddDays(3)
+        };
+
+        var roofingProvider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            BusinessName = "Kandy Roofing Pro",
+            ContactPerson = "Sunil",
+            PhoneNumber = "0771234567",
+            Email = "roof@kandy.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Kandy",
+            BaseLatitude = 7.2910,
+            BaseLongitude = 80.6340,
+            ServiceRadiusKm = 20,
+            VerificationStatus = VerificationStatus.Verified,
+            IsActive = true,
+            Rating = 4.9,
+            CompletedJobsCount = 12,
+            Skills = new List<ProviderSkill>
+            {
+                new() { Id = Guid.NewGuid(), Category = IncidentCategory.Roofing, SkillName = "Roof Repair", IsPrimary = true, YearsOfExperience = 6 }
+            }
+        };
+
+        _dbContext.Assets.Add(asset);
+        _dbContext.Incidents.Add(incident);
+        _dbContext.ServiceProviders.Add(roofingProvider);
+        await _dbContext.SaveChangesAsync();
+
+        var request = new ProviderMatchingRequestDto
+        {
+            IncidentId = incident.Id,
+            MaxDistanceKm = 50,
+            MaxResults = 5
+        };
+
+        // Act
+        var result = await _sut.MatchProvidersAsync(request);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.TargetCategory.Should().Be(IncidentCategory.Roofing);
+        result.TargetDistrict.Should().Be("Kandy");
+        result.Candidates.Should().HaveCount(1);
+        result.Candidates.First().ProviderId.Should().Be(roofingProvider.Id);
+    }
+
+    [Fact]
+    public async Task MatchProvidersAsync_ShouldThrowEntityNotFoundException_WhenIncidentIdNotFound()
+    {
+        // Arrange
+        var nonExistentIncidentId = Guid.NewGuid();
+        var request = new ProviderMatchingRequestDto
+        {
+            IncidentId = nonExistentIncidentId
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.MatchProvidersAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task MatchProvidersAsync_ShouldReturnEmptyCandidates_WhenNoVerifiedProvidersMatchCategory()
+    {
+        // Arrange
+        var request = new ProviderMatchingRequestDto
+        {
+            Category = IncidentCategory.HVAC,
+            District = "Jaffna",
+            City = "Jaffna"
+        };
+
+        // Act
+        var result = await _sut.MatchProvidersAsync(request);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Candidates.Should().BeEmpty();
+        result.MatchedCandidatesCount.Should().Be(0);
     }
 }

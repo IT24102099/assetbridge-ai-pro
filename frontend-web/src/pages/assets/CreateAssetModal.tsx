@@ -27,33 +27,17 @@ interface SelectedAssetPhoto {
   isThumbnail: boolean;
 }
 
+import {
+  SRI_LANKA_DISTRICTS,
+  isValidDistrictCityCombination,
+} from '../../constants/sriLankaLocations';
+
 const PROPERTY_TYPES: PropertyType[] = [
   'SingleFamilyHouse',
   'Apartment',
   'Villa',
   'Commercial',
   'Land',
-];
-
-const SRI_LANKA_DISTRICTS = [
-  'Colombo',
-  'Gampaha',
-  'Kalutara',
-  'Kandy',
-  'Matale',
-  'Nuwara Eliya',
-  'Galle',
-  'Matara',
-  'Hambantota',
-  'Jaffna',
-  'Kurunegala',
-  'Puttalam',
-  'Anuradhapura',
-  'Polonnaruwa',
-  'Badulla',
-  'Monaragala',
-  'Ratnapura',
-  'Kegalle',
 ];
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
@@ -194,6 +178,10 @@ export const CreateAssetModal: React.FC<CreateAssetModalProps> = ({
     }
     if (!name.trim() || !addressLine1.trim() || !city.trim()) {
       setError('Please provide the asset name, street address, and city.');
+      return;
+    }
+    if (!isValidDistrictCityCombination(district, city)) {
+      setError(`The city "${city.trim()}" is not located in the district "${district.trim()}". Please select a consistent district and city.`);
       return;
     }
 

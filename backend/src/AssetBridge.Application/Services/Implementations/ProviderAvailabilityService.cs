@@ -58,6 +58,7 @@ public class ProviderAvailabilityService : IProviderAvailabilityService
         var slots = await dbQuery
             .OrderBy(a => a.AvailableDateUtc)
             .ThenBy(a => a.StartTime)
+            .ThenByDescending(a => a.UpdatedAtUtc ?? a.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
         return slots.Select(MapToDto).ToList();
@@ -86,11 +87,31 @@ public class ProviderAvailabilityService : IProviderAvailabilityService
             });
         }
 
+        var targetDate = request.AvailableDateUtc.Date;
+        var existingSlot = await _context.ProviderAvailability
+            .FirstOrDefaultAsync(a => a.ProviderId == providerId && a.AvailableDateUtc == targetDate, cancellationToken);
+
+        if (existingSlot != null)
+        {
+            existingSlot.StartTime = request.StartTime;
+            existingSlot.EndTime = request.EndTime;
+            existingSlot.Status = request.Status;
+            existingSlot.Notes = request.Notes?.Trim();
+            existingSlot.UpdatedAtUtc = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Availability slot {SlotId} updated for Provider {ProviderId} on {Date} to {Status}",
+                existingSlot.Id, providerId, existingSlot.AvailableDateUtc.ToShortDateString(), existingSlot.Status);
+
+            return MapToDto(existingSlot);
+        }
+
         var slot = new ProviderAvailability
         {
             Id = Guid.NewGuid(),
             ProviderId = providerId,
-            AvailableDateUtc = request.AvailableDateUtc.Date,
+            AvailableDateUtc = targetDate,
             StartTime = request.StartTime,
             EndTime = request.EndTime,
             Status = request.Status,
@@ -101,8 +122,8 @@ public class ProviderAvailabilityService : IProviderAvailabilityService
         _context.ProviderAvailability.Add(slot);
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Availability slot {SlotId} added for Provider {ProviderId} on {Date}",
-            slot.Id, providerId, slot.AvailableDateUtc.ToShortDateString());
+        _logger.LogInformation("Availability slot {SlotId} added for Provider {ProviderId} on {Date} with status {Status}",
+            slot.Id, providerId, slot.AvailableDateUtc.ToShortDateString(), slot.Status);
 
         return MapToDto(slot);
     }

@@ -1,3 +1,4 @@
+using AssetBridge.Application.Common.Constants;
 using AssetBridge.Application.Common.Interfaces;
 using AssetBridge.Application.Common.Models;
 using AssetBridge.Application.DTOs.Assets;
@@ -48,6 +49,11 @@ public class AssetService : IAssetService
     public async Task<AssetResponseDto> CreateAssetAsync(CreateAssetRequestDto request, CancellationToken cancellationToken = default)
     {
         var currentUserId = GetAuthenticatedUserId();
+
+        if (!SriLankaLocationData.IsValidDistrictCityCombination(request.District, request.City))
+        {
+            throw new ValidationException("City", $"The city '{request.City}' is not located in the district '{request.District}'. Please select a consistent district and city.");
+        }
 
         var asset = new Asset
         {
@@ -185,6 +191,11 @@ public class AssetService : IAssetService
         }
 
         ValidateAssetAccess(asset);
+
+        if (!SriLankaLocationData.IsValidDistrictCityCombination(request.District, request.City))
+        {
+            throw new ValidationException("City", $"The city '{request.City}' is not located in the district '{request.District}'. Please select a consistent district and city.");
+        }
 
         var previousStatus = asset.Status;
 

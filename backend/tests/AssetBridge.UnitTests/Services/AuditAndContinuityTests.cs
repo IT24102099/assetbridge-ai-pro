@@ -327,6 +327,127 @@ public class AuditAndContinuityTests : IDisposable
         adminResult.Items.Should().Contain(t => t.Id == taskA.Id);
     }
 
+    [Fact]
+    public async Task FollowUpService_CreateFollowUpTask_ThrowsEntityNotFound_WhenAssetDoesNotExist()
+    {
+        // Arrange
+        var nonExistentAssetId = Guid.NewGuid();
+        var dto = new CreateFollowUpTaskDto
+        {
+            AssetId = nonExistentAssetId,
+            Title = "Ghost Asset Follow-Up",
+            DueDateUtc = DateTime.UtcNow.AddDays(7)
+        };
+
+        // Act
+        Func<Task> act = async () => await _followUpSut.CreateFollowUpTaskAsync(dto, _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task FollowUpService_GetFollowUpTaskById_ReturnsNull_WhenNotFound()
+    {
+        // Arrange
+        var nonExistentId = Guid.NewGuid();
+
+        // Act
+        var result = await _followUpSut.GetFollowUpTaskByIdAsync(nonExistentId, _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FollowUpService_GetFollowUpTasks_FilterByIsOverdue_ReturnsOnlyOverdueTasks()
+    {
+        // Arrange: Create one overdue task and one future task
+        var overdueTask = await _followUpSut.CreateFollowUpTaskAsync(new CreateFollowUpTaskDto
+        {
+            AssetId = _assetId,
+            Title = "Overdue Roof Inspection",
+            DueDateUtc = DateTime.UtcNow.AddDays(-5),
+            Priority = FollowUpPriority.High
+        }, _managerId, UserRole.Manager.ToString());
+
+        var futureTask = await _followUpSut.CreateFollowUpTaskAsync(new CreateFollowUpTaskDto
+        {
+            AssetId = _assetId,
+            Title = "Future Polish Check",
+            DueDateUtc = DateTime.UtcNow.AddDays(10),
+            Priority = FollowUpPriority.Low
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Act
+        var result = await _followUpSut.GetFollowUpTasksAsync(new FollowUpFilterParametersDto
+        {
+            IsOverdue = true
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        result.Items.Should().Contain(t => t.Id == overdueTask.Id);
+        result.Items.Should().NotContain(t => t.Id == futureTask.Id);
+    }
+
+    [Fact]
+    public async Task FollowUpService_UpdateFollowUpStatus_ToCompleted_SetsCompletedAtUtcAndResolutionNotes()
+    {
+        // Arrange
+        var task = await _followUpSut.CreateFollowUpTaskAsync(new CreateFollowUpTaskDto
+        {
+            AssetId = _assetId,
+            Title = "Gutter Leaf Clearance",
+            Description = "Clear all debris",
+            DueDateUtc = DateTime.UtcNow.AddDays(3)
+        }, _managerId, UserRole.Manager.ToString());
+
+        var updateDto = new UpdateFollowUpStatusDto
+        {
+            Status = FollowUpStatus.Completed,
+            ResolutionNotes = "All 4 gutters cleared and flushed with water hose."
+        };
+
+        // Act
+        var updated = await _followUpSut.UpdateFollowUpStatusAsync(task.Id, updateDto, _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        updated.Should().NotBeNull();
+        updated.Status.Should().Be(FollowUpStatus.Completed);
+        updated.CompletedAtUtc.Should().NotBeNull();
+        updated.Description.Should().Contain("All 4 gutters cleared");
+    }
+
+    [Fact]
+    public async Task FollowUpService_UpdateFollowUpStatus_ThrowsEntityNotFound_WhenTaskDoesNotExist()
+    {
+        // Arrange
+        var nonExistentId = Guid.NewGuid();
+        var updateDto = new UpdateFollowUpStatusDto
+        {
+            Status = FollowUpStatus.Completed
+        };
+
+        // Act
+        Func<Task> act = async () => await _followUpSut.UpdateFollowUpStatusAsync(nonExistentId, updateDto, _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task WorkflowService_GetDashboardMetrics_ReturnsAccurateMetricsForWorkflows()
+    {
+        // Act
+        var metrics = await _workflowSut.GetDashboardMetricsAsync(_managerId, UserRole.Manager.ToString());
+
+        // Assert
+        metrics.Should().NotBeNull();
+        metrics.ActiveWorkflowsCount.Should().BeGreaterThanOrEqualTo(0);
+        metrics.RecentWorkflows.Should().NotBeNull();
+        metrics.PendingApprovals.Should().NotBeNull();
+    }
+
     public void Dispose()
     {
         _dbContext.Dispose();
