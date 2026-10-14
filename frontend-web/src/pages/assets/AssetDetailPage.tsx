@@ -23,8 +23,11 @@ import {
   AlertCircle,
   Star,
   Trash2,
+  Maximize2,
+  Eye,
 } from 'lucide-react';
 import { SafeImage, DEFAULT_PROPERTY_FALLBACK } from '../../components/common/SafeImage';
+import { MediaLightboxModal, LightboxMediaItem } from '../../components/common/MediaLightboxModal';
 
 const DEFAULT_FALLBACK_IMAGE = DEFAULT_PROPERTY_FALLBACK;
 
@@ -54,6 +57,10 @@ export const AssetDetailPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Lightbox Preview State
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   // Upload states in Media tab
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -219,6 +226,34 @@ export const AssetDetailPage: React.FC = () => {
   const secondaryMedia = mediaList.filter((m) => m.id !== thumbnailMedia?.id).slice(0, 3);
   const overflowCount = Math.max(0, mediaList.length - 4);
 
+  // Prepare full-resolution items for lightbox preview
+  const lightboxItems: LightboxMediaItem[] = mediaList.map((m) => ({
+    id: m.id,
+    url: m.fileUrl,
+    title: m.fileName,
+    caption: m.isThumbnail ? 'Primary Property Thumbnail' : `${asset?.name || 'Property'} Photo`,
+    isThumbnail: m.isThumbnail,
+    sizeBytes: m.fileSizeBytes,
+    uploadedAt: m.createdAtUtc,
+  }));
+
+  const fallbackItems: LightboxMediaItem[] = primaryPhotoUrl
+    ? [{ id: 'primary-cover', url: primaryPhotoUrl, title: asset.name, isThumbnail: true }]
+    : [];
+
+  const allLightboxMedia = lightboxItems.length > 0 ? lightboxItems : fallbackItems;
+
+  const handleOpenLightbox = (mediaId?: string) => {
+    if (allLightboxMedia.length === 0) return;
+    if (mediaId) {
+      const idx = allLightboxMedia.findIndex((m) => m.id === mediaId);
+      setLightboxIndex(idx >= 0 ? idx : 0);
+    } else {
+      setLightboxIndex(0);
+    }
+    setIsLightboxOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Bar matching Screen 4 wireframe: Back link + Actions */}
@@ -258,12 +293,22 @@ export const AssetDetailPage: React.FC = () => {
         {/* Photo Gallery Grid matching Screen 4 wireframe (Large primary photo + 3 thumbnails with +3 badge) */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {/* Main Showcase Hero Image (Using Selected Thumbnail) */}
-          <div className="md:col-span-3 h-64 bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden relative group">
+          <div
+            onClick={() => handleOpenLightbox(thumbnailMedia?.id || 'primary-cover')}
+            className="md:col-span-3 h-64 bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden relative group cursor-pointer"
+            title="Click to view high-resolution photo in Lightbox"
+          >
             <SafeImage
               src={primaryPhotoUrl}
               alt={asset.name}
               className="w-full h-full object-cover group-hover:scale-102 transition duration-300"
             />
+            <div className="absolute inset-0 bg-slate-900/25 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+              <span className="px-3.5 py-2 rounded-xl bg-slate-900/80 text-white text-xs font-bold flex items-center gap-2 backdrop-blur-xs shadow-lg">
+                <Maximize2 className="h-4 w-4" />
+                View Fullscreen
+              </span>
+            </div>
             <div className="absolute bottom-3 left-3 bg-slate-900/80 text-white text-[11px] font-semibold px-3 py-1 rounded-lg backdrop-blur-xs flex items-center gap-1.5 shadow-sm">
               <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
               Primary Cover Thumbnail
@@ -275,18 +320,29 @@ export const AssetDetailPage: React.FC = () => {
             {secondaryMedia.map((m) => (
               <div
                 key={m.id}
-                onClick={() => canManageAsset && handleSetThumbnail(m.id)}
-                title={canManageAsset ? 'Click to set as cover thumbnail' : undefined}
-                className={`h-19 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 transition relative group ${
-                  canManageAsset ? 'cursor-pointer hover:border-blue-400' : ''
-                }`}
+                onClick={() => handleOpenLightbox(m.id)}
+                title="Click to preview photo"
+                className="h-19 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 transition relative group cursor-pointer hover:border-blue-400"
               >
                 <SafeImage src={m.fileUrl} alt={m.fileName} className="w-full h-full object-cover" />
-                {canManageAsset && (
-                  <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-[10px] text-white font-bold">
-                    Set Cover
-                  </div>
-                )}
+                <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1.5">
+                  <span className="p-1 rounded bg-slate-900/80 text-white" title="Preview">
+                    <Eye className="h-3 w-3" />
+                  </span>
+                  {canManageAsset && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSetThumbnail(m.id);
+                      }}
+                      className="px-1.5 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-[10px] text-white font-bold"
+                      title="Set as Cover Thumbnail"
+                    >
+                      Set Cover
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
 
@@ -524,12 +580,21 @@ export const AssetDetailPage: React.FC = () => {
                           : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
-                      <div className="h-40 overflow-hidden bg-slate-100 relative">
+                      <div
+                        onClick={() => handleOpenLightbox(m.id)}
+                        className="h-40 overflow-hidden bg-slate-100 relative cursor-pointer"
+                        title="Click to preview high-resolution image"
+                      >
                         <SafeImage
                           src={m.fileUrl}
                           alt={m.fileName}
                           className="w-full h-full object-cover group-hover:scale-103 transition duration-300"
                         />
+                        <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                          <span className="p-2 rounded-full bg-slate-900/80 text-white shadow-md">
+                            <Maximize2 className="h-4 w-4" />
+                          </span>
+                        </div>
 
                         {/* Thumbnail Status or Set as Thumbnail Action */}
                         {m.isThumbnail ? (
@@ -540,7 +605,10 @@ export const AssetDetailPage: React.FC = () => {
                         ) : canManageAsset ? (
                           <button
                             type="button"
-                            onClick={() => handleSetThumbnail(m.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSetThumbnail(m.id);
+                            }}
                             className="absolute top-2 left-2 px-2.5 py-1 bg-slate-900/80 hover:bg-blue-600 text-white text-[10px] font-bold rounded-md opacity-0 group-hover:opacity-100 transition shadow-md"
                           >
                             Set as Thumbnail
@@ -551,7 +619,10 @@ export const AssetDetailPage: React.FC = () => {
                         {canManageAsset && (
                           <button
                             type="button"
-                            onClick={() => handleDeleteMedia(m.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteMedia(m.id);
+                            }}
                             className="absolute top-2 right-2 h-7 w-7 rounded-full bg-slate-900/80 hover:bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-md"
                             title="Delete photo"
                           >
@@ -664,6 +735,13 @@ export const AssetDetailPage: React.FC = () => {
           }}
         />
       )}
+      {/* Media Lightbox Modal */}
+      <MediaLightboxModal
+        isOpen={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+        mediaItems={allLightboxMedia}
+        initialIndex={lightboxIndex}
+      />
     </div>
   );
 };

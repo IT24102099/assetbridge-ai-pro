@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { representativeApi } from '../../lib/api/representativeApi';
 import { RepresentativeResponseDto, UpdateRepresentativeRequestDto } from '../../types/representative';
 import { X, Edit3, AlertCircle, Loader2 } from 'lucide-react';
+import { SRI_LANKA_DISTRICTS, getCitiesForDistrict } from '../../constants/sriLankaLocations';
 
 interface EditRepresentativeModalProps {
   isOpen: boolean;
@@ -9,8 +10,6 @@ interface EditRepresentativeModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
-
-import { SRI_LANKA_DISTRICTS } from '../../constants/sriLankaLocations';
 
 export const EditRepresentativeModal: React.FC<EditRepresentativeModalProps> = ({
   isOpen,
@@ -32,7 +31,32 @@ export const EditRepresentativeModal: React.FC<EditRepresentativeModalProps> = (
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (representative && isOpen) {
+      setFormData({
+        fullName: representative.fullName || '',
+        phoneNumber: representative.phoneNumber || '',
+        district: representative.district || 'Kandy',
+        city: representative.city || 'Kandy',
+        address: representative.address || '',
+        nationalIdNumber: representative.nationalIdNumber || '',
+        bio: representative.bio || '',
+        isActive: representative.isActive ?? true,
+      });
+      setError(null);
+    }
+  }, [representative, isOpen]);
+
   if (!isOpen) return null;
+
+  const handleDistrictChange = (newDistrict: string) => {
+    const availableCities = getCitiesForDistrict(newDistrict);
+    setFormData((prev) => ({
+      ...prev,
+      district: newDistrict,
+      city: availableCities.length > 0 ? availableCities[0] : newDistrict,
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +72,16 @@ export const EditRepresentativeModal: React.FC<EditRepresentativeModalProps> = (
       onSuccess();
     } catch (err: any) {
       console.error('Failed to update representative:', err);
-      setError(err?.response?.data?.message || 'Failed to update representative profile.');
+      const serverMsg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to update representative profile.';
+      const errorsObj = err?.response?.data?.errors;
+      if (errorsObj && typeof errorsObj === 'object') {
+        const details = Object.entries(errorsObj)
+          .map(([key, msgs]: any) => `${key}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+          .join(' | ');
+        setError(`${serverMsg} (${details})`);
+      } else {
+        setError(serverMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -138,7 +171,7 @@ export const EditRepresentativeModal: React.FC<EditRepresentativeModalProps> = (
               <label className="text-xs font-bold text-slate-700">District *</label>
               <select
                 value={formData.district}
-                onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                onChange={(e) => handleDistrictChange(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500 transition"
               >
                 {SRI_LANKA_DISTRICTS.map((d) => (
@@ -151,13 +184,27 @@ export const EditRepresentativeModal: React.FC<EditRepresentativeModalProps> = (
 
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700">City / Town *</label>
-              <input
-                type="text"
-                required
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
-              />
+              {getCitiesForDistrict(formData.district).length > 0 ? (
+                <select
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500 transition"
+                >
+                  {getCitiesForDistrict(formData.district).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  required
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
+                />
+              )}
             </div>
           </div>
 

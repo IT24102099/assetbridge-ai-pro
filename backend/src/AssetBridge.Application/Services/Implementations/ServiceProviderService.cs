@@ -1,3 +1,4 @@
+using AssetBridge.Application.Common.Constants;
 using AssetBridge.Application.Common.Interfaces;
 using AssetBridge.Application.Common.Models;
 using AssetBridge.Application.Common.Validation;
@@ -19,15 +20,18 @@ public class ServiceProviderService : IServiceProviderService
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<ServiceProviderService> _logger;
+    private readonly INotificationService? _notificationService;
 
     public ServiceProviderService(
         IApplicationDbContext context,
         ICurrentUserService currentUserService,
-        ILogger<ServiceProviderService> logger)
+        ILogger<ServiceProviderService> logger,
+        INotificationService? notificationService = null)
     {
         _context = context;
         _currentUserService = currentUserService;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<ServiceProviderResponseDto> CreateServiceProviderAsync(CreateServiceProviderRequestDto request, CancellationToken cancellationToken = default)
@@ -48,6 +52,11 @@ public class ServiceProviderService : IServiceProviderService
         if (!ValidationRules.IsValidEmail(request.Email))
         {
             throw new ValidationException("Email", "Please provide a valid email address.");
+        }
+
+        if (!SriLankaLocationData.IsValidDistrictCityCombination(request.PrimaryDistrict, request.City))
+        {
+            throw new ValidationException("City", $"The city '{request.City}' is not located in the district '{request.PrimaryDistrict}'. Please select a consistent district and city.");
         }
 
         var provider = new ServiceProvider
@@ -153,6 +162,27 @@ public class ServiceProviderService : IServiceProviderService
             dbQuery = dbQuery.Where(p => p.Skills.Any(s => s.Category == query.SkillCategory.Value));
         }
 
+        if (!string.IsNullOrWhiteSpace(query.Trade))
+        {
+            var trade = query.Trade.Trim().ToLower();
+            if (trade == "masonry")
+            {
+                dbQuery = dbQuery.Where(p => p.Skills.Any(s => s.Category == IncidentCategory.Structural || s.SkillName.ToLower().Contains("masonry")));
+            }
+            else if (trade == "cleaning")
+            {
+                dbQuery = dbQuery.Where(p => p.Skills.Any(s => s.Category == IncidentCategory.General || s.SkillName.ToLower().Contains("cleaning")));
+            }
+            else if (trade == "ac service" || trade == "ac" || trade == "hvac")
+            {
+                dbQuery = dbQuery.Where(p => p.Skills.Any(s => s.Category == IncidentCategory.HVAC || s.SkillName.ToLower().Contains("ac")));
+            }
+            else
+            {
+                dbQuery = dbQuery.Where(p => p.Skills.Any(s => s.SkillName.ToLower().Contains(trade)));
+            }
+        }
+
         if (query.VerificationStatus.HasValue)
         {
             dbQuery = dbQuery.Where(p => p.VerificationStatus == query.VerificationStatus.Value);
@@ -209,6 +239,11 @@ public class ServiceProviderService : IServiceProviderService
             throw new ValidationException("Email", "Please provide a valid email address.");
         }
 
+        if (!SriLankaLocationData.IsValidDistrictCityCombination(request.PrimaryDistrict, request.City))
+        {
+            throw new ValidationException("City", $"The city '{request.City}' is not located in the district '{request.PrimaryDistrict}'. Please select a consistent district and city.");
+        }
+
         provider.BusinessName = request.BusinessName.Trim();
         provider.ContactPerson = request.ContactPerson.Trim();
         provider.PhoneNumber = request.PhoneNumber.Trim();
@@ -252,6 +287,24 @@ public class ServiceProviderService : IServiceProviderService
         await _context.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("ServiceProvider {ProviderId} verification set to {Status} by User {UserId}",
             provider.Id, provider.VerificationStatus, _currentUserService.UserId);
+
+        if (_notificationService != null)
+        {
+            try
+            {
+                await _notificationService.CreateNotificationAsync(new DTOs.Notifications.CreateNotificationDto
+                {
+                    UserId = provider.UserId,
+                    Title = $"Provider Verification: {provider.VerificationStatus}",
+                    Message = $"Your service provider profile verification status has been updated to {provider.VerificationStatus}.",
+                    Type = NotificationType.WorkflowStatusChanged
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send notification for provider verification update {ProviderId}", provider.Id);
+            }
+        }
 
         return MapToDto(provider);
     }

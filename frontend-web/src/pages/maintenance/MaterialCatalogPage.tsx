@@ -142,7 +142,10 @@ export default function MaterialCatalogPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center gap-1.5">
+          <span
+            className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center gap-1.5 cursor-help"
+            title="Calibrated against 2026 Sri Lankan Construction & Maintenance Market Rates (CIDA/ICTAD benchmark) for quotation validation"
+          >
             <ShieldCheck className="h-4 w-4 text-blue-600" />
             LKR Benchmark 2026
           </span>

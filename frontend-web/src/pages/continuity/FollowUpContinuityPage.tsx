@@ -144,6 +144,15 @@ export default function FollowUpContinuityPage() {
     e.preventDefault();
     if (!statusModal.task) return;
 
+    if (isCompletedTask(statusModal.task) && statusModal.targetStatus === FollowUpStatus.Cancelled) {
+      setStatusModal((prev) => ({
+        ...prev,
+        submitting: false,
+        error: 'Completed follow-up tasks cannot be transitioned to Cancelled.',
+      }));
+      return;
+    }
+
     try {
       setStatusModal((prev) => ({ ...prev, submitting: true, error: null }));
       const res = await followUpApi.updateFollowUpStatus(statusModal.task.id, {

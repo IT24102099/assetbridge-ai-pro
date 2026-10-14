@@ -15,17 +15,21 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
+import { RotateCcw } from 'lucide-react';
+
 const SKILL_FILTERS = [
   { value: '', label: 'All Skills' },
   { value: 'Plumbing', label: 'Plumbing' },
   { value: 'Electrical', label: 'Electrical' },
-  { value: 'Masonry', label: 'Masonry' },
-  { value: 'AC Service', label: 'AC Service' },
-  { value: 'Cleaning', label: 'Cleaning' },
+  { value: 'Structural', label: 'Masonry / Structural' },
+  { value: 'HVAC', label: 'AC Service / HVAC' },
   { value: 'Roofing', label: 'Roofing' },
   { value: 'Carpentry', label: 'Carpentry' },
   { value: 'Painting', label: 'Painting' },
   { value: 'PestControl', label: 'Pest Control' },
+  { value: 'General', label: 'Cleaning / General' },
+  { value: 'Landscaping', label: 'Landscaping' },
+  { value: 'Security', label: 'Security' },
 ];
 
 export const ProviderListPage: React.FC = () => {
@@ -78,6 +82,15 @@ export const ProviderListPage: React.FC = () => {
     setPage(1);
     fetchProviders();
   };
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setSelectedSkill('');
+    setSelectedStatus('');
+    setPage(1);
+  };
+
+  const isFiltered = Boolean(searchTerm.trim() || selectedSkill || selectedStatus);
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
@@ -155,6 +168,17 @@ export const ProviderListPage: React.FC = () => {
             <option value="Rejected">Unverified</option>
             <option value="Inactive">Inactive</option>
           </select>
+
+          {isFiltered && (
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-red-50 border border-slate-200 transition"
+              title="Reset all filters"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </button>
+          )}
         </div>
       </div>
 

@@ -93,12 +93,17 @@ export const Topbar: React.FC<TopbarProps> = ({
     }
 
     setIsDropdownOpen(false);
-    if (notification.title.toLowerCase().includes('incident')) {
+    const titleLower = notification.title.toLowerCase();
+    if (titleLower.includes('incident')) {
       navigate('/incidents');
-    } else if (notification.title.toLowerCase().includes('follow-up') || notification.title.toLowerCase().includes('task')) {
+    } else if (titleLower.includes('follow-up') || titleLower.includes('task')) {
       navigate('/follow-up');
-    } else if (notification.title.toLowerCase().includes('quotation') || notification.title.toLowerCase().includes('bid')) {
+    } else if (titleLower.includes('quotation') || titleLower.includes('bid')) {
       navigate('/quotations');
+    } else if (titleLower.includes('representative')) {
+      navigate('/representatives');
+    } else if (titleLower.includes('provider')) {
+      navigate('/providers');
     }
   };
 

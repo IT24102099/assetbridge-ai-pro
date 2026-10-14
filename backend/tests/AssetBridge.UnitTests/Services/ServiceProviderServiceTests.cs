@@ -796,4 +796,145 @@ public class ServiceProviderServiceTests : IDisposable
         schedule.Should().NotBeEmpty();
         schedule.First().Status.Should().Be(AvailabilityStatus.Busy);
     }
+
+    [Fact]
+    public async Task CreateServiceProvider_WithMismatchedDistrictCity_ShouldThrowValidationException()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var request = new CreateServiceProviderRequestDto
+        {
+            BusinessName = "Mismatched Provider",
+            ContactPerson = "Perera",
+            PhoneNumber = "+94771234567",
+            Email = "mismatch@provider.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Negombo" // Negombo is in Gampaha, not Kandy!
+        };
+
+        // Act
+        Func<Task> act = async () => await _providerSut.CreateServiceProviderAsync(request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("City");
+    }
+
+    [Fact]
+    public async Task UpdateServiceProvider_WithMismatchedDistrictCity_ShouldThrowValidationException()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerUser1Id,
+            BusinessName = "Valid Provider",
+            ContactPerson = "Perera",
+            PhoneNumber = "0771234567",
+            Email = "valid@provider.lk",
+            PrimaryDistrict = "Colombo",
+            City = "Colombo",
+            VerificationStatus = VerificationStatus.Verified,
+            IsActive = true
+        };
+        _dbContext.ServiceProviders.Add(provider);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var updateRequest = new UpdateServiceProviderRequestDto
+        {
+            BusinessName = "Valid Provider",
+            ContactPerson = "Perera",
+            PhoneNumber = "0771234567",
+            Email = "valid@provider.lk",
+            PrimaryDistrict = "Galle",
+            City = "Jaffna" // Mismatch!
+        };
+
+        // Act
+        Func<Task> act = async () => await _providerSut.UpdateServiceProviderAsync(provider.Id, updateRequest);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("City");
+    }
+
+    [Fact]
+    public async Task GetServiceProviders_WithTradeFilter_ShouldReturnMatchingProviders()
+    {
+        // Arrange
+        var masonryId = Guid.NewGuid();
+        var providerMasonry = new ServiceProvider
+        {
+            Id = masonryId,
+            UserId = _providerUser1Id,
+            BusinessName = "Masonry Masters",
+            ContactPerson = "Kamal",
+            PhoneNumber = "0771112233",
+            Email = "masonry@test.lk",
+            PrimaryDistrict = "Colombo",
+            City = "Colombo",
+            VerificationStatus = VerificationStatus.Verified,
+            IsActive = true
+        };
+
+        var skillMasonry = new ProviderSkill
+        {
+            Id = Guid.NewGuid(),
+            ProviderId = masonryId,
+            Category = IncidentCategory.Structural,
+            SkillName = "Masonry and Bricklaying",
+            YearsOfExperience = 8,
+            IsPrimary = true
+        };
+
+        var plumbingId = Guid.NewGuid();
+        var providerPlumbing = new ServiceProvider
+        {
+            Id = plumbingId,
+            UserId = _providerUser2Id,
+            BusinessName = "Pure Plumbing",
+            ContactPerson = "Nimal",
+            PhoneNumber = "0772223344",
+            Email = "plumbing@test.lk",
+            PrimaryDistrict = "Colombo",
+            City = "Colombo",
+            VerificationStatus = VerificationStatus.Verified,
+            IsActive = true
+        };
+
+        var skillPlumbing = new ProviderSkill
+        {
+            Id = Guid.NewGuid(),
+            ProviderId = plumbingId,
+            Category = IncidentCategory.Plumbing,
+            SkillName = "Pipe Fitting",
+            YearsOfExperience = 5,
+            IsPrimary = true
+        };
+
+        _dbContext.ServiceProviders.AddRange(providerMasonry, providerPlumbing);
+        _dbContext.ProviderSkills.AddRange(skillMasonry, skillPlumbing);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        // Act - filter by trade: masonry
+        var result = await _providerSut.GetServiceProvidersAsync(new ProviderQueryParametersDto
+        {
+            Trade = "masonry"
+        });
+
+        // Assert
+        result.Items.Should().Contain(p => p.Id == masonryId);
+        result.Items.Should().NotContain(p => p.Id == plumbingId);
+    }
 }

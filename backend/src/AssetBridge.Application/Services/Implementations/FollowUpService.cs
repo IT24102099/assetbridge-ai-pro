@@ -193,6 +193,12 @@ public class FollowUpService : IFollowUpService
             throw new DomainException("Cancelled follow-up tasks cannot be marked as completed or modified.");
         }
 
+        // A completed task must not become Cancelled
+        if (task.Status == FollowUpStatus.Completed && dto.Status == FollowUpStatus.Cancelled)
+        {
+            throw new DomainException("Completed follow-up tasks cannot be cancelled.");
+        }
+
         task.Status = dto.Status;
         if (dto.Status == FollowUpStatus.Completed)
             task.CompletedAtUtc = DateTime.UtcNow;
