@@ -65,6 +65,38 @@ public class AuthController : BaseApiController
         return HandleSuccess(profile, "User profile retrieved successfully.");
     }
 
+    [HttpPut("profile")]
+    [Authorize]
+    [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequestDto request, CancellationToken cancellationToken)
+    {
+        if (_currentUserService.UserId == null)
+        {
+            return Unauthorized();
+        }
+
+        var updated = await _authService.UpdateProfileAsync(_currentUserService.UserId.Value, request, cancellationToken);
+        return HandleSuccess(updated, "Profile updated successfully.");
+    }
+
+    [HttpPut("change-password")]
+    [Authorize]
+    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto request, CancellationToken cancellationToken)
+    {
+        if (_currentUserService.UserId == null)
+        {
+            return Unauthorized();
+        }
+
+        await _authService.ChangePasswordAsync(_currentUserService.UserId.Value, request, cancellationToken);
+        return HandleSuccess(true, "Password changed successfully.");
+    }
+
     [HttpGet("roles")]
     [AllowAnonymous]
     public IActionResult GetAvailableRoles()

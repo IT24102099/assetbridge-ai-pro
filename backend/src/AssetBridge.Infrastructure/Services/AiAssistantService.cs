@@ -37,24 +37,25 @@ public class AiAssistantService : IAiAssistantService
             {
                 var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogWarning("AI service returned HTTP {StatusCode}: {ErrorBody}", response.StatusCode, errorBody);
-                return new AiChatResponseDto
-                {
-                    Answer = "AI Assistant is temporarily unavailable. Please try again in a few moments.",
-                    DomainUsed = "INCIDENT_KNOWLEDGE"
-                };
+                throw new HttpRequestException($"AI service returned HTTP {response.StatusCode}: {errorBody}", null, response.StatusCode);
             }
 
             var result = await response.Content.ReadFromJsonAsync<AiChatResponseDto>(JsonOptions, cancellationToken);
-            return result ?? new AiChatResponseDto { Answer = "Received empty response from AI service." };
+            if (result == null || string.IsNullOrWhiteSpace(result.Answer))
+            {
+                throw new InvalidOperationException("Received empty response from AI service.");
+            }
+            return result;
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "Failed to communicate with internal AI service on /api/v1/chat");
-            return new AiChatResponseDto
-            {
-                Answer = "AI Assistant is temporarily unavailable. Please verify that the internal AI service is operational.",
-                DomainUsed = "INCIDENT_KNOWLEDGE"
-            };
+            throw;
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogError(ex, "AI service request timed out on /api/v1/chat");
+            throw new TimeoutException("The AI assistant request timed out. Please try again shortly.", ex);
         }
     }
 

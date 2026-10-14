@@ -754,7 +754,7 @@ public class AssetServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateAssetAsync_ShouldSafelyStoreDescription_WhenContainingScriptTags()
+    public async Task CreateAssetAsync_ShouldReject_WhenContainingDangerousScriptTags()
     {
         // Arrange
         _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
@@ -773,14 +773,35 @@ public class AssetServiceTests : IDisposable
         };
 
         // Act
-        var result = await _sut.CreateAssetAsync(request);
+        Func<Task> act = async () => await _sut.CreateAssetAsync(request);
 
         // Assert
-        result.Should().NotBeNull();
-        result.Description.Should().Be(xssPayload);
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("Name");
+    }
 
-        var savedAsset = await _dbContext.Assets.FindAsync(result.Id);
-        savedAsset.Should().NotBeNull();
-        savedAsset!.Description.Should().Be(xssPayload);
+    [Fact]
+    public async Task CreateAssetAsync_ShouldReject_WhenNameContainsDangerousScriptTags()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var request = new CreateAssetRequestDto
+        {
+            Name = "<script>alert('XSS')</script>",
+            PropertyType = PropertyType.SingleFamilyHouse,
+            AddressLine1 = "77 Lotus Road",
+            District = "Colombo",
+            City = "Colombo"
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.CreateAssetAsync(request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("Name");
     }
 }

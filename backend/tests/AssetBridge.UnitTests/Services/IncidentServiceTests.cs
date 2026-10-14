@@ -871,4 +871,54 @@ public async Task DeleteEvidenceAsync_ShouldThrowEntityNotFoundException_WhenEvi
     // Assert
     await act.Should().ThrowAsync<EntityNotFoundException>();
 }
+
+    [Fact]
+    public async Task CreateIncidentAsync_ShouldThrowValidationException_WhenTitleContainsDangerousHtml()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var request = new CreateIncidentRequestDto
+        {
+            AssetId = _asset1Id,
+            Title = "<script>alert('XSS')</script> Leak",
+            Description = "Clean description",
+            Category = IncidentCategory.Plumbing,
+            Priority = IncidentPriority.High
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.CreateIncidentAsync(request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("Title");
+    }
+
+    [Fact]
+    public async Task CreateIncidentAsync_ShouldThrowValidationException_WhenDescriptionContainsDangerousHtml()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var request = new CreateIncidentRequestDto
+        {
+            AssetId = _asset1Id,
+            Title = "Valid Emergency Repair",
+            Description = "<iframe src='javascript:alert(1)'></iframe>",
+            Category = IncidentCategory.Plumbing,
+            Priority = IncidentPriority.High
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.CreateIncidentAsync(request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("Title");
+    }
 }

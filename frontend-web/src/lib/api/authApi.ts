@@ -26,4 +26,14 @@ export const authApi = {
     const response = await apiClient.get<ApiResponse<Array<{ id: number; name: string }>>>('/auth/roles');
     return response.data;
   },
+
+  updateProfile: async (data: { fullName: string; phoneNumber?: string }): Promise<ApiResponse<User>> => {
+    const response = await apiClient.put<ApiResponse<User>>('/auth/profile', data);
+    return response.data;
+  },
+
+  changePassword: async (data: { currentPassword: string; newPassword: string }): Promise<ApiResponse<boolean>> => {
+    const response = await apiClient.put<ApiResponse<boolean>>('/auth/change-password', data);
+    return response.data;
+  },
 };

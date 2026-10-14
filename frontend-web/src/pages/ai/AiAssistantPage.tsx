@@ -4,6 +4,7 @@ import { aiApi, AiChatMessage } from '../../lib/api/aiApi';
 
 export const AiAssistantPage: React.FC = () => {
   const [query, setQuery] = useState('');
+  const [lastQuery, setLastQuery] = useState<string>('');
   const [isTyping, setIsTyping] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [messages, setMessages] = useState<AiChatMessage[]>([
@@ -20,6 +21,7 @@ export const AiAssistantPage: React.FC = () => {
     if (!userQ || isTyping) return;
 
     setErrorMsg(null);
+    setLastQuery(userQ);
     const userMessage: AiChatMessage = { role: 'user', content: userQ };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
@@ -50,7 +52,8 @@ export const AiAssistantPage: React.FC = () => {
         setErrorMsg(res.message || 'AI Assistant is temporarily unavailable. Please try again.');
       }
     } catch (err: any) {
-      setErrorMsg('AI Assistant is temporarily unavailable. Please check your network connection and try again.');
+      const serverMessage = err?.response?.data?.message;
+      setErrorMsg(serverMessage || 'AI Assistant is temporarily unavailable. Please check the AI service status and try again.');
     } finally {
       setIsTyping(false);
     }
@@ -195,11 +198,23 @@ export const AiAssistantPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Error Alert */}
+        {/* Error Alert with Retry Action */}
         {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{errorMsg}</span>
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+              <span>{errorMsg}</span>
+            </div>
+            {lastQuery && !isTyping && (
+              <button
+                type="button"
+                onClick={(e) => handleSend(e, lastQuery)}
+                className="px-3 py-1.5 bg-white hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 shadow-2xs"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Retry Question
+              </button>
+            )}
           </div>
         )}
 

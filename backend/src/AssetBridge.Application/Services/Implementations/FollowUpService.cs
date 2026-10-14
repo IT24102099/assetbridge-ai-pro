@@ -181,6 +181,18 @@ public class FollowUpService : IFollowUpService
         if (task == null)
             throw new EntityNotFoundException("FollowUpTask", id);
 
+        // Enforce owner authorization
+        if (currentUserRole == UserRole.Owner.ToString() && task.Asset != null && task.Asset.OwnerId != currentUserId)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to update follow-up tasks for this property.");
+        }
+
+        // Prevent modifying tasks that are already Cancelled
+        if (task.Status == FollowUpStatus.Cancelled && dto.Status != FollowUpStatus.Cancelled)
+        {
+            throw new DomainException("Cancelled follow-up tasks cannot be marked as completed or modified.");
+        }
+
         task.Status = dto.Status;
         if (dto.Status == FollowUpStatus.Completed)
             task.CompletedAtUtc = DateTime.UtcNow;

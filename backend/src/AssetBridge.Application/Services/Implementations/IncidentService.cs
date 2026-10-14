@@ -1,6 +1,8 @@
 using AssetBridge.Application.Common.Interfaces;
 using AssetBridge.Application.Common.Models;
+using AssetBridge.Application.Common.Validation;
 using AssetBridge.Application.DTOs.Incidents;
+using AssetBridge.Application.DTOs.Notifications;
 using AssetBridge.Application.Services.Interfaces;
 using AssetBridge.Domain.Entities.Incidents;
 using AssetBridge.Domain.Enums;
@@ -18,24 +20,34 @@ public class IncidentService : IIncidentService
     private readonly IAssetHistoryService _historyService;
     private readonly IFileStorageService _fileStorageService;
     private readonly ILogger<IncidentService> _logger;
+    private readonly INotificationService? _notificationService;
 
     public IncidentService(
         IApplicationDbContext context,
         ICurrentUserService currentUserService,
         IAssetHistoryService historyService,
         IFileStorageService fileStorageService,
-        ILogger<IncidentService> logger)
+        ILogger<IncidentService> logger,
+        INotificationService? notificationService = null)
     {
         _context = context;
         _currentUserService = currentUserService;
         _historyService = historyService;
         _fileStorageService = fileStorageService;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<IncidentResponseDto> CreateIncidentAsync(CreateIncidentRequestDto request, CancellationToken cancellationToken = default)
     {
         var currentUserId = GetAuthenticatedUserId();
+
+        if (ValidationRules.HasDangerousHtml(request.Title) ||
+            ValidationRules.HasDangerousHtml(request.Description) ||
+            ValidationRules.HasDangerousHtml(request.LocationDetails))
+        {
+            throw new ValidationException("Title", "HTML tags and script elements are not permitted in incident fields.");
+        }
 
         // 1. Validate Estimated Budget
         if (request.EstimatedBudget.HasValue && request.EstimatedBudget.Value < 0)
@@ -96,6 +108,24 @@ public class IncidentService : IIncidentService
             currentUserId,
             relatedIncidentId: incident.Id,
             cancellationToken: cancellationToken);
+
+        if (_notificationService != null)
+        {
+            try
+            {
+                await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                {
+                    UserId = asset.OwnerId,
+                    Title = $"New Incident Reported: {incident.Title}",
+                    Message = $"Incident '{incident.Title}' ({incident.Category}, {incident.Priority} priority) was reported on property '{asset.Name}'.",
+                    Type = NotificationType.WorkflowStatusChanged
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to dispatch notification for incident creation {IncidentId}", incident.Id);
+            }
+        }
 
         _logger.LogInformation("Incident created: {IncidentId} for Asset {AssetId}", incident.Id, asset.Id);
 
@@ -206,6 +236,13 @@ public class IncidentService : IIncidentService
 
         ValidateIncidentAccess(incident);
 
+        if (ValidationRules.HasDangerousHtml(request.Title) ||
+            ValidationRules.HasDangerousHtml(request.Description) ||
+            ValidationRules.HasDangerousHtml(request.LocationDetails))
+        {
+            throw new ValidationException("Title", "HTML tags and script elements are not permitted in incident fields.");
+        }
+
         if (request.EstimatedBudget.HasValue && request.EstimatedBudget.Value < 0)
         {
             throw new ValidationException("EstimatedBudget", "Estimated budget cannot be negative.");
@@ -265,6 +302,24 @@ public class IncidentService : IIncidentService
             _currentUserService.UserId,
             relatedIncidentId: incident.Id,
             cancellationToken: cancellationToken);
+
+        if (_notificationService != null)
+        {
+            try
+            {
+                await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                {
+                    UserId = incident.Asset?.OwnerId ?? incident.ReportedByUserId,
+                    Title = $"Incident Status Updated: {incident.Title}",
+                    Message = $"Incident status transitioned from {previousStatus} to {incident.Status}.",
+                    Type = NotificationType.WorkflowStatusChanged
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to dispatch notification for incident status update {IncidentId}", id);
+            }
+        }
 
         _logger.LogInformation("Incident {IncidentId} status transitioned from {Prev} to {New}", id, previousStatus, request.Status);
 

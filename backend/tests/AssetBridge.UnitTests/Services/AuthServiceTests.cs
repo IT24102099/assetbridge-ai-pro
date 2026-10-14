@@ -252,4 +252,107 @@ public class AuthServiceTests : IDisposable
         dbUser.Should().NotBeNull();
         dbUser!.IsActive.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task UpdateProfileAsync_ShouldUpdateFullNameAndPhone_WithoutChangingRole()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "profileuser@assetbridge.lk",
+            FullName = "Original Name",
+            PhoneNumber = "+94770000000",
+            Role = UserRole.Owner,
+            PasswordHash = "hashed_pass"
+        };
+        _dbContext.Users.Add(user);
+        await _dbContext.SaveChangesAsync();
+
+        var request = new UpdateProfileRequestDto
+        {
+            FullName = "Updated Name",
+            PhoneNumber = "+94779999999"
+        };
+
+        // Act
+        var result = await _sut.UpdateProfileAsync(user.Id, request);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.FullName.Should().Be("Updated Name");
+        result.PhoneNumber.Should().Be("+94779999999");
+        result.Role.Should().Be(UserRole.Owner);
+
+        var dbUser = await _dbContext.Users.FindAsync(user.Id);
+        dbUser!.FullName.Should().Be("Updated Name");
+        dbUser.PhoneNumber.Should().Be("+94779999999");
+        dbUser.Role.Should().Be(UserRole.Owner); // Protected
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WithCorrectCurrentPassword_ShouldUpdatePasswordHash()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "changepass@assetbridge.lk",
+            FullName = "Change Pass User",
+            PasswordHash = "old_hashed_password"
+        };
+        _dbContext.Users.Add(user);
+        await _dbContext.SaveChangesAsync();
+
+        _passwordHasherMock.Setup(x => x.VerifyPassword("OldSecret123!", "old_hashed_password"))
+            .Returns(true);
+        _passwordHasherMock.Setup(x => x.HashPassword("NewSecret123!"))
+            .Returns("new_hashed_password");
+
+        var request = new ChangePasswordRequestDto
+        {
+            CurrentPassword = "OldSecret123!",
+            NewPassword = "NewSecret123!"
+        };
+
+        // Act
+        var result = await _sut.ChangePasswordAsync(user.Id, request);
+
+        // Assert
+        result.Should().BeTrue();
+        var dbUser = await _dbContext.Users.FindAsync(user.Id);
+        dbUser!.PasswordHash.Should().Be("new_hashed_password");
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WithIncorrectCurrentPassword_ShouldThrowValidationException()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "wrongpass@assetbridge.lk",
+            FullName = "Wrong Pass User",
+            PasswordHash = "actual_hashed_password"
+        };
+        _dbContext.Users.Add(user);
+        await _dbContext.SaveChangesAsync();
+
+        _passwordHasherMock.Setup(x => x.VerifyPassword("WrongCurrentPass", "actual_hashed_password"))
+            .Returns(false);
+
+        var request = new ChangePasswordRequestDto
+        {
+            CurrentPassword = "WrongCurrentPass",
+            NewPassword = "NewPassword123!"
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.ChangePasswordAsync(user.Id, request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("CurrentPassword");
+        ex.Which.Errors["CurrentPassword"].Should().Contain(e => e.Contains("incorrect"));
+    }
 }

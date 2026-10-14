@@ -448,6 +448,60 @@ public class AuditAndContinuityTests : IDisposable
         metrics.PendingApprovals.Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task FollowUpService_UpdateFollowUpStatus_ThrowsDomainException_WhenTaskIsCancelled()
+    {
+        // Arrange
+        var task = await _followUpSut.CreateFollowUpTaskAsync(new CreateFollowUpTaskDto
+        {
+            AssetId = _assetId,
+            Title = "Roof Waterproofing Check",
+            Description = "Check for membrane cracks",
+            DueDateUtc = DateTime.UtcNow.AddDays(7)
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Cancel the task
+        await _followUpSut.UpdateFollowUpStatusAsync(task.Id, new UpdateFollowUpStatusDto
+        {
+            Status = FollowUpStatus.Cancelled,
+            ResolutionNotes = "Work cancelled by owner."
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Act - Attempt to complete cancelled task
+        Func<Task> act = async () => await _followUpSut.UpdateFollowUpStatusAsync(task.Id, new UpdateFollowUpStatusDto
+        {
+            Status = FollowUpStatus.Completed,
+            ResolutionNotes = "Trying to revive cancelled task."
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<DomainException>();
+        ex.WithMessage("*Cancelled follow-up tasks cannot be marked as completed or modified*");
+    }
+
+    [Fact]
+    public async Task FollowUpService_UpdateFollowUpStatus_ThrowsUnauthorizedAccess_WhenOwnerDoesNotOwnAsset()
+    {
+        // Arrange
+        var otherOwnerId = Guid.NewGuid();
+        var task = await _followUpSut.CreateFollowUpTaskAsync(new CreateFollowUpTaskDto
+        {
+            AssetId = _assetId,
+            Title = "Security Alarm Maintenance",
+            Description = "Annual battery swap",
+            DueDateUtc = DateTime.UtcNow.AddDays(14)
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Act
+        Func<Task> act = async () => await _followUpSut.UpdateFollowUpStatusAsync(task.Id, new UpdateFollowUpStatusDto
+        {
+            Status = FollowUpStatus.Completed
+        }, otherOwnerId, UserRole.Owner.ToString());
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
     public void Dispose()
     {
         _dbContext.Dispose();

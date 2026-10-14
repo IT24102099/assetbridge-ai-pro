@@ -152,7 +152,20 @@ export const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [slowLoading, setSlowLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    let timer: any;
+    if (isLoading) {
+      timer = setTimeout(() => {
+        setSlowLoading(true);
+      }, 3500);
+    } else {
+      setSlowLoading(false);
+    }
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -219,6 +232,7 @@ export const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     if (!email.trim() || !password.trim()) {
       setErrorMessage('Please enter your registered email address and password.');
       return;
@@ -394,6 +408,12 @@ export const LoginPage: React.FC = () => {
                   </span>
                 )}
               </button>
+
+              {slowLoading && (
+                <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-[11px] text-center font-medium animate-in fade-in">
+                  Backend server is waking up from sleep (cold start). Please hold on a moment...
+                </div>
+              )}
 
               {/* OR Divider */}
               <div className="relative py-1 text-center">

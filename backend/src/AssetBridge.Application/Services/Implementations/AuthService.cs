@@ -165,6 +165,50 @@ public class AuthService : IAuthService
         return MapToProfileDto(user);
     }
 
+    public async Task<UserProfileDto> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user == null)
+        {
+            throw new EntityNotFoundException(nameof(User), userId);
+        }
+
+        user.FullName = request.FullName.Trim();
+        user.PhoneNumber = request.PhoneNumber?.Trim();
+        user.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Profile updated for user {UserId}", user.Id);
+
+        return MapToProfileDto(user);
+    }
+
+    public async Task<bool> ChangePasswordAsync(Guid userId, ChangePasswordRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user == null)
+        {
+            throw new EntityNotFoundException(nameof(User), userId);
+        }
+
+        if (!_passwordHasher.VerifyPassword(request.CurrentPassword, user.PasswordHash))
+        {
+            throw new ValidationException("CurrentPassword", "Current password is incorrect.");
+        }
+
+        user.PasswordHash = _passwordHasher.HashPassword(request.NewPassword);
+        user.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Password successfully changed for user {UserId}", user.Id);
+
+        return true;
+    }
+
     private static UserProfileDto MapToProfileDto(User user)
     {
         return new UserProfileDto

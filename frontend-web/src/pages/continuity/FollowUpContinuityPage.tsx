@@ -173,8 +173,24 @@ export default function FollowUpContinuityPage() {
       t.assetName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.description.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatus = statusFilter === 'all' || t.status.toString() === statusFilter;
-    const matchesPriority = priorityFilter === 'all' || t.priority.toString() === priorityFilter;
+    const isStatusMatch = (statusVal: any, filterVal: string) => {
+      if (filterVal === 'all') return true;
+      const s = String(statusVal).toLowerCase();
+      const f = filterVal.toLowerCase();
+      if (s === f) return true;
+      if (f === 'completed' && (s === '3' || s === 'completed')) return true;
+      if (f === 'cancelled' && (s === '4' || s === 'cancelled')) return true;
+      if (f === 'pending' && (s === '1' || s === 'pending')) return true;
+      if (f === 'inprogress' && (s === '2' || s === 'inprogress')) return true;
+      if (f === 'overdue' && (s === '5' || s === 'overdue')) return true;
+      return false;
+    };
+
+    const matchesStatus =
+      statusFilter === 'all' ||
+      isStatusMatch(t.status, statusFilter) ||
+      isStatusMatch(t.statusName, statusFilter);
+    const matchesPriority = priorityFilter === 'all' || t.priority.toString().toLowerCase() === priorityFilter.toLowerCase() || t.priorityName?.toLowerCase() === priorityFilter.toLowerCase();
 
     return matchesSearch && matchesStatus && matchesPriority;
   });
@@ -182,9 +198,27 @@ export default function FollowUpContinuityPage() {
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const pendingCount = tasks.filter((t) => t.status === FollowUpStatus.Pending || t.status === FollowUpStatus.Scheduled).length;
+  const isCompletedTask = (t: FollowUpTaskDto) =>
+    t.status === FollowUpStatus.Completed ||
+    (t.status as unknown) === 'Completed' ||
+    t.statusName?.toLowerCase() === 'completed';
+
+  const isCancelledTask = (t: FollowUpTaskDto) =>
+    t.status === FollowUpStatus.Cancelled ||
+    (t.status as unknown) === 'Cancelled' ||
+    t.statusName?.toLowerCase() === 'cancelled';
+
+  const isPendingOrInProgress = (t: FollowUpTaskDto) =>
+    t.status === FollowUpStatus.Pending ||
+    t.status === FollowUpStatus.InProgress ||
+    (t.status as unknown) === 'Pending' ||
+    (t.status as unknown) === 'InProgress' ||
+    t.statusName?.toLowerCase() === 'pending' ||
+    t.statusName?.toLowerCase() === 'inprogress';
+
+  const pendingCount = tasks.filter(isPendingOrInProgress).length;
   const overdueCount = tasks.filter((t) => t.isOverdue).length;
-  const completedCount = tasks.filter((t) => t.status === FollowUpStatus.Completed).length;
+  const completedCount = tasks.filter(isCompletedTask).length;
 
   return (
     <div className="space-y-6">
@@ -272,9 +306,10 @@ export default function FollowUpContinuityPage() {
           >
             <option value="all">All Statuses</option>
             <option value={FollowUpStatus.Pending.toString()}>Pending</option>
-            <option value={FollowUpStatus.Scheduled.toString()}>Scheduled</option>
             <option value={FollowUpStatus.InProgress.toString()}>In Progress</option>
             <option value={FollowUpStatus.Completed.toString()}>Completed</option>
+            <option value={FollowUpStatus.Cancelled.toString()}>Cancelled</option>
+            <option value={FollowUpStatus.Overdue.toString()}>Overdue</option>
           </select>
 
           <select
@@ -369,23 +404,52 @@ export default function FollowUpContinuityPage() {
                     </td>
 
                     <td className="py-3 px-4 text-right">
-                      {task.status !== FollowUpStatus.Completed && (
-                        <button
-                          onClick={() =>
-                            setStatusModal({
-                              isOpen: true,
-                              task,
-                              targetStatus: FollowUpStatus.Completed,
-                              notes: '',
-                              submitting: false,
-                              error: null
-                            })
-                          }
-                          className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl border border-emerald-200 transition inline-flex items-center gap-1"
-                        >
+                      {!isCompletedTask(task) && !isCancelledTask(task) ? (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() =>
+                              setStatusModal({
+                                isOpen: true,
+                                task,
+                                targetStatus: FollowUpStatus.Completed,
+                                notes: '',
+                                submitting: false,
+                                error: null
+                              })
+                            }
+                            className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl border border-emerald-200 transition inline-flex items-center gap-1 shadow-2xs"
+                            title="Complete this follow-up task"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Complete Task
+                          </button>
+                          <button
+                            onClick={() =>
+                              setStatusModal({
+                                isOpen: true,
+                                task,
+                                targetStatus: FollowUpStatus.Cancelled,
+                                notes: '',
+                                submitting: false,
+                                error: null
+                              })
+                            }
+                            className="px-2 py-1.5 bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 text-xs font-semibold rounded-xl border border-slate-200 hover:border-rose-200 transition inline-flex items-center gap-1"
+                            title="Cancel this follow-up task"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            Cancel
+                          </button>
+                        </div>
+                      ) : isCompletedTask(task) ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
                           <CheckCircle2 className="h-3 w-3" />
-                          Mark Done
-                        </button>
+                          Completed
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">
+                          Cancelled
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -537,20 +601,43 @@ export default function FollowUpContinuityPage() {
         </div>
       )}
 
-      {/* Complete Task Modal */}
+      {/* Complete / Cancel Task Modal */}
       {statusModal.isOpen && statusModal.task && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Mark Continuity Task Completed</h3>
-            <p className="text-xs text-slate-500">{statusModal.task.title} • {statusModal.task.assetName}</p>
+            <h3 className="text-base font-bold text-slate-900">
+              {statusModal.targetStatus === FollowUpStatus.Completed ? 'Complete Continuity Task' : 'Cancel Continuity Task'}
+            </h3>
+            <p className="text-xs text-slate-500">
+              {statusModal.task.title} • {statusModal.task.assetName}
+            </p>
+            {statusModal.targetStatus === FollowUpStatus.Cancelled && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                <span>Cancelling this task marks it as terminated. This cannot be undone.</span>
+              </div>
+            )}
+
+            {statusModal.error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" />
+                <span>{statusModal.error}</span>
+              </div>
+            )}
 
             <form onSubmit={handleStatusSubmit} className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">Verification Notes</label>
+                <label className="text-xs font-bold text-slate-700 block">
+                  {statusModal.targetStatus === FollowUpStatus.Completed ? 'Verification Notes' : 'Cancellation Reason'}
+                </label>
                 <textarea
                   value={statusModal.notes}
                   onChange={(e) => setStatusModal((prev) => ({ ...prev, notes: e.target.value }))}
-                  placeholder="e.g. Verified by site visit; no leak recurrence found. Warranty confirmed active."
+                  placeholder={
+                    statusModal.targetStatus === FollowUpStatus.Completed
+                      ? 'e.g. Verified by site visit; no leak recurrence found. Warranty confirmed active.'
+                      : 'e.g. Property sold or repair replaced by comprehensive renovation.'
+                  }
                   rows={3}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-none focus:border-blue-500 transition"
                 />
@@ -562,14 +649,22 @@ export default function FollowUpContinuityPage() {
                   onClick={() => setStatusModal({ isOpen: false, task: null, targetStatus: FollowUpStatus.Completed, notes: '', submitting: false, error: null })}
                   className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
                 >
-                  Cancel
+                  Close
                 </button>
                 <button
                   type="submit"
                   disabled={statusModal.submitting}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition"
+                  className={`px-5 py-2 text-white text-xs font-bold rounded-xl transition ${
+                    statusModal.targetStatus === FollowUpStatus.Completed
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-rose-600 hover:bg-rose-700'
+                  }`}
                 >
-                  {statusModal.submitting ? 'Updating...' : 'Confirm Completed'}
+                  {statusModal.submitting
+                    ? 'Updating...'
+                    : statusModal.targetStatus === FollowUpStatus.Completed
+                    ? 'Confirm Completed'
+                    : 'Confirm Cancel'}
                 </button>
               </div>
             </form>

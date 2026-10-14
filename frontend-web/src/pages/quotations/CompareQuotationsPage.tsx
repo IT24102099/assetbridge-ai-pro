@@ -25,6 +25,7 @@ export default function CompareQuotationsPage() {
 
   const [incidents, setIncidents] = useState<IncidentResponseDto[]>([]);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string>(initialIncidentId);
+  const [incidentQuotationCounts, setIncidentQuotationCounts] = useState<Record<string, number>>({});
   const [comparisonResult, setComparisonResult] = useState<QuotationComparisonResultDto | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -38,17 +39,35 @@ export default function CompareQuotationsPage() {
 
   const loadIncidents = async () => {
     try {
-      const res = await incidentApi.getIncidents({ pageSize: 50 });
-      if (res.success && res.data) {
-        const items = res.data.items || [];
-        setIncidents(items);
-        if (!selectedIncidentId && items.length > 0) {
-          const canonical = items.find(
-            (i) =>
-              i.title?.toLowerCase().includes('kitchen') ||
-              i.title?.toLowerCase().includes('water pipe')
-          );
-          setSelectedIncidentId(canonical ? canonical.id : items[0].id);
+      const [incidentRes, quotRes] = await Promise.all([
+        incidentApi.getIncidents({ pageSize: 50 }),
+        quotationApi.getQuotations({ pageSize: 100 })
+      ]);
+
+      const counts: Record<string, number> = {};
+      if (quotRes.success && quotRes.data?.items) {
+        for (const q of quotRes.data.items) {
+          if (q.incidentId) {
+            counts[q.incidentId] = (counts[q.incidentId] || 0) + 1;
+          }
+        }
+      }
+      setIncidentQuotationCounts(counts);
+
+      if (incidentRes.success && incidentRes.data) {
+        const rawItems = incidentRes.data.items || [];
+        // Sort: incidents with more quotations first
+        const sortedItems = [...rawItems].sort((a, b) => {
+          const countA = counts[a.id] || 0;
+          const countB = counts[b.id] || 0;
+          return countB - countA;
+        });
+
+        setIncidents(sortedItems);
+
+        if (!selectedIncidentId && sortedItems.length > 0) {
+          // Select incident with the most quotations, or the first one
+          setSelectedIncidentId(sortedItems[0].id);
         }
       }
     } catch {
@@ -138,17 +157,23 @@ export default function CompareQuotationsPage() {
 
         {/* Incident Selector */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Incident:</label>
+          <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Select Incident:</label>
           <select
             value={selectedIncidentId}
-            onChange={(e) => setSelectedIncidentId(e.target.value)}
-            className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-xs"
+            onChange={(e) => {
+              setSelectedIncidentId(e.target.value);
+              navigate(`/quotations/compare?incidentId=${e.target.value}`, { replace: true });
+            }}
+            className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-xs max-w-xs sm:max-w-md truncate"
           >
-            {incidents.map((inc) => (
-              <option key={inc.id} value={inc.id}>
-                {inc.title} ({inc.category})
-              </option>
-            ))}
+            {incidents.map((inc) => {
+              const count = incidentQuotationCounts[inc.id] || 0;
+              return (
+                <option key={inc.id} value={inc.id}>
+                  {inc.title} {count > 0 ? `(${count} quote${count > 1 ? 's' : ''})` : '(No quotes yet)'}
+                </option>
+              );
+            })}
           </select>
         </div>
       </div>
