@@ -9,7 +9,7 @@ interface CreateRepresentativeModalProps {
   onSuccess: () => void;
 }
 
-import { SRI_LANKA_DISTRICTS } from '../../constants/sriLankaLocations';
+import { SRI_LANKA_DISTRICTS, getCitiesForDistrict } from '../../constants/sriLankaLocations';
 import { isValidEmail } from '../../utils/validationUtils';
 
 export const CreateRepresentativeModal: React.FC<CreateRepresentativeModalProps> = ({
@@ -33,6 +33,15 @@ export const CreateRepresentativeModal: React.FC<CreateRepresentativeModalProps>
 
   if (!isOpen) return null;
 
+  const handleDistrictChange = (newDistrict: string) => {
+    const availableCities = getCitiesForDistrict(newDistrict);
+    setFormData((prev) => ({
+      ...prev,
+      district: newDistrict,
+      city: availableCities.length > 0 ? availableCities[0] : newDistrict,
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.fullName.trim() || !formData.email.trim() || !formData.phoneNumber.trim()) {
@@ -51,7 +60,16 @@ export const CreateRepresentativeModal: React.FC<CreateRepresentativeModalProps>
       onSuccess();
     } catch (err: any) {
       console.error('Failed to create representative:', err);
-      setError(err?.response?.data?.message || 'Failed to register representative profile.');
+      const serverMsg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to register representative profile.';
+      const errorsObj = err?.response?.data?.errors;
+      if (errorsObj && typeof errorsObj === 'object') {
+        const details = Object.entries(errorsObj)
+          .map(([key, msgs]: any) => `${key}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+          .join(' | ');
+        setError(`${serverMsg} (${details})`);
+      } else {
+        setError(serverMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -144,7 +162,7 @@ export const CreateRepresentativeModal: React.FC<CreateRepresentativeModalProps>
               <label className="text-xs font-bold text-slate-700">District *</label>
               <select
                 value={formData.district}
-                onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                onChange={(e) => handleDistrictChange(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500 transition"
               >
                 {SRI_LANKA_DISTRICTS.map((d) => (
@@ -157,14 +175,28 @@ export const CreateRepresentativeModal: React.FC<CreateRepresentativeModalProps>
 
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700">City / Town *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Kandy"
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
-              />
+              {getCitiesForDistrict(formData.district).length > 0 ? (
+                <select
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500 transition"
+                >
+                  {getCitiesForDistrict(formData.district).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Kandy"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
+                />
+              )}
             </div>
           </div>
 

@@ -9,10 +9,19 @@ public class ProviderQueryParametersDto
     private int _pageSize = 10;
 
     public string? Search { get; set; }
+    public string? SearchTerm { get => Search; set => Search = value; }
+
     public string? District { get; set; }
     public string? City { get; set; }
+
     public IncidentCategory? SkillCategory { get; set; }
+    public IncidentCategory? Category { get => SkillCategory; set => SkillCategory = value; }
+
+    public string? Trade { get; set; }
+
     public VerificationStatus? VerificationStatus { get; set; }
+    public VerificationStatus? Status { get => VerificationStatus; set => VerificationStatus = value; }
+
     public bool? IsActive { get; set; }
 
     public int PageNumber { get; set; } = 1;

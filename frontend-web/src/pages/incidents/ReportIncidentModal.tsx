@@ -176,6 +176,8 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
     if (!canReportIncident) {
       setError('Unauthorized: Service Providers are not permitted to report incidents.');
       return;
@@ -187,6 +189,26 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
     if (!title.trim() || !description.trim()) {
       setError('Please fill in the incident title and description.');
       return;
+    }
+
+    // Client-side Budget Validation: Must be strictly greater than 0 if provided
+    if (estimatedBudget.trim()) {
+      const budgetNum = Number(estimatedBudget);
+      if (isNaN(budgetNum) || budgetNum <= 0) {
+        setError('Estimated budget in LKR must be greater than zero.');
+        return;
+      }
+    }
+
+    // Client-side Resolution Date Validation: Must be in the future
+    if (requiredByDate) {
+      const selected = new Date(requiredByDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selected < today) {
+        setError('Required resolution date must be today or in the future.');
+        return;
+      }
     }
 
     try {
@@ -225,7 +247,16 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
       onSuccess();
     } catch (err: any) {
       console.error('Failed to report incident', err);
-      setError(err?.response?.data?.message || 'Failed to submit incident report. Please check inputs.');
+      const serverMsg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to submit incident report. Please check inputs.';
+      const errorsObj = err?.response?.data?.errors;
+      if (errorsObj && typeof errorsObj === 'object') {
+        const details = Object.entries(errorsObj)
+          .map(([key, msgs]: any) => `${key}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+          .join(' | ');
+        setError(`${serverMsg} (${details})`);
+      } else {
+        setError(serverMsg);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -298,7 +329,7 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
               Priority Level <span className="text-red-500">*</span>
             </label>
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {PRIORITIES.map((p) => {
                 const isSelected = priority === p.value;
                 return (
@@ -501,8 +532,9 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
               </span>
               <input
                 type="number"
-                min="0"
-                placeholder="Optional budget cap"
+                min="1"
+                step="any"
+                placeholder="Optional budget cap (LKR > 0)"
                 value={estimatedBudget}
                 onChange={(e) => setEstimatedBudget(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
@@ -517,6 +549,7 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
             <div className="relative">
               <input
                 type="date"
+                min={new Date().toISOString().split('T')[0]}
                 value={requiredByDate}
                 onChange={(e) => setRequiredByDate(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
@@ -525,8 +558,8 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-3">
+        {/* Actions - Sticky Footer */}
+        <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm pt-3 pb-1 border-t border-slate-200 flex items-center justify-end gap-3 z-10">
           <button
             type="button"
             onClick={onClose}

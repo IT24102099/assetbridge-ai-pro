@@ -24,8 +24,18 @@ export const providerApi = {
   getProviders: async (
     params?: ProviderQueryParametersDto
   ): Promise<ApiResponse<PagedResponse<ServiceProviderResponseDto>>> => {
+    const queryParams: any = { ...params };
+    if (params?.searchTerm) {
+      queryParams.search = params.searchTerm;
+    }
+    if (params?.category) {
+      queryParams.skillCategory = params.category;
+    }
+    if (params?.status) {
+      queryParams.verificationStatus = params.status;
+    }
     const response = await apiClient.get<ApiResponse<PagedResponse<ServiceProviderResponseDto>>>('/providers', {
-      params,
+      params: queryParams,
     });
     return response.data;
   },

@@ -436,6 +436,34 @@ public class AuditAndContinuityTests : IDisposable
     }
 
     [Fact]
+    public async Task FollowUpService_UpdateFollowUpStatus_FromCompletedToCancelled_ThrowsDomainException()
+    {
+        // Arrange: Create a completed task
+        var task = await _followUpSut.CreateFollowUpTaskAsync(new CreateFollowUpTaskDto
+        {
+            AssetId = _assetId,
+            Title = "Roof Seal Inspection",
+            Description = "Completed inspection",
+            DueDateUtc = DateTime.UtcNow.AddDays(5)
+        }, _managerId, UserRole.Manager.ToString());
+
+        await _followUpSut.UpdateFollowUpStatusAsync(task.Id, new UpdateFollowUpStatusDto
+        {
+            Status = FollowUpStatus.Completed
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Act: Attempt to transition from Completed to Cancelled
+        Func<Task> act = async () => await _followUpSut.UpdateFollowUpStatusAsync(task.Id, new UpdateFollowUpStatusDto
+        {
+            Status = FollowUpStatus.Cancelled
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<DomainException>();
+        ex.WithMessage("*Completed follow-up tasks cannot be cancelled*");
+    }
+
+    [Fact]
     public async Task WorkflowService_GetDashboardMetrics_ReturnsAccurateMetricsForWorkflows()
     {
         // Act

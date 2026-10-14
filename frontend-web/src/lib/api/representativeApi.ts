@@ -12,9 +12,16 @@ export const representativeApi = {
   getRepresentatives: async (
     params?: RepresentativeQueryParametersDto
   ): Promise<ApiResponse<PagedResponse<RepresentativeResponseDto>>> => {
+    const queryParams: any = { ...params };
+    if (params?.searchTerm) {
+      queryParams.search = params.searchTerm;
+    }
+    if (params?.status) {
+      queryParams.verificationStatus = params.status;
+    }
     const response = await apiClient.get<ApiResponse<PagedResponse<RepresentativeResponseDto>>>(
       '/representatives',
-      { params }
+      { params: queryParams }
     );
     return response.data;
   },

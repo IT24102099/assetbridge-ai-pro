@@ -1,3 +1,4 @@
+using AssetBridge.Application.Common.Constants;
 using AssetBridge.Application.Common.Interfaces;
 using AssetBridge.Application.Common.Models;
 using AssetBridge.Application.Common.Validation;
@@ -18,15 +19,18 @@ public class RepresentativeService : IRepresentativeService
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<RepresentativeService> _logger;
+    private readonly INotificationService? _notificationService;
 
     public RepresentativeService(
         IApplicationDbContext context,
         ICurrentUserService currentUserService,
-        ILogger<RepresentativeService> logger)
+        ILogger<RepresentativeService> logger,
+        INotificationService? notificationService = null)
     {
         _context = context;
         _currentUserService = currentUserService;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<RepresentativeResponseDto> CreateRepresentativeAsync(CreateRepresentativeRequestDto request, CancellationToken cancellationToken = default)
@@ -48,6 +52,11 @@ public class RepresentativeService : IRepresentativeService
         if (!ValidationRules.IsValidEmail(request.Email))
         {
             throw new ValidationException("Email", "Please provide a valid email address.");
+        }
+
+        if (!SriLankaLocationData.IsValidDistrictCityCombination(request.District, request.City))
+        {
+            throw new ValidationException("City", $"The city '{request.City}' is not located in the district '{request.District}'. Please select a consistent district and city.");
         }
 
         var representative = new Representative
@@ -191,6 +200,11 @@ public class RepresentativeService : IRepresentativeService
 
         ValidateRepresentativeModification(representative);
 
+        if (!SriLankaLocationData.IsValidDistrictCityCombination(request.District, request.City))
+        {
+            throw new ValidationException("City", $"The city '{request.City}' is not located in the district '{request.District}'. Please select a consistent district and city.");
+        }
+
         representative.FullName = request.FullName.Trim();
         representative.PhoneNumber = request.PhoneNumber.Trim();
         representative.District = request.District.Trim();
@@ -238,6 +252,24 @@ public class RepresentativeService : IRepresentativeService
         await _context.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Representative {RepresentativeId} verification status set to {Status} (IsActive={IsActive}) by User {UserId}",
             representative.Id, representative.VerificationStatus, representative.IsActive, _currentUserService.UserId);
+
+        if (_notificationService != null)
+        {
+            try
+            {
+                await _notificationService.CreateNotificationAsync(new DTOs.Notifications.CreateNotificationDto
+                {
+                    UserId = representative.UserId,
+                    Title = $"Representative Verification: {representative.VerificationStatus}",
+                    Message = $"Your trusted representative profile verification status has been updated to {representative.VerificationStatus}.",
+                    Type = NotificationType.WorkflowStatusChanged
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send notification for representative verification update {RepresentativeId}", representative.Id);
+            }
+        }
 
         return MapToDto(representative);
     }

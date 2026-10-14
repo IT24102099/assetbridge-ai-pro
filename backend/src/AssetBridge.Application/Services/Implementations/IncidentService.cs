@@ -50,9 +50,9 @@ public class IncidentService : IIncidentService
         }
 
         // 1. Validate Estimated Budget
-        if (request.EstimatedBudget.HasValue && request.EstimatedBudget.Value < 0)
+        if (request.EstimatedBudget.HasValue && request.EstimatedBudget.Value <= 0)
         {
-            throw new ValidationException("EstimatedBudget", "Estimated budget cannot be a negative amount.");
+            throw new ValidationException("EstimatedBudget", "Estimated budget cannot be negative or zero (must be greater than zero).");
         }
 
         // 2. Validate Target Deadline
@@ -243,9 +243,9 @@ public class IncidentService : IIncidentService
             throw new ValidationException("Title", "HTML tags and script elements are not permitted in incident fields.");
         }
 
-        if (request.EstimatedBudget.HasValue && request.EstimatedBudget.Value < 0)
+        if (request.EstimatedBudget.HasValue && request.EstimatedBudget.Value <= 0)
         {
-            throw new ValidationException("EstimatedBudget", "Estimated budget cannot be negative.");
+            throw new ValidationException("EstimatedBudget", "Estimated budget cannot be negative or zero (must be greater than zero).");
         }
 
         if (request.RequiredByUtc.HasValue && request.RequiredByUtc.Value < DateTime.UtcNow.AddMinutes(-5))

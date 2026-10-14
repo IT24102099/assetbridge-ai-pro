@@ -9,7 +9,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   Save,
-  KeyRound
+  KeyRound,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { StatusBadge } from '../../components/common/StatusBadge';
 
@@ -23,17 +25,26 @@ export const SettingsPage: React.FC = () => {
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
 
-  // Password Form State
+  // Password Form State & Visibility Toggles
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  // Preferences State
-  const [emailAlerts, setEmailAlerts] = useState(true);
-  const [inAppAlerts, setInAppAlerts] = useState(true);
+  // Preferences State with LocalStorage Persistence
+  const [emailAlerts, setEmailAlerts] = useState<boolean>(() => {
+    const stored = localStorage.getItem('assetbridge_pref_email');
+    return stored !== null ? stored === 'true' : true;
+  });
+  const [inAppAlerts, setInAppAlerts] = useState<boolean>(() => {
+    const stored = localStorage.getItem('assetbridge_pref_inapp');
+    return stored !== null ? stored === 'true' : true;
+  });
   const [prefSaved, setPrefSaved] = useState(false);
 
   useEffect(() => {
@@ -116,8 +127,20 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleTogglePref = (type: 'email' | 'inApp') => {
-    if (type === 'email') setEmailAlerts((prev) => !prev);
-    if (type === 'inApp') setInAppAlerts((prev) => !prev);
+    if (type === 'email') {
+      setEmailAlerts((prev) => {
+        const next = !prev;
+        localStorage.setItem('assetbridge_pref_email', String(next));
+        return next;
+      });
+    }
+    if (type === 'inApp') {
+      setInAppAlerts((prev) => {
+        const next = !prev;
+        localStorage.setItem('assetbridge_pref_inapp', String(next));
+        return next;
+      });
+    }
     setPrefSaved(true);
     setTimeout(() => setPrefSaved(false), 2500);
   };
@@ -284,14 +307,25 @@ export const SettingsPage: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Current Password <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="password"
-                  required
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Enter current password"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
-                />
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    required
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                    tabIndex={-1}
+                    aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+                  >
+                    {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -299,28 +333,50 @@ export const SettingsPage: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                     New Password <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="password"
-                    required
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Min. 6 characters"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Min. 6 characters"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                      tabIndex={-1}
+                      aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+                    >
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Confirm New Password <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="password"
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-type new password"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Re-type new password"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                      tabIndex={-1}
+                      aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -355,7 +411,7 @@ export const SettingsPage: React.FC = () => {
               <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
                 <div>
                   <p className="text-xs font-bold text-slate-800">In-App Notification Alerts</p>
-                  <p className="text-[11px] text-slate-500">Receive live alerts when new incidents or bids are submitted</p>
+                  <p className="text-[11px] text-slate-500">Receive live alerts when new incidents, verification updates, or bids are submitted</p>
                 </div>
                 <input
                   type="checkbox"
@@ -376,6 +432,17 @@ export const SettingsPage: React.FC = () => {
                   onChange={() => handleTogglePref('email')}
                   className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                 />
+              </div>
+
+              {/* Explicit status note on SMTP absence */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <Bell className="h-3.5 w-3.5 text-blue-600" />
+                  Live Notification System
+                </p>
+                <p className="text-slate-500 leading-relaxed">
+                  In-app notifications are stored persistently in PostgreSQL and delivered in real-time via the top notification bell. Outbound email delivery requires SMTP server credentials configured in the production environment.
+                </p>
               </div>
             </div>
           </div>

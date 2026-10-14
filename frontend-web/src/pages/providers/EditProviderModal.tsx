@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { providerApi } from '../../lib/api/providerApi';
 import { ServiceProviderResponseDto, UpdateServiceProviderRequestDto } from '../../types/provider';
 import { X, Edit3, AlertCircle, Loader2 } from 'lucide-react';
+import { SRI_LANKA_DISTRICTS, getCitiesForDistrict } from '../../constants/sriLankaLocations';
+import { isValidEmail } from '../../utils/validationUtils';
 
 interface EditProviderModalProps {
   isOpen: boolean;
@@ -9,9 +11,6 @@ interface EditProviderModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
-
-import { SRI_LANKA_DISTRICTS } from '../../constants/sriLankaLocations';
-import { isValidEmail } from '../../utils/validationUtils';
 
 export const EditProviderModal: React.FC<EditProviderModalProps> = ({
   isOpen,
@@ -34,7 +33,34 @@ export const EditProviderModal: React.FC<EditProviderModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Sync form state when provider prop or modal visibility changes
+  useEffect(() => {
+    if (provider && isOpen) {
+      setFormData({
+        businessName: provider.businessName || '',
+        contactPerson: provider.contactPerson || '',
+        phoneNumber: provider.phoneNumber || '',
+        email: provider.email || '',
+        primaryDistrict: provider.primaryDistrict || 'Colombo',
+        city: provider.city || 'Colombo',
+        address: provider.address || '',
+        serviceRadiusKm: provider.serviceRadiusKm || 30,
+        isActive: provider.isActive ?? true,
+      });
+      setError(null);
+    }
+  }, [provider, isOpen]);
+
   if (!isOpen) return null;
+
+  const handleDistrictChange = (newDistrict: string) => {
+    const availableCities = getCitiesForDistrict(newDistrict);
+    setFormData((prev) => ({
+      ...prev,
+      primaryDistrict: newDistrict,
+      city: availableCities.length > 0 ? availableCities[0] : newDistrict,
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +80,16 @@ export const EditProviderModal: React.FC<EditProviderModalProps> = ({
       onSuccess();
     } catch (err: any) {
       console.error('Failed to update provider:', err);
-      setError(err?.response?.data?.message || 'Failed to update service provider profile.');
+      const serverMsg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to update service provider profile.';
+      const errorsObj = err?.response?.data?.errors;
+      if (errorsObj && typeof errorsObj === 'object') {
+        const details = Object.entries(errorsObj)
+          .map(([key, msgs]: any) => `${key}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+          .join(' | ');
+        setError(`${serverMsg} (${details})`);
+      } else {
+        setError(serverMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -158,7 +193,7 @@ export const EditProviderModal: React.FC<EditProviderModalProps> = ({
               <label className="text-xs font-bold text-slate-700">Primary District *</label>
               <select
                 value={formData.primaryDistrict}
-                onChange={(e) => setFormData({ ...formData, primaryDistrict: e.target.value })}
+                onChange={(e) => handleDistrictChange(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500 transition"
               >
                 {SRI_LANKA_DISTRICTS.map((d) => (
@@ -171,13 +206,27 @@ export const EditProviderModal: React.FC<EditProviderModalProps> = ({
 
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700">City / Operating Base *</label>
-              <input
-                type="text"
-                required
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
-              />
+              {getCitiesForDistrict(formData.primaryDistrict).length > 0 ? (
+                <select
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500 transition"
+                >
+                  {getCitiesForDistrict(formData.primaryDistrict).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  required
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
+                />
+              )}
             </div>
           </div>
 

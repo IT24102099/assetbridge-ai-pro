@@ -51,20 +51,34 @@ export interface UpdateProviderAvailabilityRequestDto {
   notes?: string;
 }
 
+export type ProviderHistoryType =
+  | 'JobCompleted'
+  | 'InspectionCompleted'
+  | 'FeedbackReceived'
+  | 'VerificationUpdated'
+  | 'DisputeLogged'
+  | number;
+
 export interface ProviderHistoryResponseDto {
   id: string;
   providerId: string;
+  eventType?: ProviderHistoryType;
+  title?: string;
+  description?: string;
+  ratingScore?: number;
+  relatedIncidentId?: string;
+  createdAtUtc: string;
+  // UI aliases / backward compatibility
   incidentId?: string;
   incidentTitle?: string;
-  completionDateUtc: string;
-  jobTitle: string;
-  trade: string;
-  ratingGiven: number;
+  completionDateUtc?: string;
+  jobTitle?: string;
+  trade?: string;
+  ratingGiven?: number;
   ownerReview?: string;
   representativeFeedback?: string;
   actualCostLkr?: number;
-  completedOnTime: boolean;
-  createdAtUtc: string;
+  completedOnTime?: boolean;
 }
 
 export interface AddProviderHistoryRequestDto {
@@ -132,10 +146,14 @@ export interface ProviderQueryParametersDto {
   pageNumber?: number;
   pageSize?: number;
   searchTerm?: string;
+  search?: string;
   district?: string;
   city?: string;
   category?: IncidentCategory | string;
+  skillCategory?: IncidentCategory | string;
+  trade?: string;
   status?: VerificationStatus | string;
+  verificationStatus?: VerificationStatus | string;
   isActive?: boolean;
 }
 

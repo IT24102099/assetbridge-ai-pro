@@ -452,4 +452,69 @@ public class RepresentativeServiceTests : IDisposable
         var ex = await act.Should().ThrowAsync<ValidationException>();
         ex.Which.Errors.Should().ContainKey("Email");
     }
+
+    [Fact]
+    public async Task CreateRepresentative_WithMismatchedDistrictCity_ShouldThrowValidationException()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_repUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Representative);
+
+        var request = new CreateRepresentativeRequestDto
+        {
+            FullName = "Mismatched Rep",
+            PhoneNumber = "+94771234567",
+            Email = "rep-mismatch@assetbridge.ai",
+            District = "Colombo",
+            City = "Kandy" // Kandy is in Kandy district, not Colombo!
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.CreateRepresentativeAsync(request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("City");
+    }
+
+    [Fact]
+    public async Task UpdateRepresentative_WithMismatchedDistrictCity_ShouldThrowValidationException()
+    {
+        // Arrange
+        var rep = new Representative
+        {
+            Id = Guid.NewGuid(),
+            UserId = _repUser1Id,
+            FullName = "Valid Rep",
+            PhoneNumber = "+94771234567",
+            Email = "validrep@assetbridge.ai",
+            District = "Colombo",
+            City = "Colombo",
+            VerificationStatus = VerificationStatus.Verified,
+            IsActive = true
+        };
+        _dbContext.Representatives.Add(rep);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_repUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Representative);
+
+        var updateRequest = new UpdateRepresentativeRequestDto
+        {
+            FullName = "Valid Rep",
+            PhoneNumber = "+94771234567",
+            District = "Matara",
+            City = "Negombo", // Mismatch!
+            IsActive = true
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.UpdateRepresentativeAsync(rep.Id, updateRequest);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("City");
+    }
 }

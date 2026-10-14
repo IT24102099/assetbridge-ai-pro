@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { providerApi } from '../../lib/api/providerApi';
-import { ServiceProviderResponseDto, ProviderSkillResponseDto, ProviderAvailabilityResponseDto } from '../../types/provider';
+import { ServiceProviderResponseDto, ProviderSkillResponseDto, ProviderAvailabilityResponseDto, ProviderHistoryResponseDto } from '../../types/provider';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingState, ErrorState } from '../../components/common/FeedbackStates';
 import { EditProviderModal } from './EditProviderModal';
@@ -19,6 +19,7 @@ import {
   UserCheck,
   UserX,
   Calendar,
+  Briefcase,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { IncidentCategory } from '../../types/incident';
@@ -32,11 +33,15 @@ export const ProviderDetailPage: React.FC = () => {
   const [provider, setProvider] = useState<ServiceProviderResponseDto | null>(null);
   const [skills, setSkills] = useState<ProviderSkillResponseDto[]>([]);
   const [availabilities, setAvailabilities] = useState<ProviderAvailabilityResponseDto[]>([]);
+  const [history, setHistory] = useState<ProviderHistoryResponseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'skills' | 'availability' | 'documents' | 'reviews'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'skills' | 'availability' | 'documents' | 'history' | 'reviews'>('overview');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Authorization check for provider editing
+  const canEdit = isManagerOrAdmin || (Boolean(user?.id) && Boolean(provider?.userId) && user?.id === provider?.userId);
 
   // Add Skill state
   const [isAddingSkill, setIsAddingSkill] = useState(false);
@@ -49,10 +54,11 @@ export const ProviderDetailPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const [provRes, skillsRes, availRes] = await Promise.all([
+      const [provRes, skillsRes, availRes, historyRes] = await Promise.all([
         providerApi.getProviderById(id),
         providerApi.getSkills(id).catch(() => ({ data: [] })),
         providerApi.getAvailability(id).catch(() => ({ data: [] })),
+        providerApi.getHistory(id).catch(() => ({ data: [] })),
       ]);
 
       if (provRes.data) {
@@ -62,6 +68,7 @@ export const ProviderDetailPage: React.FC = () => {
       }
       if (skillsRes.data) setSkills(skillsRes.data);
       if (availRes.data) setAvailabilities(availRes.data);
+      if (historyRes.data) setHistory(historyRes.data);
     } catch (err: any) {
       console.error('Failed to load provider details:', err);
       setError(err?.response?.data?.message || 'Failed to retrieve service provider details.');
@@ -151,13 +158,17 @@ export const ProviderDetailPage: React.FC = () => {
           Back to Providers
         </button>
 
-        <button
-          onClick={() => setIsEditModalOpen(true)}
-          className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md shadow-blue-500/20 transition"
-        >
-          <Edit3 className="h-4 w-4" />
-          Edit
-        </button>
+        <div className="flex items-center gap-2">
+          {canEdit && (
+            <button
+              onClick={() => setIsEditModalOpen(true)}
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md shadow-blue-500/20 transition"
+            >
+              <Edit3 className="h-4 w-4" />
+              Edit
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Manager Verification Control Panel */}
@@ -236,7 +247,13 @@ export const ProviderDetailPage: React.FC = () => {
           { id: 'skills', label: `Skills (${skills.length})` },
           { id: 'availability', label: 'Availability' },
           { id: 'documents', label: 'Documents' },
-          { id: 'reviews', label: `Reviews (${provider.completedJobsCount})` },
+          { id: 'history', label: `Work History (${provider.completedJobsCount} jobs)` },
+          {
+            id: 'reviews',
+            label: `Reviews (${
+              history.filter((h) => (h.ratingScore !== undefined && h.ratingScore !== null && h.ratingScore > 0) || h.ownerReview).length
+            })`,
+          },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -518,16 +535,94 @@ export const ProviderDetailPage: React.FC = () => {
           </div>
         )}
 
+        {activeTab === 'history' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Verified Work History & Past Jobs</h3>
+                <p className="text-xs text-slate-500">Record of executed maintenance work orders ({provider.completedJobsCount} completed jobs)</p>
+              </div>
+            </div>
+            {history.length === 0 ? (
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6 text-center">
+                <Briefcase className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-slate-700">No past job history recorded</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Completed maintenance and continuity jobs will be recorded here automatically upon closeout.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {history.map((item) => (
+                  <div key={item.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="space-y-1">
+                      <p className="font-bold text-slate-800">{item.title || item.jobTitle || 'Maintenance Work Order'}</p>
+                      <p className="text-[11px] text-slate-500">{item.description || item.representativeFeedback || 'Job completed successfully'}</p>
+                      <p className="text-[10px] text-slate-400">
+                        {new Date(item.createdAtUtc || item.completionDateUtc || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        {item.trade ? ` • Trade: ${item.trade}` : ''}
+                      </p>
+                    </div>
+                    {item.ratingScore && item.ratingScore > 0 ? (
+                      <div className="flex items-center gap-1 text-amber-500 font-bold shrink-0">
+                        <Star className="h-3.5 w-3.5 fill-current" />
+                        <span>{item.ratingScore.toFixed(1)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'reviews' && (
           <div className="space-y-4">
-            <h3 className="text-sm font-bold text-slate-900">Job Performance & Reviews</h3>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6 text-center">
-              <Star className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-xs font-semibold text-slate-700">No verified client reviews available</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Client reviews and ratings are automatically populated upon completion of verified work orders.
-              </p>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Verified Client Reviews & Ratings</h3>
+                <p className="text-xs text-slate-500">
+                  Genuine property owner ratings ({history.filter((h) => (h.ratingScore !== undefined && h.ratingScore !== null && h.ratingScore > 0) || h.ownerReview).length} client reviews • {provider.rating.toFixed(1)} average)
+                </p>
+              </div>
             </div>
+            {history.filter((h) => (h.ratingScore !== undefined && h.ratingScore !== null && h.ratingScore > 0) || h.ownerReview).length === 0 ? (
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6 text-center">
+                <Star className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-slate-700">No verified client reviews available</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Client reviews and ratings are automatically populated upon completion of verified work orders. Total completed jobs: {provider.completedJobsCount}.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {history
+                  .filter((h) => (h.ratingScore !== undefined && h.ratingScore !== null && h.ratingScore > 0) || h.ownerReview)
+                  .map((rev) => (
+                    <div key={rev.id} className="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1 text-amber-500 font-bold text-xs">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`h-3.5 w-3.5 ${
+                                i < Math.round(rev.ratingScore || rev.ratingGiven || 5)
+                                  ? 'fill-current text-amber-400'
+                                  : 'text-slate-200'
+                              }`}
+                            />
+                          ))}
+                          <span className="ml-1 text-slate-700">{(rev.ratingScore || rev.ratingGiven || 5).toFixed(1)}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(rev.createdAtUtc || rev.completionDateUtc || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-800 font-medium">{rev.description || rev.ownerReview || rev.title || 'Verified service completion.'}</p>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         )}
       </div>
