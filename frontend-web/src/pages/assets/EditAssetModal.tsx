@@ -37,6 +37,7 @@ interface NewPhotoUpload {
 
 import {
   SRI_LANKA_DISTRICTS,
+  getCitiesForDistrict,
   isValidDistrictCityCombination,
 } from '../../constants/sriLankaLocations';
 
@@ -90,6 +91,16 @@ export const EditAssetModal: React.FC<EditAssetModalProps> = ({
   // Existing Media & New Media state
   const [existingMedia, setExistingMedia] = useState<AssetMediaResponseDto[]>([]);
   const [newPhotos, setNewPhotos] = useState<NewPhotoUpload[]>([]);
+
+  const handleDistrictChange = (newDistrict: string) => {
+    setDistrict(newDistrict);
+    const available = getCitiesForDistrict(newDistrict);
+    if (available.length > 0) {
+      setCity(available[0]);
+    } else {
+      setCity('');
+    }
+  };
 
   useEffect(() => {
     if (isOpen && asset) {
@@ -223,6 +234,11 @@ export const EditAssetModal: React.FC<EditAssetModalProps> = ({
       setError('Please provide the asset name, street address, and city.');
       return;
     }
+    const dangerousPattern = /<\s*(script|iframe|object|embed|applet)|javascript:|(\bon\w+\s*=)/i;
+    if (dangerousPattern.test(name) || dangerousPattern.test(description) || dangerousPattern.test(addressLine1) || dangerousPattern.test(addressLine2)) {
+      setError('HTML tags and script elements are not permitted in asset fields.');
+      return;
+    }
     if (!isValidDistrictCityCombination(district, city)) {
       setError(`The city "${city.trim()}" is not located in the district "${district.trim()}". Please select a consistent district and city.`);
       return;
@@ -345,7 +361,7 @@ export const EditAssetModal: React.FC<EditAssetModalProps> = ({
             </label>
             <select
               value={district}
-              onChange={(e) => setDistrict(e.target.value)}
+              onChange={(e) => handleDistrictChange(e.target.value)}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
             >
               {SRI_LANKA_DISTRICTS.map((d) => (
@@ -358,15 +374,19 @@ export const EditAssetModal: React.FC<EditAssetModalProps> = ({
 
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              City <span className="text-red-500">*</span>
+              City / Town <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              required
+            <select
               value={city}
               onChange={(e) => setCity(e.target.value)}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-            />
+            >
+              {getCitiesForDistrict(district).map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1.5 sm:col-span-2">

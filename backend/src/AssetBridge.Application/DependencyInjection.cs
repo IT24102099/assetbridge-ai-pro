@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<IWorkflowService, WorkflowService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IFollowUpService, FollowUpService>();
+        services.AddScoped<INotificationService, NotificationService>();
 
         return services;
     }

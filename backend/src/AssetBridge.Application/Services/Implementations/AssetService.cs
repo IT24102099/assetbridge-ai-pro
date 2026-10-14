@@ -1,6 +1,7 @@
 using AssetBridge.Application.Common.Constants;
 using AssetBridge.Application.Common.Interfaces;
 using AssetBridge.Application.Common.Models;
+using AssetBridge.Application.Common.Validation;
 using AssetBridge.Application.DTOs.Assets;
 using AssetBridge.Application.Services.Interfaces;
 using AssetBridge.Domain.Entities.Assets;
@@ -49,6 +50,14 @@ public class AssetService : IAssetService
     public async Task<AssetResponseDto> CreateAssetAsync(CreateAssetRequestDto request, CancellationToken cancellationToken = default)
     {
         var currentUserId = GetAuthenticatedUserId();
+
+        if (ValidationRules.HasDangerousHtml(request.Name) ||
+            ValidationRules.HasDangerousHtml(request.Description) ||
+            ValidationRules.HasDangerousHtml(request.AddressLine1) ||
+            ValidationRules.HasDangerousHtml(request.AddressLine2))
+        {
+            throw new ValidationException("Name", "HTML tags and script elements are not permitted in asset fields.");
+        }
 
         if (!SriLankaLocationData.IsValidDistrictCityCombination(request.District, request.City))
         {
@@ -191,6 +200,14 @@ public class AssetService : IAssetService
         }
 
         ValidateAssetAccess(asset);
+
+        if (ValidationRules.HasDangerousHtml(request.Name) ||
+            ValidationRules.HasDangerousHtml(request.Description) ||
+            ValidationRules.HasDangerousHtml(request.AddressLine1) ||
+            ValidationRules.HasDangerousHtml(request.AddressLine2))
+        {
+            throw new ValidationException("Name", "HTML tags and script elements are not permitted in asset fields.");
+        }
 
         if (!SriLankaLocationData.IsValidDistrictCityCombination(request.District, request.City))
         {

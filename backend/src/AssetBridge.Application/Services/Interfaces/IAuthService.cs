@@ -11,4 +11,6 @@ public interface IAuthService
     Task<LoginResponseDto> GoogleLoginAsync(GoogleAuthRequestDto request, CancellationToken cancellationToken = default);
     Task<UserProfileDto> RegisterAsync(RegisterRequestDto request, CancellationToken cancellationToken = default);
     Task<UserProfileDto> GetCurrentUserProfileAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<UserProfileDto> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request, CancellationToken cancellationToken = default);
+    Task<bool> ChangePasswordAsync(Guid userId, ChangePasswordRequestDto request, CancellationToken cancellationToken = default);
 }

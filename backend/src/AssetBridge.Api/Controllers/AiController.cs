@@ -23,13 +23,33 @@ public class AiController : BaseApiController
     [HttpPost("chat")]
     [ProducesResponseType(typeof(ApiResponse<AiChatResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    [ProducesResponseType(StatusCodes.Status504GatewayTimeout)]
     public async Task<IActionResult> Chat([FromBody] AiChatRequestDto request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Message))
             return BadRequest(ApiResponse<object>.FailureResult("Message cannot be empty."));
 
-        var result = await _aiService.ChatAsync(request, cancellationToken);
-        return HandleSuccess(result, "AI Assistant response generated successfully.");
+        try
+        {
+            var result = await _aiService.ChatAsync(request, cancellationToken);
+            return HandleSuccess(result, "AI Assistant response generated successfully.");
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                ApiResponse<object>.FailureResult("AI Assistant service is currently offline or unreachable. Please verify microservice status and retry."));
+        }
+        catch (TimeoutException)
+        {
+            return StatusCode(StatusCodes.Status504GatewayTimeout,
+                ApiResponse<object>.FailureResult("The AI Assistant request timed out. Please try again."));
+        }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                ApiResponse<object>.FailureResult("AI Assistant is temporarily unavailable. Please try again in a few moments."));
+        }
     }
 
     [HttpPost("orchestrate")]

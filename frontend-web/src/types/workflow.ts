@@ -283,10 +283,10 @@ export interface AuditFilterParametersDto {
 // Continuity & Follow-Up Tasks
 export enum FollowUpStatus {
   Pending = 1,
-  Scheduled = 2,
-  InProgress = 3,
-  Completed = 4,
-  Cancelled = 5
+  InProgress = 2,
+  Completed = 3,
+  Cancelled = 4,
+  Overdue = 5
 }
 
 export enum FollowUpPriority {

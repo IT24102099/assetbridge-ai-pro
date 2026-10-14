@@ -35,8 +35,7 @@ import AiProposalReviewPage from './pages/workflows/AiProposalReviewPage';
 import AgentActivityPage from './pages/workflows/AgentActivityPage';
 import AuditLogsPage from './pages/audit/AuditLogsPage';
 import FollowUpContinuityPage from './pages/continuity/FollowUpContinuityPage';
-
-import { DashboardOverviewPage } from './pages/DashboardOverviewPage';
+import { SettingsPage } from './pages/settings/SettingsPage';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AppLayout } from './components/layout/AppLayout';
@@ -108,8 +107,8 @@ export const App: React.FC = () => {
           <Route path="/audit-logs" element={<AuditLogsPage />} />
           <Route path="/follow-up" element={<FollowUpContinuityPage />} />
           <Route path="/continuity" element={<FollowUpContinuityPage />} />
-          <Route path="/settings" element={<DashboardOverviewPage />} />
-          <Route path="/profile" element={<DashboardOverviewPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/profile" element={<SettingsPage />} />
         </Route>
       </Route>
 
