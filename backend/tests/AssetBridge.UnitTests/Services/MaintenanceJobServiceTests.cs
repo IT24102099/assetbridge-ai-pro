@@ -185,4 +185,200 @@ public class MaintenanceJobServiceTests : IDisposable
         updated.CompletedAtUtc.Should().NotBeNull();
         updated.CompletionNotes.Should().Contain("water hose test");
     }
+
+    [Fact]
+    public async Task CreateJobAsync_ShouldThrowEntityNotFoundException_WhenIncidentNotFound()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        var nonExistentIncidentId = Guid.NewGuid();
+        var request = new CreateMaintenanceJobRequestDto
+        {
+            IncidentId = nonExistentIncidentId,
+            ProviderId = _providerId,
+            Title = "Roof Repair",
+            Description = "Repair tiles",
+            ScheduledStartUtc = DateTime.UtcNow.AddDays(1),
+            ScheduledEndUtc = DateTime.UtcNow.AddDays(2),
+            ApprovedBudget = 50000
+        };
+
+        // Act
+        Func<Task> act = async () => await _jobSut.CreateJobAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task CreateJobAsync_ShouldThrowEntityNotFoundException_WhenProviderNotFound()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        var nonExistentProviderId = Guid.NewGuid();
+        var request = new CreateMaintenanceJobRequestDto
+        {
+            IncidentId = _incidentId,
+            ProviderId = nonExistentProviderId,
+            Title = "Roof Repair",
+            Description = "Repair tiles",
+            ScheduledStartUtc = DateTime.UtcNow.AddDays(1),
+            ScheduledEndUtc = DateTime.UtcNow.AddDays(2),
+            ApprovedBudget = 50000
+        };
+
+        // Act
+        Func<Task> act = async () => await _jobSut.CreateJobAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task CreateJobAsync_ShouldThrowValidationException_WhenBudgetIsNegative()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        var request = new CreateMaintenanceJobRequestDto
+        {
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            Title = "Roof Repair",
+            Description = "Repair tiles",
+            ScheduledStartUtc = DateTime.UtcNow.AddDays(1),
+            ScheduledEndUtc = DateTime.UtcNow.AddDays(2),
+            ApprovedBudget = -500
+        };
+
+        // Act
+        Func<Task> act = async () => await _jobSut.CreateJobAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [Fact]
+    public async Task GetJobByIdAsync_ShouldThrowEntityNotFoundException_WhenJobNotFound()
+    {
+        // Arrange
+        var nonExistentJobId = Guid.NewGuid();
+
+        // Act
+        Func<Task> act = async () => await _jobSut.GetJobByIdAsync(nonExistentJobId);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task GetJobByIdAsync_ShouldThrowUnauthorizedAccessException_WhenOtherOwnerAccesses()
+    {
+        // Arrange
+        var otherOwnerId = Guid.NewGuid();
+        _dbContext.Users.Add(new User { Id = otherOwnerId, FullName = "Other Owner", Email = "otherowner@test.lk", Role = UserRole.Owner });
+
+        var job = new MaintenanceJob
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            Title = "Private Owner Job",
+            Description = "Private repair",
+            ScheduledStartUtc = DateTime.UtcNow.AddDays(1),
+            ScheduledEndUtc = DateTime.UtcNow.AddDays(2),
+            ApprovedBudget = 10000,
+            Status = MaintenanceJobStatus.Planned
+        };
+        _dbContext.MaintenanceJobs.Add(job);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(otherOwnerId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Owner);
+
+        // Act
+        Func<Task> act = async () => await _jobSut.GetJobByIdAsync(job.Id);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
+    public async Task GetJobsAsync_ShouldFilterByIncidentProviderAndStatus()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        _dbContext.MaintenanceJobs.AddRange(
+            new MaintenanceJob { Id = Guid.NewGuid(), IncidentId = _incidentId, ProviderId = _providerId, Title = "Job 1", Description = "Desc 1", ScheduledStartUtc = DateTime.UtcNow.AddDays(1), ScheduledEndUtc = DateTime.UtcNow.AddDays(2), ApprovedBudget = 10000, Status = MaintenanceJobStatus.Planned, CreatedAtUtc = DateTime.UtcNow.AddDays(-2) },
+            new MaintenanceJob { Id = Guid.NewGuid(), IncidentId = _incidentId, ProviderId = _providerId, Title = "Job 2", Description = "Desc 2", ScheduledStartUtc = DateTime.UtcNow.AddDays(3), ScheduledEndUtc = DateTime.UtcNow.AddDays(4), ApprovedBudget = 20000, Status = MaintenanceJobStatus.InProgress, CreatedAtUtc = DateTime.UtcNow.AddDays(-1) }
+        );
+        await _dbContext.SaveChangesAsync();
+
+        var query = new MaintenanceJobQueryParametersDto
+        {
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            Status = MaintenanceJobStatus.Planned,
+            SortBy = "approvedbudget",
+            SortDescending = false,
+            PageNumber = 1,
+            PageSize = 10
+        };
+
+        // Act
+        var result = await _jobSut.GetJobsAsync(query);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.TotalCount.Should().Be(1);
+        result.Items.First().Title.Should().Be("Job 1");
+    }
+
+    [Fact]
+    public async Task UpdateJobStatusAsync_ShouldThrowValidationException_WhenActualCostIsNegative()
+    {
+        // Arrange
+        var job = new MaintenanceJob
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            Title = "Status Validation Job",
+            Description = "Job for testing",
+            ScheduledStartUtc = DateTime.UtcNow.AddDays(-2),
+            ScheduledEndUtc = DateTime.UtcNow.AddDays(-1),
+            ApprovedBudget = 20000,
+            Status = MaintenanceJobStatus.InProgress
+        };
+        _dbContext.MaintenanceJobs.Add(job);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var request = new UpdateMaintenanceJobStatusRequestDto
+        {
+            Status = MaintenanceJobStatus.Completed,
+            ActualCost = -500
+        };
+
+        // Act
+        Func<Task> act = async () => await _jobSut.UpdateJobStatusAsync(job.Id, request);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+    }
 }

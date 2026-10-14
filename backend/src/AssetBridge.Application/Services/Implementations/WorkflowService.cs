@@ -380,12 +380,15 @@ public class WorkflowService : IWorkflowService
     public async Task<ApprovalRequestDto> CreateApprovalRequestAsync(Guid workflowId, CreateApprovalRequestDto dto, Guid currentUserId, string currentUserRole)
     {
         var workflow = await _context.WorkflowInstances
+            .Include(w => w.Incident).ThenInclude(i => i.Asset)
             .Include(w => w.ApprovalRequests)
             .Include(w => w.Steps)
             .FirstOrDefaultAsync(w => w.Id == workflowId);
 
         if (workflow == null)
             throw new EntityNotFoundException("WorkflowInstance", workflowId);
+
+        ValidateWorkflowAccess(workflow, currentUserId, currentUserRole);
 
         if (workflow.CurrentState != WorkflowState.AiValidation &&
             workflow.CurrentState != WorkflowState.QuotationReview &&
@@ -923,6 +926,8 @@ public class WorkflowService : IWorkflowService
 
         if (workflow.CreatedByUserId == currentUserId)
             return;
+
+        throw new UnauthorizedAccessException("You do not have permission to view or manage this workflow.");
     }
 
     private static WorkflowInstanceDto MapToDto(WorkflowInstance workflow, string incidentTitle, Guid assetId, string assetName)

@@ -110,13 +110,33 @@ export const ProviderAvailabilityPage: React.FC = () => {
 
   // Helper to get status for a particular day (only from real database availability slots)
   const getDayStatus = (day: number): AvailabilityStatus | null => {
-    const slot = availabilities.find((a) => {
+    const daySlots = availabilities.filter((a) => {
       const d = new Date(a.availableDateUtc);
       return d.getUTCDate() === day && d.getUTCMonth() === currentMonth && d.getUTCFullYear() === currentYear;
     });
 
-    if (slot) return slot.status;
+    if (daySlots.length > 0) {
+      return daySlots[daySlots.length - 1].status;
+    }
     return null;
+  };
+
+  const handleSelectDay = (day: number) => {
+    setSelectedDay(day);
+    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    setSlotDate(dateStr);
+    const daySlots = availabilities.filter((a) => {
+      const d = new Date(a.availableDateUtc);
+      return d.getUTCDate() === day && d.getUTCMonth() === currentMonth && d.getUTCFullYear() === currentYear;
+    });
+    if (daySlots.length > 0) {
+      const latest = daySlots[daySlots.length - 1];
+      setSlotStatus(latest.status);
+      setSlotNotes(latest.notes || '');
+    } else {
+      setSlotStatus('Available');
+      setSlotNotes('');
+    }
   };
 
   const handleAddSlot = async (e: React.FormEvent) => {
@@ -124,8 +144,16 @@ export const ProviderAvailabilityPage: React.FC = () => {
     if (!selectedProviderId) return;
     try {
       setSlotLoading(true);
+      const [yearStr, monthStr, dayStr] = slotDate.split('-');
+      const utcIsoDate = new Date(Date.UTC(
+        parseInt(yearStr, 10),
+        parseInt(monthStr, 10) - 1,
+        parseInt(dayStr, 10),
+        0, 0, 0
+      )).toISOString();
+
       await providerApi.addAvailability(selectedProviderId, {
-        availableDateUtc: new Date(slotDate).toISOString(),
+        availableDateUtc: utcIsoDate,
         startTime: toTimeSpanString(slotStartTime),
         endTime: toTimeSpanString(slotEndTime),
         status: slotStatus,
@@ -247,7 +275,7 @@ export const ProviderAvailabilityPage: React.FC = () => {
               return (
                 <div
                   key={`day-${day}`}
-                  onClick={() => setSelectedDay(day)}
+                  onClick={() => handleSelectDay(day)}
                   className={`h-14 sm:h-16 rounded-xl border p-2 flex flex-col justify-between transition cursor-pointer relative ${
                     isSelected
                       ? 'border-blue-600 bg-blue-50/40 ring-2 ring-blue-500/20 shadow-xs'

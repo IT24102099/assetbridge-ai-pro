@@ -11,7 +11,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **Moosika Ramanathan** | IT24102839 | IT24102839 | Asset & Incident Management | `feature/IT24102839-assets-incidents` |
 | **Kamsiga Ganesan** | IT24101365 | IT24101365 | Representative & Provider Coordination | `feature/IT24101365-providers` |
-| **Jathurshan** | IT24100079 | — | Maintenance, Inspection & Quotations | `feature/IT24100079-maintenance` |
+| **Tharmarajah Jathurshan** | IT24100079 | — | Maintenance, Inspection & Quotations | `feature/IT24100079-maintenance` |
 | **Mathuppriya Naguleswaran** | IT24102099 | IT24102099 | Workflow, Approval, Audit & Continuity | `feature/IT24102099-workflow-approval` |
 
 ---

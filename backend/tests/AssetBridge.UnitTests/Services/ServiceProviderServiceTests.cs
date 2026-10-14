@@ -467,4 +467,333 @@ public class ServiceProviderServiceTests : IDisposable
         result.VerificationStatus.Should().Be(VerificationStatus.Rejected);
         result.VerificationNotes.Should().Be("Documents failed authenticity validation.");
     }
+
+    [Fact]
+    public async Task GetServiceProviderByIdAsync_ShouldThrowEntityNotFoundException_WhenNotFound()
+    {
+        // Arrange
+        var nonExistentId = Guid.NewGuid();
+
+        // Act
+        Func<Task> act = async () => await _providerSut.GetServiceProviderByIdAsync(nonExistentId);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task GetServiceProvidersAsync_ShouldFilterBySearchDistrictSkillCategoryAndVerificationStatus()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        var p1 = new ServiceProvider { Id = Guid.NewGuid(), UserId = _providerUser1Id, BusinessName = "Lanka Plumbing Works", ContactPerson = "Sunil", PhoneNumber = "0771234567", Email = "lanka@plumb.lk", PrimaryDistrict = "Kandy", City = "Kandy", VerificationStatus = VerificationStatus.Verified, IsActive = true, CreatedAtUtc = DateTime.UtcNow.AddDays(-2) };
+        p1.Skills.Add(new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p1.Id, Category = IncidentCategory.Plumbing, SkillName = "Master Plumber", IsPrimary = true });
+
+        var p2 = new ServiceProvider { Id = Guid.NewGuid(), UserId = _providerUser2Id, BusinessName = "Colombo Spark Electric", ContactPerson = "Silva", PhoneNumber = "0779876543", Email = "spark@elec.lk", PrimaryDistrict = "Colombo", City = "Colombo", VerificationStatus = VerificationStatus.Verified, IsActive = true, CreatedAtUtc = DateTime.UtcNow.AddDays(-1) };
+        p2.Skills.Add(new ProviderSkill { Id = Guid.NewGuid(), ProviderId = p2.Id, Category = IncidentCategory.Electrical, SkillName = "Certified Electrician", IsPrimary = true });
+
+        _dbContext.ServiceProviders.AddRange(p1, p2);
+        await _dbContext.SaveChangesAsync();
+
+        var query = new ProviderQueryParametersDto
+        {
+            District = "Kandy",
+            SkillCategory = IncidentCategory.Plumbing,
+            VerificationStatus = VerificationStatus.Verified,
+            SortBy = "businessname",
+            SortDescending = false,
+            PageNumber = 1,
+            PageSize = 10
+        };
+
+        // Act
+        var result = await _providerSut.GetServiceProvidersAsync(query);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.TotalCount.Should().Be(1);
+        result.Items.First().BusinessName.Should().Be("Lanka Plumbing Works");
+    }
+
+    [Fact]
+    public async Task UpdateServiceProviderAsync_ShouldThrowEntityNotFoundException_WhenNotFound()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var nonExistentId = Guid.NewGuid();
+        var updateDto = new UpdateServiceProviderRequestDto
+        {
+            BusinessName = "Updated Provider",
+            ContactPerson = "Contact",
+            PhoneNumber = "0771234567",
+            Email = "provider@test.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Kandy",
+            IsActive = true
+        };
+
+        // Act
+        Func<Task> act = async () => await _providerSut.UpdateServiceProviderAsync(nonExistentId, updateDto);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task UpdateServiceProviderAsync_ShouldThrowUnauthorizedAccessException_WhenOtherUserModifies()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerUser1Id,
+            BusinessName = "Original Provider",
+            ContactPerson = "Sunil",
+            PhoneNumber = "0771234567",
+            Email = "provider1@test.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Kandy",
+            VerificationStatus = VerificationStatus.Verified,
+            IsActive = true
+        };
+        _dbContext.ServiceProviders.Add(provider);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUser2Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var updateDto = new UpdateServiceProviderRequestDto
+        {
+            BusinessName = "Hijack Attempt",
+            ContactPerson = "Malicious",
+            PhoneNumber = "0770000000",
+            Email = "hacked@test.lk",
+            PrimaryDistrict = "Galle",
+            City = "Galle",
+            IsActive = true
+        };
+
+        // Act
+        Func<Task> act = async () => await _providerSut.UpdateServiceProviderAsync(provider.Id, updateDto);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
+    public async Task UpdateVerificationStatus_AsNonManager_ShouldThrowUnauthorizedAccessException()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerUser1Id,
+            BusinessName = "Test Provider",
+            ContactPerson = "Sunil",
+            PhoneNumber = "0771234567",
+            Email = "test@provider.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Kandy",
+            VerificationStatus = VerificationStatus.Pending
+        };
+        _dbContext.ServiceProviders.Add(provider);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var request = new UpdateVerificationRequestDto
+        {
+            VerificationStatus = VerificationStatus.Verified
+        };
+
+        // Act
+        Func<Task> act = async () => await _providerSut.UpdateVerificationStatusAsync(provider.Id, request);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
+    public async Task DeleteServiceProviderAsync_ShouldThrowEntityNotFoundException_WhenNotFound()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var nonExistentId = Guid.NewGuid();
+
+        // Act
+        Func<Task> act = async () => await _providerSut.DeleteServiceProviderAsync(nonExistentId);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task DeleteServiceProviderAsync_ShouldThrowUnauthorizedAccessException_WhenOtherUserDeletes()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerUser1Id,
+            BusinessName = "To Delete Provider",
+            ContactPerson = "Sunil",
+            PhoneNumber = "0771234567",
+            Email = "delete@provider.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Kandy",
+            VerificationStatus = VerificationStatus.Verified,
+            IsActive = true
+        };
+        _dbContext.ServiceProviders.Add(provider);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUser2Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        // Act
+        Func<Task> act = async () => await _providerSut.DeleteServiceProviderAsync(provider.Id);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
+    public async Task CreateServiceProvider_WithInvalidEmail_ShouldThrowValidationException()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var request = new CreateServiceProviderRequestDto
+        {
+            BusinessName = "Invalid Email Provider",
+            ContactPerson = "Test Person",
+            PhoneNumber = "+94771239876",
+            Email = "provider-invalid-email", // Invalid email without @/domain
+            PrimaryDistrict = "Kandy",
+            City = "Kandy"
+        };
+
+        // Act
+        Func<Task> act = async () => await _providerSut.CreateServiceProviderAsync(request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("Email");
+    }
+
+    [Fact]
+    public async Task UpdateServiceProvider_WithInvalidEmail_ShouldThrowValidationException()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerUser1Id,
+            BusinessName = "Existing Provider",
+            ContactPerson = "Sunil",
+            PhoneNumber = "0771234567",
+            Email = "valid@provider.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Kandy",
+            VerificationStatus = VerificationStatus.Verified,
+            IsActive = true
+        };
+        _dbContext.ServiceProviders.Add(provider);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var updateRequest = new UpdateServiceProviderRequestDto
+        {
+            BusinessName = "Existing Provider",
+            ContactPerson = "Sunil",
+            PhoneNumber = "0771234567",
+            Email = "provider-invalid-email", // Invalid
+            PrimaryDistrict = "Kandy",
+            City = "Kandy"
+        };
+
+        // Act
+        Func<Task> act = async () => await _providerSut.UpdateServiceProviderAsync(provider.Id, updateRequest);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("Email");
+    }
+
+    [Fact]
+    public async Task AddAvailabilityAsync_WhenUpdatingExistingSlotFromOnLeaveToBusy_ShouldUpdateStatusAndPersist()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerUser1Id,
+            BusinessName = "Availability Test Provider",
+            ContactPerson = "Sunil",
+            PhoneNumber = "0771234567",
+            Email = "avail@provider.lk",
+            PrimaryDistrict = "Colombo",
+            City = "Colombo",
+            VerificationStatus = VerificationStatus.Verified,
+            IsActive = true
+        };
+        _dbContext.ServiceProviders.Add(provider);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var targetDate = new DateTime(2026, 9, 9, 0, 0, 0, DateTimeKind.Utc);
+
+        // 1. Initial slot: Set to OnLeave
+        var initialSlotRequest = new AddProviderAvailabilityRequestDto
+        {
+            AvailableDateUtc = targetDate,
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(17, 0, 0),
+            Status = AvailabilityStatus.OnLeave,
+            Notes = "On leave for holiday"
+        };
+        var initialResult = await _availabilitySut.AddAvailabilityAsync(provider.Id, initialSlotRequest);
+        initialResult.Status.Should().Be(AvailabilityStatus.OnLeave);
+
+        // 2. Change status: Update same date to Busy
+        var updateSlotRequest = new AddProviderAvailabilityRequestDto
+        {
+            AvailableDateUtc = targetDate,
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(17, 0, 0),
+            Status = AvailabilityStatus.Busy,
+            Notes = "Assigned to urgent emergency repair"
+        };
+        var updatedResult = await _availabilitySut.AddAvailabilityAsync(provider.Id, updateSlotRequest);
+
+        // Assert
+        updatedResult.Should().NotBeNull();
+        updatedResult.Status.Should().Be(AvailabilityStatus.Busy);
+
+        // Verify retrieval returns Busy
+        var schedule = await _availabilitySut.GetAvailabilityByProviderIdAsync(provider.Id, targetDate, targetDate);
+        schedule.Should().NotBeEmpty();
+        schedule.First().Status.Should().Be(AvailabilityStatus.Busy);
+    }
 }

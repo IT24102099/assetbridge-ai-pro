@@ -85,6 +85,7 @@ public class ApprovalWorkflowTests : IDisposable
     [Fact]
     public async Task CreateApprovalRequest_ValidWorkflowState_TransitionsWorkflowToAwaitingApproval()
     {
+        // TC-AP-001: Valid Approval Request Initialization
         // Act
         var result = await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto
         {
@@ -105,8 +106,44 @@ public class ApprovalWorkflowTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateApprovalRequest_DuplicatePendingRequest_ThrowsValidationException()
+    {
+        // TC-AP-002: Duplicate Pending Approval Prevention
+        // Arrange
+        await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto(), _managerId, UserRole.Manager.ToString());
+
+        // Act: Attempt second concurrent/duplicate approval request
+        var act = async () => await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto(), _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*pending approval request already exists*");
+    }
+
+    [Fact]
+    public async Task CreateApprovalRequest_InvalidState_ThrowsValidationException()
+    {
+        // TC-AP-003: Approval Request State Machine Guard (Cannot request from Created/Planning directly)
+        // Arrange: Create new workflow in Created state
+        var newIncidentId = Guid.NewGuid();
+        var newIncident = new Incident { Id = newIncidentId, AssetId = _dbContext.Assets.First().Id, ReportedByUserId = _ownerId, Title = "Roof Leak 2", Category = IncidentCategory.Roofing, Priority = IncidentPriority.Medium, Status = IncidentStatus.Reported };
+        _dbContext.Incidents.Add(newIncident);
+        await _dbContext.SaveChangesAsync();
+
+        var freshWf = await _sut.CreateWorkflowAsync(new CreateWorkflowRequestDto { IncidentId = newIncidentId }, _managerId);
+
+        // Act: Request approval while still in Created state
+        var act = async () => await _sut.CreateApprovalRequestAsync(freshWf.Id, new CreateApprovalRequestDto(), _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*Cannot request approval when workflow is in state 'Created'*");
+    }
+
+    [Fact]
     public async Task ApproveWorkflow_ByAuthorizedManager_SetsStateToApprovedAndRecordsAudit()
     {
+        // TC-AP-004: Authorized Manager Approval & Audit Logging
         // Arrange
         await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto(), _managerId, UserRole.Manager.ToString());
 
@@ -133,6 +170,7 @@ public class ApprovalWorkflowTests : IDisposable
     [Fact]
     public async Task ApproveWorkflow_ByAdmin_Succeeds()
     {
+        // TC-AP-005: Administrator Executive Override Approval
         // Arrange
         await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto(), _managerId, UserRole.Manager.ToString());
 
@@ -150,6 +188,7 @@ public class ApprovalWorkflowTests : IDisposable
     [Fact]
     public async Task ApproveWorkflow_ByUnauthorizedOwnerOrProvider_ThrowsUnauthorizedAccessException()
     {
+        // TC-AP-006: RBAC Privilege Escalation Prevention
         // Arrange
         await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto(), _managerId, UserRole.Manager.ToString());
 
@@ -176,6 +215,7 @@ public class ApprovalWorkflowTests : IDisposable
     [Fact]
     public async Task ApproveWorkflow_WhenWorkflowNotAwaitingApproval_ThrowsValidationException()
     {
+        // TC-AP-007: Approval Precondition Guard
         // Arrange: Workflow is currently in AiValidation, no approval request made
         // Act
         var act = async () => await _sut.ApproveWorkflowAsync(_workflowId, new ApprovalDecisionRequestDto
@@ -191,6 +231,7 @@ public class ApprovalWorkflowTests : IDisposable
     [Fact]
     public async Task RejectWorkflow_ByManager_SetsStateToRejectedAndRecordsReason()
     {
+        // TC-AP-008: Workflow Rejection Execution
         // Arrange
         await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto(), _managerId, UserRole.Manager.ToString());
 
@@ -210,8 +251,9 @@ public class ApprovalWorkflowTests : IDisposable
     }
 
     [Fact]
-    public async Task RequestRevision_ByManager_SetsStateToRevisionRequested()
+    public async Task RequestRevision_ByManager_SetsStateToRevisionRequestedAndAllowsResubmission()
     {
+        // TC-AP-009: Human-in-the-Loop Revision Request
         // Arrange
         await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto(), _managerId, UserRole.Manager.ToString());
 
@@ -238,6 +280,93 @@ public class ApprovalWorkflowTests : IDisposable
         }, _managerId, UserRole.Manager.ToString());
 
         reReview.CurrentState.Should().Be(WorkflowState.QuotationReview);
+    }
+
+    [Fact]
+    public async Task RejectWorkflow_ByUnauthorizedRole_ThrowsUnauthorizedAccessException()
+    {
+        // TC-AP-010: Rejection RBAC Enforcement
+        // Arrange
+        await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto(), _managerId, UserRole.Manager.ToString());
+
+        // Act: Representative attempts to reject workflow
+        var act = async () => await _sut.RejectWorkflowAsync(_workflowId, new ApprovalDecisionRequestDto
+        {
+            DecisionReason = "Representative trying to reject"
+        }, _providerId, UserRole.ServiceProvider.ToString());
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*Only users with the 'Manager' or 'Admin' role are authorized*");
+    }
+
+    [Fact]
+    public async Task ApproveWorkflow_ByAuthorizedManager_SuccessfullyApprovesWorkflow()
+    {
+        // Arrange
+        await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto(), _managerId, UserRole.Manager.ToString());
+
+        // Act
+        var result = await _sut.ApproveWorkflowAsync(_workflowId, new ApprovalDecisionRequestDto
+        {
+            DecisionReason = "Cost within verified estimate"
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(ApprovalStatus.Approved);
+        result.Decision.Should().Be(ApprovalDecision.Approve);
+
+        var wf = await _dbContext.WorkflowInstances.FindAsync(_workflowId);
+        wf!.CurrentState.Should().Be(WorkflowState.Approved);
+    }
+
+    [Fact]
+    public async Task ApproveWorkflow_ByUnauthorizedRole_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto(), _managerId, UserRole.Manager.ToString());
+
+        // Act: ServiceProvider attempts to approve
+        var act = async () => await _sut.ApproveWorkflowAsync(_workflowId, new ApprovalDecisionRequestDto
+        {
+            DecisionReason = "Self-approving job"
+        }, _providerId, UserRole.ServiceProvider.ToString());
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*Only users with the 'Manager' or 'Admin' role are authorized*");
+    }
+
+    [Fact]
+    public async Task RequestRevision_ByUnauthorizedRole_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto(), _managerId, UserRole.Manager.ToString());
+
+        // Act: Owner attempts to perform manager revision request
+        var act = async () => await _sut.RequestRevisionAsync(_workflowId, new RevisionRequestDto
+        {
+            RevisionComment = "Owner requesting revision directly",
+            DecisionReason = "Owner notes"
+        }, _ownerId, UserRole.Owner.ToString());
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*Only users with the 'Manager' or 'Admin' role are authorized*");
+    }
+
+    [Fact]
+    public async Task CreateApprovalRequest_ByUnauthorizedUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange: Random unauthorized user
+        var unauthorizedUserId = Guid.NewGuid();
+
+        // Act
+        var act = async () => await _sut.CreateApprovalRequestAsync(_workflowId, new CreateApprovalRequestDto(), unauthorizedUserId, "Contractor");
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
 
     public void Dispose()

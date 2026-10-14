@@ -395,4 +395,480 @@ public class IncidentServiceTests : IDisposable
             "assetbridge/evidence",
             It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task GetIncidentsAsync_ShouldReturnIncidentsForAuthenticatedOwner()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+        _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+        var incident = new Incident
+        {
+            Id = Guid.NewGuid(),
+            AssetId = _asset1Id,
+            ReportedByUserId = _owner1Id,
+            Title = "Water Leak",
+            Description = "Leak in kitchen",
+            Category = IncidentCategory.Plumbing,
+            Priority = IncidentPriority.High,
+            Status = IncidentStatus.Reported
+        };
+
+        _dbContext.Incidents.Add(incident);
+        await _dbContext.SaveChangesAsync();
+
+        var query = new IncidentQueryParametersDto();
+
+        // Act
+        var result = await _sut.GetIncidentsAsync(query);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Items.Should().ContainSingle();
+        result.Items.First().Id.Should().Be(incident.Id);
+        result.Items.First().Title.Should().Be("Water Leak");
+    }
+    [Fact]
+public async Task GetIncidentEvidenceAsync_ShouldReturnEvidenceForAuthorizedOwner()
+{
+    // Arrange
+    _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+    _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+    _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+    var incident = new Incident
+    {
+        Id = Guid.NewGuid(),
+        AssetId = _asset1Id,
+        ReportedByUserId = _owner1Id,
+        Title = "Water Leak",
+        Description = "Leak in kitchen",
+        Category = IncidentCategory.Plumbing,
+        Priority = IncidentPriority.High,
+        Status = IncidentStatus.Reported
+    };
+
+    _dbContext.Incidents.Add(incident);
+    await _dbContext.SaveChangesAsync();
+
+    var evidence = new IncidentEvidence
+    {
+        Id = Guid.NewGuid(),
+        IncidentId = incident.Id,
+        UploadedByUserId = _owner1Id,
+        FileName = "leak-photo.jpg",
+        FileUrl = "https://example.com/leak-photo.jpg"
+    };
+
+    _dbContext.IncidentEvidence.Add(evidence);
+    await _dbContext.SaveChangesAsync();
+
+    // Act
+    var result = await _sut.GetIncidentEvidenceAsync(incident.Id);
+
+    // Assert
+    result.Should().NotBeNull();
+    result.Should().ContainSingle();
+    result.First().Id.Should().Be(evidence.Id);
+    result.First().FileName.Should().Be("leak-photo.jpg");
+ }
+  [Fact]
+public async Task DeleteEvidenceAsync_ShouldDeleteEvidenceForAuthorizedOwner()
+{
+    // Arrange
+    _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+    _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+    _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+    var incident = new Incident
+    {
+        Id = Guid.NewGuid(),
+        AssetId = _asset1Id,
+        ReportedByUserId = _owner1Id,
+        Title = "Broken Window",
+        Description = "Window damaged",
+        Category = IncidentCategory.Structural,
+        Priority = IncidentPriority.Medium,
+        Status = IncidentStatus.Reported
+    };
+
+    _dbContext.Incidents.Add(incident);
+    await _dbContext.SaveChangesAsync();
+
+    var evidence = new IncidentEvidence
+    {
+        Id = Guid.NewGuid(),
+        IncidentId = incident.Id,
+        UploadedByUserId = _owner1Id,
+        FileName = "window-photo.jpg",
+        FileUrl = "https://example.com/window-photo.jpg"
+    };
+
+    _dbContext.IncidentEvidence.Add(evidence);
+    await _dbContext.SaveChangesAsync();
+
+    // Act
+    var result = await _sut.DeleteEvidenceAsync(incident.Id, evidence.Id);
+
+    // Assert
+    result.Should().BeTrue();
+
+    var deletedEvidence = await _dbContext.IncidentEvidence
+        .FirstOrDefaultAsync(e => e.Id == evidence.Id);
+
+    deletedEvidence.Should().BeNull();
+}
+[Fact]
+public async Task UpdateIncidentAsync_ShouldUpdateIncidentDetailsForAuthorizedOwner()
+{
+    // Arrange
+    _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+    _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+    _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+    var incident = new Incident
+    {
+        Id = Guid.NewGuid(),
+        AssetId = _asset1Id,
+        ReportedByUserId = _owner1Id,
+        Title = "Old Title",
+        Description = "Old description",
+        Category = IncidentCategory.Plumbing,
+        Priority = IncidentPriority.Medium,
+        Status = IncidentStatus.Reported
+    };
+
+    _dbContext.Incidents.Add(incident);
+    await _dbContext.SaveChangesAsync();
+
+    var updateDto = new UpdateIncidentRequestDto
+    {
+        Title = "Updated Water Leak",
+        Description = "Updated description",
+        Category = IncidentCategory.Structural,
+        Priority = IncidentPriority.High,
+        EstimatedBudget = 75000m,
+        RequiredByUtc = DateTime.UtcNow.AddDays(7)
+    };
+
+    // Act
+    var result = await _sut.UpdateIncidentAsync(incident.Id, updateDto);
+
+    // Assert
+    result.Should().NotBeNull();
+    result.Title.Should().Be("Updated Water Leak");
+    result.Description.Should().Be("Updated description");
+    result.Category.Should().Be(IncidentCategory.Structural);
+    result.Priority.Should().Be(IncidentPriority.High);
+    result.EstimatedBudget.Should().Be(75000m);
+
+    var updatedIncident = await _dbContext.Incidents
+        .FirstAsync(i => i.Id == incident.Id);
+
+    updatedIncident.Title.Should().Be("Updated Water Leak");
+    updatedIncident.Description.Should().Be("Updated description");
+    updatedIncident.Category.Should().Be(IncidentCategory.Structural);
+    updatedIncident.Priority.Should().Be(IncidentPriority.High);
+}
+[Fact]
+public async Task UpdateIncidentAsync_ShouldThrowValidationException_WhenBudgetIsNegative()
+{
+    // Arrange
+    _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+    _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+    _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+    var incident = new Incident
+    {
+        Id = Guid.NewGuid(),
+        AssetId = _asset1Id,
+        ReportedByUserId = _owner1Id,
+        Title = "Budget Test",
+        Description = "Testing budget validation",
+        Category = IncidentCategory.Plumbing,
+        Priority = IncidentPriority.Medium,
+        Status = IncidentStatus.Reported
+    };
+
+    _dbContext.Incidents.Add(incident);
+    await _dbContext.SaveChangesAsync();
+
+    var updateDto = new UpdateIncidentRequestDto
+    {
+        Title = "Updated Budget Test",
+        Description = "Updated description",
+        Category = IncidentCategory.Plumbing,
+        Priority = IncidentPriority.Medium,
+        EstimatedBudget = -1000m,
+        RequiredByUtc = DateTime.UtcNow.AddDays(7)
+    };
+
+    // Act
+    Func<Task> act = async () =>
+        await _sut.UpdateIncidentAsync(incident.Id, updateDto);
+
+    // Assert
+    await act.Should().ThrowAsync<ValidationException>();
+}
+
+[Fact]
+public async Task UpdateIncidentAsync_ShouldThrowValidationException_WhenDeadlineIsInPast()
+{
+    // Arrange
+    _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+    _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+    _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+    var incident = new Incident
+    {
+        Id = Guid.NewGuid(),
+        AssetId = _asset1Id,
+        ReportedByUserId = _owner1Id,
+        Title = "Deadline Test",
+        Description = "Testing deadline validation",
+        Category = IncidentCategory.Plumbing,
+        Priority = IncidentPriority.Medium,
+        Status = IncidentStatus.Reported
+    };
+
+    _dbContext.Incidents.Add(incident);
+    await _dbContext.SaveChangesAsync();
+
+    var updateDto = new UpdateIncidentRequestDto
+    {
+        Title = "Updated Deadline Test",
+        Description = "Updated description",
+        Category = IncidentCategory.Plumbing,
+        Priority = IncidentPriority.Medium,
+        RequiredByUtc = DateTime.UtcNow.AddDays(-2)
+    };
+
+    // Act
+    Func<Task> act = async () => await _sut.UpdateIncidentAsync(incident.Id, updateDto);
+
+    // Assert
+    await act.Should().ThrowAsync<ValidationException>()
+        .WithMessage("*must be in the future*");
+}
+
+[Fact]
+public async Task UpdateIncidentAsync_ShouldThrowEntityNotFoundException_WhenIncidentDoesNotExist()
+{
+    // Arrange
+    _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+    _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+    _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+    var nonExistentId = Guid.NewGuid();
+    var updateDto = new UpdateIncidentRequestDto
+    {
+        Title = "Missing Incident",
+        Description = "Description",
+        Category = IncidentCategory.Electrical,
+        Priority = IncidentPriority.Low
+    };
+
+    // Act
+    Func<Task> act = async () => await _sut.UpdateIncidentAsync(nonExistentId, updateDto);
+
+    // Assert
+    await act.Should().ThrowAsync<EntityNotFoundException>();
+}
+
+[Fact]
+public async Task UpdateIncidentStatusAsync_ShouldTransitionStatusAndRecordHistory_WhenValidTransition()
+{
+    // Arrange
+    _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+    _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+    _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+    var incident = new Incident
+    {
+        Id = Guid.NewGuid(),
+        AssetId = _asset1Id,
+        ReportedByUserId = _owner1Id,
+        Title = "Status Transition Test",
+        Description = "Testing valid status transition",
+        Category = IncidentCategory.Plumbing,
+        Priority = IncidentPriority.Medium,
+        Status = IncidentStatus.Reported
+    };
+
+    _dbContext.Incidents.Add(incident);
+    await _dbContext.SaveChangesAsync();
+
+    var statusRequest = new UpdateIncidentStatusRequestDto
+    {
+        Status = IncidentStatus.Planning,
+        StatusChangeReason = "Incident verified and planning initiated"
+    };
+
+    // Act
+    var result = await _sut.UpdateIncidentStatusAsync(incident.Id, statusRequest);
+
+    // Assert
+    result.Should().NotBeNull();
+    result.Status.Should().Be(IncidentStatus.Planning);
+
+    var updatedIncident = await _dbContext.Incidents.FindAsync(incident.Id);
+    updatedIncident!.Status.Should().Be(IncidentStatus.Planning);
+
+    _historyServiceMock.Verify(x => x.RecordEventAsync(
+        _asset1Id,
+        AssetHistoryEventType.IncidentStatusChanged,
+        It.IsAny<string>(),
+        It.IsAny<string>(),
+        _owner1Id,
+        incident.Id,
+        It.IsAny<CancellationToken>()), Times.Once);
+}
+
+[Fact]
+public async Task UpdateIncidentStatusAsync_ShouldThrowDomainException_WhenTransitionIsInvalid()
+{
+    // Arrange
+    _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+    _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+    _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+    var incident = new Incident
+    {
+        Id = Guid.NewGuid(),
+        AssetId = _asset1Id,
+        ReportedByUserId = _owner1Id,
+        Title = "Invalid Transition Test",
+        Description = "Testing invalid status transition",
+        Category = IncidentCategory.Plumbing,
+        Priority = IncidentPriority.Medium,
+        Status = IncidentStatus.Reported
+    };
+
+    _dbContext.Incidents.Add(incident);
+    await _dbContext.SaveChangesAsync();
+
+    var invalidRequest = new UpdateIncidentStatusRequestDto
+    {
+        Status = IncidentStatus.Resolved // Cannot jump directly from Reported to Resolved
+    };
+
+    // Act
+    Func<Task> act = async () => await _sut.UpdateIncidentStatusAsync(incident.Id, invalidRequest);
+
+    // Assert
+    await act.Should().ThrowAsync<DomainException>()
+        .WithMessage("*Invalid status transition*");
+}
+
+[Fact]
+public async Task AddEvidenceAsync_ShouldThrowValidationException_WhenBlobUrlProvided()
+{
+    // Arrange
+    _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+    _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+    _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+    var incident = new Incident
+    {
+        Id = Guid.NewGuid(),
+        AssetId = _asset1Id,
+        ReportedByUserId = _owner1Id,
+        Title = "Blob Evidence Test",
+        Description = "Testing blob URL rejection",
+        Category = IncidentCategory.Plumbing,
+        Priority = IncidentPriority.Medium,
+        Status = IncidentStatus.Reported
+    };
+
+    _dbContext.Incidents.Add(incident);
+    await _dbContext.SaveChangesAsync();
+
+    var request = new AddIncidentEvidenceRequestDto
+    {
+        FileName = "pipe.jpg",
+        FileUrl = "blob:http://localhost:3000/blob-id",
+        FileType = "image/jpeg",
+        EvidenceType = EvidenceType.Photo
+    };
+
+    // Act
+    Func<Task> act = async () => await _sut.AddEvidenceAsync(incident.Id, request);
+
+    // Assert
+    await act.Should().ThrowAsync<ValidationException>()
+        .WithMessage("*blob URLs cannot be stored*");
+}
+
+[Fact]
+public async Task AddEvidenceAsync_ShouldThrowValidationException_WhenInvalidUrlProvided()
+{
+    // Arrange
+    _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+    _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+    _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+    var incident = new Incident
+    {
+        Id = Guid.NewGuid(),
+        AssetId = _asset1Id,
+        ReportedByUserId = _owner1Id,
+        Title = "Invalid URL Test",
+        Description = "Testing invalid URL rejection",
+        Category = IncidentCategory.Plumbing,
+        Priority = IncidentPriority.Medium,
+        Status = IncidentStatus.Reported
+    };
+
+    _dbContext.Incidents.Add(incident);
+    await _dbContext.SaveChangesAsync();
+
+    var request = new AddIncidentEvidenceRequestDto
+    {
+        FileName = "pipe.jpg",
+        FileUrl = "invalid-url-scheme",
+        FileType = "image/jpeg",
+        EvidenceType = EvidenceType.Photo
+    };
+
+    // Act
+    Func<Task> act = async () => await _sut.AddEvidenceAsync(incident.Id, request);
+
+    // Assert
+    await act.Should().ThrowAsync<ValidationException>()
+        .WithMessage("*valid absolute HTTPS*");
+}
+
+[Fact]
+public async Task DeleteEvidenceAsync_ShouldThrowEntityNotFoundException_WhenEvidenceDoesNotExist()
+{
+    // Arrange
+    _currentUserServiceMock.Setup(x => x.IsAuthenticated).Returns(true);
+    _currentUserServiceMock.Setup(x => x.UserId).Returns(_owner1Id);
+    _currentUserServiceMock.Setup(x => x.Role).Returns(UserRole.Owner);
+
+    var incident = new Incident
+    {
+        Id = Guid.NewGuid(),
+        AssetId = _asset1Id,
+        ReportedByUserId = _owner1Id,
+        Title = "Delete Evidence Test",
+        Description = "Testing non-existent evidence deletion",
+        Category = IncidentCategory.Plumbing,
+        Priority = IncidentPriority.Medium,
+        Status = IncidentStatus.Reported
+    };
+
+    _dbContext.Incidents.Add(incident);
+    await _dbContext.SaveChangesAsync();
+
+    var nonExistentEvidenceId = Guid.NewGuid();
+
+    // Act
+    Func<Task> act = async () => await _sut.DeleteEvidenceAsync(incident.Id, nonExistentEvidenceId);
+
+    // Assert
+    await act.Should().ThrowAsync<EntityNotFoundException>();
+}
 }

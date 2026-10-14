@@ -10,33 +10,8 @@ interface EditProviderModalProps {
   onSuccess: () => void;
 }
 
-const SRI_LANKA_DISTRICTS = [
-  'Colombo',
-  'Gampaha',
-  'Kalutara',
-  'Kandy',
-  'Matale',
-  'Nuwara Eliya',
-  'Galle',
-  'Matara',
-  'Hambantota',
-  'Jaffna',
-  'Kilinochchi',
-  'Mannar',
-  'Vavuniya',
-  'Mullaitivu',
-  'Batticaloa',
-  'Ampara',
-  'Trincomalee',
-  'Kurunegala',
-  'Puttalam',
-  'Anuradhapura',
-  'Polonnaruwa',
-  'Badulla',
-  'Monaragala',
-  'Ratnapura',
-  'Kegalle',
-];
+import { SRI_LANKA_DISTRICTS } from '../../constants/sriLankaLocations';
+import { isValidEmail } from '../../utils/validationUtils';
 
 export const EditProviderModal: React.FC<EditProviderModalProps> = ({
   isOpen,
@@ -48,6 +23,7 @@ export const EditProviderModal: React.FC<EditProviderModalProps> = ({
     businessName: provider.businessName,
     contactPerson: provider.contactPerson,
     phoneNumber: provider.phoneNumber,
+    email: provider.email,
     primaryDistrict: provider.primaryDistrict,
     city: provider.city,
     address: provider.address || '',
@@ -62,8 +38,12 @@ export const EditProviderModal: React.FC<EditProviderModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.businessName.trim() || !formData.contactPerson.trim() || !formData.phoneNumber.trim()) {
-      setError('Please provide business name, contact person, and phone number.');
+    if (!formData.businessName.trim() || !formData.contactPerson.trim() || !formData.phoneNumber.trim() || !formData.email.trim()) {
+      setError('Please provide business name, contact person, email, and phone number.');
+      return;
+    }
+    if (!isValidEmail(formData.email)) {
+      setError('Please provide a valid email address.');
       return;
     }
 
@@ -137,6 +117,17 @@ export const EditProviderModal: React.FC<EditProviderModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">Email Address *</label>
+              <input
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
+              />
+            </div>
+
+            <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700">Phone Number *</label>
               <input
                 type="text"
@@ -146,7 +137,9 @@ export const EditProviderModal: React.FC<EditProviderModalProps> = ({
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
               />
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700">Status</label>
               <select

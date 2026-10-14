@@ -1,5 +1,6 @@
 using AssetBridge.Application.Common.Interfaces;
 using AssetBridge.Application.Common.Models;
+using AssetBridge.Application.Common.Validation;
 using AssetBridge.Application.DTOs.Providers;
 using AssetBridge.Application.DTOs.Representatives;
 using AssetBridge.Application.Services.Interfaces;
@@ -42,6 +43,11 @@ public class ServiceProviderService : IServiceProviderService
             {
                 { "UserId", new[] { "A service provider profile already exists for this user account." } }
             });
+        }
+
+        if (!ValidationRules.IsValidEmail(request.Email))
+        {
+            throw new ValidationException("Email", "Please provide a valid email address.");
         }
 
         var provider = new ServiceProvider
@@ -197,6 +203,11 @@ public class ServiceProviderService : IServiceProviderService
         }
 
         ValidateProviderModification(provider);
+
+        if (!ValidationRules.IsValidEmail(request.Email))
+        {
+            throw new ValidationException("Email", "Please provide a valid email address.");
+        }
 
         provider.BusinessName = request.BusinessName.Trim();
         provider.ContactPerson = request.ContactPerson.Trim();

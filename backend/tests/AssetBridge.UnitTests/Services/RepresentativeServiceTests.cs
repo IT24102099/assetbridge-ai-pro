@@ -268,4 +268,188 @@ public class RepresentativeServiceTests : IDisposable
         // Act & Assert
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _sut.UpdateVerificationStatusAsync(rep.Id, request));
     }
+
+    [Fact]
+    public async Task GetRepresentativeByIdAsync_ShouldThrowEntityNotFoundException_WhenNotFound()
+    {
+        // Arrange
+        var nonExistentId = Guid.NewGuid();
+
+        // Act
+        Func<Task> act = async () => await _sut.GetRepresentativeByIdAsync(nonExistentId);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task GetRepresentativesAsync_ShouldFilterBySearchCityDistrictAndVerificationStatus()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        _dbContext.Representatives.AddRange(
+            new Representative { Id = Guid.NewGuid(), UserId = _repUser1Id, FullName = "Kamsiga Ganesan", PhoneNumber = "0771111111", Email = "kamsiga@assetbridge.ai", District = "Kandy", City = "Peradeniya", VerificationStatus = VerificationStatus.Verified, IsActive = true, CreatedAtUtc = DateTime.UtcNow.AddDays(-2) },
+            new Representative { Id = Guid.NewGuid(), UserId = _repUser2Id, FullName = "Sunil Perera", PhoneNumber = "0772222222", Email = "sunil@assetbridge.ai", District = "Colombo", City = "Dehiwala", VerificationStatus = VerificationStatus.Pending, IsActive = true, CreatedAtUtc = DateTime.UtcNow.AddDays(-1) }
+        );
+        await _dbContext.SaveChangesAsync();
+
+        var query = new RepresentativeQueryParametersDto
+        {
+            District = "Kandy",
+            City = "Peradeniya",
+            VerificationStatus = VerificationStatus.Verified,
+            SortBy = "fullname",
+            SortDescending = false,
+            PageNumber = 1,
+            PageSize = 10
+        };
+
+        // Act
+        var result = await _sut.GetRepresentativesAsync(query);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.TotalCount.Should().Be(1);
+        result.Items.First().FullName.Should().Be("Kamsiga Ganesan");
+    }
+
+    [Fact]
+    public async Task UpdateRepresentativeAsync_ShouldThrowEntityNotFoundException_WhenNotFound()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_repUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Representative);
+
+        var nonExistentId = Guid.NewGuid();
+        var updateDto = new UpdateRepresentativeRequestDto
+        {
+            FullName = "Updated Rep",
+            PhoneNumber = "0771234567",
+            District = "Kandy",
+            City = "Kandy",
+            IsActive = true
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.UpdateRepresentativeAsync(nonExistentId, updateDto);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task UpdateRepresentativeAsync_ShouldThrowUnauthorizedAccessException_WhenOtherUserModifies()
+    {
+        // Arrange
+        var rep = new Representative
+        {
+            Id = Guid.NewGuid(),
+            UserId = _repUser1Id,
+            FullName = "Original Rep",
+            PhoneNumber = "0771234567",
+            Email = "rep1@assetbridge.ai",
+            District = "Kandy",
+            City = "Kandy",
+            VerificationStatus = VerificationStatus.Verified,
+            IsActive = true
+        };
+        _dbContext.Representatives.Add(rep);
+        await _dbContext.SaveChangesAsync();
+
+        // Caller is repUser2 (different user, not manager/admin)
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_repUser2Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Representative);
+
+        var updateDto = new UpdateRepresentativeRequestDto
+        {
+            FullName = "Malicious Hijack Attempt",
+            PhoneNumber = "0770000000",
+            District = "Galle",
+            City = "Galle",
+            IsActive = true
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.UpdateRepresentativeAsync(rep.Id, updateDto);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
+    public async Task DeleteRepresentativeAsync_ShouldThrowEntityNotFoundException_WhenNotFound()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_repUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Representative);
+
+        var nonExistentId = Guid.NewGuid();
+
+        // Act
+        Func<Task> act = async () => await _sut.DeleteRepresentativeAsync(nonExistentId);
+
+        // Assert
+        await act.Should().ThrowAsync<EntityNotFoundException>();
+    }
+
+    [Fact]
+    public async Task DeleteRepresentativeAsync_ShouldThrowUnauthorizedAccessException_WhenOtherUserDeletes()
+    {
+        // Arrange
+        var rep = new Representative
+        {
+            Id = Guid.NewGuid(),
+            UserId = _repUser1Id,
+            FullName = "Rep To Delete",
+            PhoneNumber = "0771234567",
+            Email = "rep1@assetbridge.ai",
+            District = "Kandy",
+            City = "Kandy",
+            VerificationStatus = VerificationStatus.Verified,
+            IsActive = true
+        };
+        _dbContext.Representatives.Add(rep);
+        await _dbContext.SaveChangesAsync();
+
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_repUser2Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Representative);
+
+        // Act
+        Func<Task> act = async () => await _sut.DeleteRepresentativeAsync(rep.Id);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
+    public async Task CreateRepresentative_WithInvalidEmail_ShouldThrowValidationException()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_repUser1Id);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Representative);
+
+        var request = new CreateRepresentativeRequestDto
+        {
+            FullName = "Invalid Email Rep",
+            PhoneNumber = "+94771234567",
+            Email = "provider-invalid-email", // Invalid email format
+            District = "Kandy",
+            City = "Kandy"
+        };
+
+        // Act
+        Func<Task> act = async () => await _sut.CreateRepresentativeAsync(request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("Email");
+    }
 }

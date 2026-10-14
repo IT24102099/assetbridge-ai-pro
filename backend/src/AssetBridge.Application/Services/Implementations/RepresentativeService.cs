@@ -1,5 +1,6 @@
 using AssetBridge.Application.Common.Interfaces;
 using AssetBridge.Application.Common.Models;
+using AssetBridge.Application.Common.Validation;
 using AssetBridge.Application.DTOs.Representatives;
 using AssetBridge.Application.Services.Interfaces;
 using AssetBridge.Domain.Entities.Representatives;
@@ -42,6 +43,11 @@ public class RepresentativeService : IRepresentativeService
             {
                 { "UserId", new[] { "A representative profile already exists for this user account." } }
             });
+        }
+
+        if (!ValidationRules.IsValidEmail(request.Email))
+        {
+            throw new ValidationException("Email", "Please provide a valid email address.");
         }
 
         var representative = new Representative

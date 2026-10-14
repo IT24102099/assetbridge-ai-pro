@@ -118,6 +118,7 @@ export interface UpdateServiceProviderRequestDto {
   businessName: string;
   contactPerson: string;
   phoneNumber: string;
+  email: string;
   primaryDistrict: string;
   city: string;
   address?: string;
