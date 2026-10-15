@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { representativeApi } from '../../lib/api/representativeApi';
-import { RepresentativeResponseDto } from '../../types/representative';
+import { RepresentativeResponseDto, RepresentativeDocumentResponseDto } from '../../types/representative';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingState, ErrorState } from '../../components/common/FeedbackStates';
 import { EditRepresentativeModal } from './EditRepresentativeModal';
@@ -17,6 +17,14 @@ import {
   CheckCircle2,
   UserCheck,
   UserX,
+  UploadCloud,
+  CheckCircle,
+  XCircle,
+  Clock,
+  ExternalLink,
+  Loader2,
+  AlertCircle,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -24,14 +32,42 @@ export const RepresentativeDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isManagerOrAdmin = user?.role === 'Manager' || user?.role === 'Admin';
 
   const [rep, setRep] = useState<RepresentativeResponseDto | null>(null);
+  const isManagerOrAdmin = user?.role === 'Manager' || user?.role === 'Admin';
+  const isSelf = !!(user?.id && rep?.userId && user.id === rep.userId);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'assets' | 'availability' | 'documents' | 'history'>('profile');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Verification Documents State
+  const [documents, setDocuments] = useState<RepresentativeDocumentResponseDto[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadDocType, setUploadDocType] = useState<string>('NationalId');
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Review Modal State
+  const [reviewModal, setReviewModal] = useState<{
+    isOpen: boolean;
+    doc: RepresentativeDocumentResponseDto | null;
+    decision: 'Verified' | 'Rejected';
+    notes: string;
+    loading: boolean;
+    error: string | null;
+  }>({
+    isOpen: false,
+    doc: null,
+    decision: 'Verified',
+    notes: '',
+    loading: false,
+    error: null,
+  });
 
   const fetchRepresentative = async () => {
     if (!id) return;
@@ -52,9 +88,31 @@ export const RepresentativeDetailPage: React.FC = () => {
     }
   };
 
+  const fetchDocuments = async () => {
+    if (!id) return;
+    try {
+      setDocsLoading(true);
+      const res = await representativeApi.getDocuments(id);
+      if (res.data) {
+        setDocuments(res.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load documents:', err);
+    } finally {
+      setDocsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchRepresentative();
+    fetchDocuments();
   }, [id]);
+
+  useEffect(() => {
+    if (activeTab === 'documents') {
+      fetchDocuments();
+    }
+  }, [activeTab]);
 
   const handleVerificationChange = async (status: 'Verified' | 'Rejected') => {
     if (!rep) return;
@@ -64,11 +122,72 @@ export const RepresentativeDetailPage: React.FC = () => {
         status,
         notes: `Status updated to ${status} by ${user?.fullName || 'Manager'} on ${new Date().toLocaleDateString()}`,
       });
-      await fetchRepresentative();
+      await Promise.all([fetchRepresentative(), fetchDocuments()]);
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Failed to update verification status.');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !uploadFile) {
+      setUploadError('Please select a document file to upload.');
+      return;
+    }
+
+    if (uploadFile.size > 10 * 1024 * 1024) {
+      setUploadError('File size exceeds the 10 MB maximum limit.');
+      return;
+    }
+
+    const validExtensions = ['.pdf', '.jpg', '.jpeg', '.png'];
+    const fileExt = '.' + uploadFile.name.split('.').pop()?.toLowerCase();
+    if (!validExtensions.includes(fileExt)) {
+      setUploadError('Only PDF, JPG, and PNG documents are supported.');
+      return;
+    }
+
+    try {
+      setUploadLoading(true);
+      setUploadError(null);
+      await representativeApi.uploadDocument(id, uploadFile, uploadDocType);
+      setIsUploadModalOpen(false);
+      setUploadFile(null);
+      await Promise.all([fetchDocuments(), fetchRepresentative()]);
+    } catch (err: any) {
+      setUploadError(err?.response?.data?.message || 'Failed to upload verification document.');
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  const handleReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !reviewModal.doc) return;
+
+    try {
+      setReviewModal((prev) => ({ ...prev, loading: true, error: null }));
+      await representativeApi.reviewDocument(id, reviewModal.doc.id, {
+        status: reviewModal.decision,
+        notes: reviewModal.notes.trim() || undefined,
+      });
+      setReviewModal({
+        isOpen: false,
+        doc: null,
+        decision: 'Verified',
+        notes: '',
+        loading: false,
+        error: null,
+      });
+      await Promise.all([fetchDocuments(), fetchRepresentative()]);
+    } catch (err: any) {
+      setReviewModal((prev) => ({
+        ...prev,
+        loading: false,
+        error: err?.response?.data?.message || 'Failed to record document review.',
+      }));
     }
   };
 
@@ -329,24 +448,167 @@ export const RepresentativeDetailPage: React.FC = () => {
 
         {activeTab === 'documents' && (
           <div className="space-y-4">
-            <h3 className="text-sm font-bold text-slate-900">Verification Documents</h3>
-            <div className="space-y-2">
-              <div className="p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2.5">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                  <span className="font-bold text-slate-800">National Identity Card (Front & Back)</span>
-                </div>
-                <span className="text-[11px] font-bold text-emerald-600">Verified</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Verification Documents ({documents.length})</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Official identity records and police clearances required for on-site authorization
+                </p>
               </div>
 
-              <div className="p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2.5">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                  <span className="font-bold text-slate-800">Local Police Clearance Certificate</span>
-                </div>
-                <span className="text-[11px] font-bold text-emerald-600">Verified</span>
+              {(isManagerOrAdmin || isSelf) && (
+                <button
+                  onClick={() => {
+                    setUploadError(null);
+                    setUploadFile(null);
+                    setIsUploadModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition self-start sm:self-auto"
+                >
+                  <UploadCloud className="h-4 w-4" />
+                  Upload Document
+                </button>
+              )}
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100 text-xs text-blue-900 flex items-start gap-2.5">
+              <ShieldCheck className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <span className="font-bold">Trust & Identity Security Standard</span>
+                <p className="text-[11px] text-blue-700 leading-relaxed">
+                  Uploaded documents are placed in <strong>Pending Review</strong> status. Authorized management verification is required before on-site property access is granted.
+                </p>
               </div>
             </div>
+
+            {docsLoading ? (
+              <LoadingState message="Loading verification documents..." />
+            ) : documents.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-8 text-center space-y-3">
+                <FileText className="h-10 w-10 text-slate-300 mx-auto" />
+                <div>
+                  <h4 className="text-xs font-bold text-slate-700">No verification documents uploaded yet</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Upload National Identity Card (NIC) or Police Clearance Certificate to initiate verification.
+                  </p>
+                </div>
+                {(isManagerOrAdmin || isSelf) && (
+                  <button
+                    onClick={() => setIsUploadModalOpen(true)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition"
+                  >
+                    Upload Document Now
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {documents.map((doc) => {
+                  const isVerified = doc.status === 'Verified';
+                  const isRejected = doc.status === 'Rejected';
+                  return (
+                    <div
+                      key={doc.id}
+                      className="p-4 rounded-2xl border border-slate-200 bg-white shadow-xs hover:border-slate-300 transition space-y-3"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
+                            isVerified ? 'bg-emerald-50 text-emerald-600' : isRejected ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'
+                          }`}>
+                            <FileText className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-900">{doc.documentTypeName}</h4>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              {doc.fileName} • {(doc.fileSizeBytes / 1024).toFixed(0)} KB • Uploaded on {new Date(doc.uploadedAtUtc).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                              isVerified
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : isRejected
+                                ? 'bg-red-50 text-red-700 border-red-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}
+                          >
+                            {isVerified ? (
+                              <CheckCircle className="h-3.5 w-3.5" />
+                            ) : isRejected ? (
+                              <XCircle className="h-3.5 w-3.5" />
+                            ) : (
+                              <Clock className="h-3.5 w-3.5" />
+                            )}
+                            {doc.status}
+                          </span>
+
+                          <a
+                            href={doc.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            View
+                          </a>
+
+                          {isManagerOrAdmin && (
+                            <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-slate-200">
+                              <button
+                                onClick={() =>
+                                  setReviewModal({
+                                    isOpen: true,
+                                    doc,
+                                    decision: 'Verified',
+                                    notes: 'Document details verified against official Sri Lanka records.',
+                                    loading: false,
+                                    error: null,
+                                  })
+                                }
+                                disabled={isVerified}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-[11px] font-bold rounded-lg transition"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setReviewModal({
+                                    isOpen: true,
+                                    doc,
+                                    decision: 'Rejected',
+                                    notes: '',
+                                    loading: false,
+                                    error: null,
+                                  })
+                                }
+                                disabled={isRejected}
+                                className="px-2.5 py-1 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-[11px] font-bold rounded-lg transition"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {doc.reviewerNotes && (
+                        <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-600 flex items-start gap-1.5 bg-slate-50/50 p-2.5 rounded-xl">
+                          <span className="font-bold text-slate-700 shrink-0">Review Note:</span>
+                          <span>{doc.reviewerNotes}</span>
+                          {doc.reviewedBy && (
+                            <span className="text-slate-400 ml-auto italic">Reviewed by {doc.reviewedBy}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -385,6 +647,172 @@ export const RepresentativeDetailPage: React.FC = () => {
             fetchRepresentative();
           }}
         />
+      )}
+
+      {/* Document Upload Modal */}
+      {isUploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <UploadCloud className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Upload Verification Document</h3>
+                  <p className="text-[11px] text-slate-500">Representative identity & trust credentials</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsUploadModalOpen(false)}
+                className="h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUploadSubmit} className="p-5 space-y-4">
+              {uploadError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                  <span>{uploadError}</span>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">Document Type *</label>
+                <select
+                  value={uploadDocType}
+                  onChange={(e) => setUploadDocType(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500 transition"
+                >
+                  <option value="NationalId">National Identity Card (Front & Back)</option>
+                  <option value="PoliceClearance">Local Police Clearance Certificate</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">Select Document File (PDF, JPG, PNG - Max 10MB) *</label>
+                <input
+                  type="file"
+                  required
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                  className="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-500">
+                Uploaded documents will be reviewed by an authorized operations manager before granting on-ground inspection permissions.
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsUploadModalOpen(false)}
+                  disabled={uploadLoading}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadLoading || !uploadFile}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition"
+                >
+                  {uploadLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Upload Document
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Review Document Modal */}
+      {reviewModal.isOpen && reviewModal.doc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${
+                  reviewModal.decision === 'Verified' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+                }`}>
+                  {reviewModal.decision === 'Verified' ? <CheckCircle className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    {reviewModal.decision === 'Verified' ? 'Approve Verification Document' : 'Reject Verification Document'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">{reviewModal.doc.documentTypeName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setReviewModal((prev) => ({ ...prev, isOpen: false }))}
+                className="h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleReviewSubmit} className="p-5 space-y-4">
+              {reviewModal.error && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                  <span>{reviewModal.error}</span>
+                </div>
+              )}
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs space-y-1">
+                <span className="font-bold text-slate-700">Document: {reviewModal.doc.fileName}</span>
+                <p className="text-[11px] text-slate-500">
+                  Decision will update the verification status and notify the local representative.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">
+                  {reviewModal.decision === 'Verified' ? 'Verification Notes / Reference' : 'Rejection Reason (Required)'} *
+                </label>
+                <textarea
+                  rows={3}
+                  required={reviewModal.decision === 'Rejected'}
+                  placeholder={
+                    reviewModal.decision === 'Verified'
+                      ? 'e.g. Verified with Department of Registration of Persons / Police Division records.'
+                      : 'e.g. Scanned copy is illegible or document validity period has expired.'
+                  }
+                  value={reviewModal.notes}
+                  onChange={(e) => setReviewModal((prev) => ({ ...prev, notes: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition resize-none"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setReviewModal((prev) => ({ ...prev, isOpen: false }))}
+                  disabled={reviewModal.loading}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={reviewModal.loading}
+                  className={`px-4 py-2 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition ${
+                    reviewModal.decision === 'Verified'
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  {reviewModal.loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Confirm {reviewModal.decision}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

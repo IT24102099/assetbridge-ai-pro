@@ -293,6 +293,7 @@ export enum FollowUpPriority {
   Low = 1,
   Medium = 2,
   High = 3,
+  Critical = 4,
   Urgent = 4
 }
 
@@ -354,4 +355,67 @@ export interface WorkflowDashboardMetricsDto {
   recentWorkflows: WorkflowInstanceDto[];
   pendingApprovals: ApprovalRequestDto[];
   urgentFollowUps: FollowUpTaskDto[];
+}
+
+// Component 4: Workflow Simplification & Continuity Agent Interfaces
+export interface WorkflowAssociatedContextDto {
+  incident_id: string;
+  incident_title: string;
+  incident_priority: string;
+  asset_id: string;
+  asset_name: string;
+  asset_city: string;
+  quotation_id?: string | null;
+  quotation_title?: string | null;
+  quotation_amount?: number | null;
+  quotation_status?: string | null;
+  maintenance_job_id?: string | null;
+  maintenance_job_title?: string | null;
+  maintenance_job_status?: string | null;
+  scheduled_dates?: string | null;
+  provider_name?: string | null;
+}
+
+export interface WorkflowNextBestActionDto {
+  title: string;
+  action_code: string;
+  description: string;
+  why_it_matters: string;
+  prerequisites: string[];
+  what_happens_next: string;
+  confidence_score: number;
+  target_url?: string | null;
+}
+
+export interface WorkflowAiAssistanceDto {
+  workflow_instance_id: string;
+  current_state: string;
+  current_stage_label: string;
+  plain_language_summary: string;
+  associated_context: WorkflowAssociatedContextDto;
+  completed_milestones: string[];
+  pending_requirements: string[];
+  blockers: string[];
+  responsible_role: string;
+  recommended_next_action: WorkflowNextBestActionDto;
+  audit_summary: string;
+  active_follow_ups_count: number;
+  is_ai_service_connected: boolean;
+  provider_used: string;
+  model_used: string;
+}
+
+export interface WorkflowAiAskRequestDto {
+  question: string;
+  workflow_instance_id: string;
+}
+
+export interface WorkflowAiAskResponseDto {
+  question: string;
+  answer: string;
+  context_facts_used: string[];
+  suggested_next_step?: string | null;
+  suggested_role?: string | null;
+  direct_action_available: boolean;
+  action_code?: string | null;
 }

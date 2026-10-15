@@ -12,8 +12,8 @@ public class RepresentativeQueryParametersDto
     public string? SearchTerm { get => Search; set => Search = value; }
     public string? District { get; set; }
     public string? City { get; set; }
+    public string? Status { get; set; }
     public VerificationStatus? VerificationStatus { get; set; }
-    public VerificationStatus? Status { get => VerificationStatus; set => VerificationStatus = value; }
     public bool? IsActive { get; set; }
 
     public int PageNumber { get; set; } = 1;

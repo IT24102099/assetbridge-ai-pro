@@ -94,4 +94,61 @@ public class RepresentativesController : BaseApiController
         var result = await _representativeService.DeleteRepresentativeAsync(id, cancellationToken);
         return HandleSuccess(result, "Representative profile deleted successfully.");
     }
+
+    [HttpPost("{id:guid}/documents")]
+    [Authorize(Roles = "Representative,Manager,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<RepresentativeDocumentResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UploadVerificationDocument(
+        Guid id,
+        [FromForm] IFormFile file,
+        [FromForm] string documentType,
+        CancellationToken cancellationToken)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "No document file was provided for upload."
+            });
+        }
+
+        await using var stream = file.OpenReadStream();
+        var result = await _representativeService.UploadVerificationDocumentAsync(
+            id,
+            stream,
+            file.FileName,
+            file.ContentType,
+            file.Length,
+            documentType,
+            cancellationToken);
+
+        return HandleCreated($"/api/representatives/{id}/documents/{result.Id}", result, "Verification document uploaded successfully.");
+    }
+
+    [HttpGet("{id:guid}/documents")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<RepresentativeDocumentResponseDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetVerificationDocuments(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _representativeService.GetVerificationDocumentsAsync(id, cancellationToken);
+        return HandleSuccess(result, "Verification documents retrieved successfully.");
+    }
+
+    [HttpPatch("{id:guid}/documents/{documentId:guid}/review")]
+    [Authorize(Roles = "Manager,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<RepresentativeDocumentResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ReviewVerificationDocument(
+        Guid id,
+        Guid documentId,
+        [FromBody] ReviewRepresentativeDocumentRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _representativeService.ReviewVerificationDocumentAsync(id, documentId, request, cancellationToken);
+        return HandleSuccess(result, "Document verification status updated successfully.");
+    }
 }

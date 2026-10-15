@@ -57,3 +57,25 @@ export interface RepresentativeQueryParametersDto {
   status?: VerificationStatus | string;
   isActive?: boolean;
 }
+
+export interface RepresentativeDocumentResponseDto {
+  id: string;
+  representativeId: string;
+  documentType: 'NationalId' | 'PoliceClearance' | string;
+  documentTypeName: string;
+  fileName: string;
+  fileUrl: string;
+  fileSizeBytes: number;
+  contentType: string;
+  status: 'Pending Review' | 'Verified' | 'Rejected' | string;
+  reviewerNotes?: string | null;
+  reviewedBy?: string | null;
+  uploadedAtUtc: string;
+  reviewedAtUtc?: string | null;
+}
+
+export interface ReviewRepresentativeDocumentRequestDto {
+  status: 'Verified' | 'Rejected';
+  notes?: string;
+}
+

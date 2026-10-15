@@ -17,7 +17,10 @@ import {
   CreateToolExecutionDto,
   WorkflowDashboardMetricsDto,
   FollowUpTaskDto,
-  CreateFollowUpTaskDto
+  CreateFollowUpTaskDto,
+  WorkflowAiAssistanceDto,
+  WorkflowAiAskRequestDto,
+  WorkflowAiAskResponseDto
 } from '../../types/workflow';
 
 export const workflowApi = {
@@ -103,6 +106,21 @@ export const workflowApi = {
   // Dashboard Metrics
   getDashboardMetrics: async (): Promise<ApiResponse<WorkflowDashboardMetricsDto>> => {
     const response = await apiClient.get<ApiResponse<WorkflowDashboardMetricsDto>>('/workflows/dashboard/metrics');
+    return response.data;
+  },
+
+  // Component 4: Workflow Simplification & Continuity Agent
+  getAiAssistance: async (id: string): Promise<ApiResponse<WorkflowAiAssistanceDto>> => {
+    const response = await apiClient.get<ApiResponse<WorkflowAiAssistanceDto>>(`/workflows/${id}/ai-assistance`);
+    return response.data;
+  },
+
+  askWorkflowAgent: async (id: string, question: string): Promise<ApiResponse<WorkflowAiAskResponseDto>> => {
+    const payload: WorkflowAiAskRequestDto = {
+      question,
+      workflow_instance_id: id
+    };
+    const response = await apiClient.post<ApiResponse<WorkflowAiAskResponseDto>>(`/workflows/${id}/ai-ask`, payload);
     return response.data;
   }
 };

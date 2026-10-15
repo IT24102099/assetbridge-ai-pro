@@ -108,7 +108,14 @@ public class DatabaseSeeder : IDatabaseSeeder
 
             // Quotation comparison commercial partner accounts
             ("partner@assetbridge.lk", "Apex Engineering & Facilities", UserRole.ServiceProvider, "+94719992222"),
-            ("associate@assetbridge.lk", "Islandwide Technical Services", UserRole.ServiceProvider, "+94761113333")
+            ("associate@assetbridge.lk", "Islandwide Technical Services", UserRole.ServiceProvider, "+94761113333"),
+
+            // Directory filtering test representatives with varied statuses
+            ("suresh.rep@assetbridge.lk", "Suresh Kumar", UserRole.Representative, "+94778881122"),
+            ("ravi.rep@assetbridge.lk", "Ravi Chandran", UserRole.Representative, "+94779993344"),
+
+            // Directory filtering test service provider with Pending status
+            ("lanka.renovations@assetbridge.lk", "Lanka Rapid Renovations", UserRole.ServiceProvider, "+94715554433")
         };
 
         const string demoPassword = "SecurePassword123!";
@@ -163,41 +170,121 @@ public class DatabaseSeeder : IDatabaseSeeder
 
     private async Task SeedDemoRepresentativeAsync(CancellationToken cancellationToken)
     {
-        var repUser = await _context.Users
+        // 1. Kamsiga Ganesan (Verified, Active - Kandy)
+        var repUser1 = await _context.Users
             .FirstOrDefaultAsync(u => u.Email == "rep@assetbridge.lk" || u.Email == "rep@assetbridge.ai", cancellationToken);
 
-        if (repUser == null) return;
-
-        var rep = await _context.Representatives
-            .FirstOrDefaultAsync(r => r.UserId == repUser.Id, cancellationToken);
-
-        if (rep == null)
+        if (repUser1 != null)
         {
-            rep = new Representative
+            var rep1 = await _context.Representatives
+                .FirstOrDefaultAsync(r => r.UserId == repUser1.Id, cancellationToken);
+
+            if (rep1 == null)
             {
-                Id = Guid.NewGuid(),
-                UserId = repUser.Id,
-                FullName = "Kamsiga Ganesan",
-                PhoneNumber = "+94 77 123 4564",
-                Email = repUser.Email,
-                District = "Kandy",
-                City = "Kandy",
-                Address = "123, Peradeniya Road, Kandy",
-                NationalIdNumber = null,
-                VerificationStatus = VerificationStatus.Verified,
-                VerificationNotes = "Verified on-site property representative in Central Province.",
-                Bio = "Experienced local representative covering Kandy and Central Province, coordinating owner inspections and contractor oversight.",
-                IsActive = true,
-                CreatedAtUtc = DateTime.UtcNow.AddMonths(-6)
-            };
-            await _context.Representatives.AddAsync(rep, cancellationToken);
-            _logger.LogInformation("Created demo representative Kamsiga Ganesan.");
+                rep1 = new Representative
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = repUser1.Id,
+                    FullName = "Kamsiga Ganesan",
+                    PhoneNumber = "+94 77 123 4564",
+                    Email = repUser1.Email,
+                    District = "Kandy",
+                    City = "Kandy",
+                    Address = "123, Peradeniya Road, Kandy",
+                    NationalIdNumber = "200065432100",
+                    VerificationStatus = VerificationStatus.Verified,
+                    VerificationNotes = "Verified on-site property representative in Central Province.",
+                    Bio = "Experienced local representative covering Kandy and Central Province, coordinating owner inspections and contractor oversight.",
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-6)
+                };
+                await _context.Representatives.AddAsync(rep1, cancellationToken);
+                _logger.LogInformation("Created demo representative Kamsiga Ganesan (Verified, Active).");
+            }
+            else
+            {
+                rep1.FullName = "Kamsiga Ganesan";
+                rep1.VerificationStatus = VerificationStatus.Verified;
+                rep1.IsActive = true;
+            }
         }
-        else
+
+        // 2. Suresh Kumar (Pending Verification, Active - Colombo)
+        var repUser2 = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email == "suresh.rep@assetbridge.lk", cancellationToken);
+
+        if (repUser2 != null)
         {
-            rep.FullName = "Kamsiga Ganesan";
-            rep.VerificationStatus = VerificationStatus.Verified;
-            rep.IsActive = true;
+            var rep2 = await _context.Representatives
+                .FirstOrDefaultAsync(r => r.UserId == repUser2.Id, cancellationToken);
+
+            if (rep2 == null)
+            {
+                rep2 = new Representative
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = repUser2.Id,
+                    FullName = "Suresh Kumar",
+                    PhoneNumber = "+94 77 888 1122",
+                    Email = repUser2.Email,
+                    District = "Colombo",
+                    City = "Colombo",
+                    Address = "54, Galle Road, Colombo 03",
+                    NationalIdNumber = "199412345678",
+                    VerificationStatus = VerificationStatus.Pending,
+                    VerificationNotes = "Onboarding documents submitted; pending manager review.",
+                    Bio = "Western Province representative specializing in commercial property maintenance and Colombo high-rise apartments.",
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-2)
+                };
+                await _context.Representatives.AddAsync(rep2, cancellationToken);
+                _logger.LogInformation("Created demo representative Suresh Kumar (Pending, Active).");
+            }
+            else
+            {
+                rep2.FullName = "Suresh Kumar";
+                rep2.VerificationStatus = VerificationStatus.Pending;
+                rep2.IsActive = true;
+            }
+        }
+
+        // 3. Ravi Chandran (Rejected, Inactive - Galle)
+        var repUser3 = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email == "ravi.rep@assetbridge.lk", cancellationToken);
+
+        if (repUser3 != null)
+        {
+            var rep3 = await _context.Representatives
+                .FirstOrDefaultAsync(r => r.UserId == repUser3.Id, cancellationToken);
+
+            if (rep3 == null)
+            {
+                rep3 = new Representative
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = repUser3.Id,
+                    FullName = "Ravi Chandran",
+                    PhoneNumber = "+94 77 999 3344",
+                    Email = repUser3.Email,
+                    District = "Galle",
+                    City = "Galle",
+                    Address = "72, Main Street, Galle Fort",
+                    NationalIdNumber = "198898765432",
+                    VerificationStatus = VerificationStatus.Rejected,
+                    VerificationNotes = "National identity document copy expired; requested re-submission.",
+                    Bio = "Southern Province representative covering coastal villas and residential estates.",
+                    IsActive = false,
+                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-4)
+                };
+                await _context.Representatives.AddAsync(rep3, cancellationToken);
+                _logger.LogInformation("Created demo representative Ravi Chandran (Rejected, Inactive).");
+            }
+            else
+            {
+                rep3.FullName = "Ravi Chandran";
+                rep3.VerificationStatus = VerificationStatus.Rejected;
+                rep3.IsActive = false;
+            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -208,6 +295,7 @@ public class DatabaseSeeder : IDatabaseSeeder
         var p1User = await _context.Users.FirstOrDefaultAsync(u => u.Email == "provider@assetbridge.lk" || u.Email == "provider@assetbridge.ai", cancellationToken);
         var p2User = await _context.Users.FirstOrDefaultAsync(u => u.Email == "partner@assetbridge.lk", cancellationToken);
         var p3User = await _context.Users.FirstOrDefaultAsync(u => u.Email == "associate@assetbridge.lk", cancellationToken);
+        var p4User = await _context.Users.FirstOrDefaultAsync(u => u.Email == "lanka.renovations@assetbridge.lk", cancellationToken);
 
         if (p1User == null) return;
 
@@ -322,6 +410,44 @@ public class DatabaseSeeder : IDatabaseSeeder
                 p3.VerificationStatus = VerificationStatus.Verified;
                 p3.Rating = 4.4;
                 p3.IsActive = true;
+            }
+        }
+
+        // Provider 4: Lanka Rapid Renovations (Nimal Silva - Pending)
+        if (p4User != null)
+        {
+            var p4 = await _context.ServiceProviders.FirstOrDefaultAsync(p => p.UserId == p4User.Id, cancellationToken);
+            if (p4 == null)
+            {
+                p4 = new ServiceProvider
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = p4User.Id,
+                    BusinessName = "Lanka Rapid Renovations",
+                    ContactPerson = "Nimal Silva",
+                    PhoneNumber = "+94 71 555 4433",
+                    Email = "lanka.renovations@assetbridge.lk",
+                    PrimaryDistrict = "Galle",
+                    City = "Galle",
+                    Address = "214, Matara Road, Galle",
+                    BaseLatitude = 6.0350,
+                    BaseLongitude = 80.2200,
+                    ServiceRadiusKm = 45.0,
+                    VerificationStatus = VerificationStatus.Pending,
+                    VerificationNotes = "Contractor license submitted; pending business verification audit.",
+                    Rating = 0.0,
+                    CompletedJobsCount = 0,
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow.AddMonths(-1)
+                };
+                await _context.ServiceProviders.AddAsync(p4, cancellationToken);
+            }
+            else
+            {
+                p4.BusinessName = "Lanka Rapid Renovations";
+                p4.ContactPerson = "Nimal Silva";
+                p4.VerificationStatus = VerificationStatus.Pending;
+                p4.IsActive = true;
             }
         }
 
@@ -1022,6 +1148,93 @@ public class DatabaseSeeder : IDatabaseSeeder
             _logger.LogInformation("Seeded demo workflow instance for incident {IncidentTitle}.", inc1.Title);
         }
 
+        // 5. Seed Property Continuity & Follow-Up Tasks
+        await SeedDemoFollowUpTasksAsync(cancellationToken);
+
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SeedDemoFollowUpTasksAsync(CancellationToken cancellationToken)
+    {
+        var hasFollowUps = await _context.FollowUpTasks.AnyAsync(cancellationToken);
+        if (hasFollowUps) return;
+
+        var kandyVilla = await _context.Assets.FirstOrDefaultAsync(a => a.Name.Contains("Villa") || a.City == "Kandy", cancellationToken);
+        var colomboApt = await _context.Assets.FirstOrDefaultAsync(a => a.Name.Contains("Colombo") || a.City == "Colombo", cancellationToken);
+        var galleBungalow = await _context.Assets.FirstOrDefaultAsync(a => a.Name.Contains("Galle") || a.City == "Galle", cancellationToken);
+
+        if (kandyVilla == null) return;
+
+        var repUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == "rep@assetbridge.lk" || u.Email == "rep@assetbridge.ai", cancellationToken);
+        var existingWf = await _context.WorkflowInstances.FirstOrDefaultAsync(cancellationToken);
+
+        var demoTasks = new List<FollowUpTask>
+        {
+            new FollowUpTask
+            {
+                Id = Guid.NewGuid(),
+                WorkflowInstanceId = existingWf?.Id,
+                AssetId = kandyVilla.Id,
+                Title = "6-Month Concealed Pipe Waterproofing Warranty Inspection",
+                Description = "Inspect under-sink cabinetry, drain junctions, and wall moisture readings to ensure zero secondary seepage under contractor guarantee.",
+                DueDateUtc = DateTime.UtcNow.AddDays(14),
+                Status = FollowUpStatus.Pending,
+                Priority = FollowUpPriority.High,
+                AssignedToUserId = repUser?.Id,
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-2)
+            },
+            new FollowUpTask
+            {
+                Id = Guid.NewGuid(),
+                AssetId = kandyVilla.Id,
+                Title = "Pre-Monsoon Roof Gutter & Terracotta Alignment Audit",
+                Description = "Inspect realigned verandah terracotta eaves tiles and clean storm downspouts to prevent rainwater backup.",
+                DueDateUtc = DateTime.UtcNow.AddDays(4),
+                Status = FollowUpStatus.InProgress,
+                Priority = FollowUpPriority.Critical,
+                AssignedToUserId = repUser?.Id,
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-5)
+            },
+            new FollowUpTask
+            {
+                Id = Guid.NewGuid(),
+                AssetId = (colomboApt ?? kandyVilla).Id,
+                Title = "Coastal Surge Protection & Main DB Earthing Test",
+                Description = "Measure earth ground resistance at distribution board and inspect transient voltage surge protection device.",
+                DueDateUtc = DateTime.UtcNow.AddDays(-3), // Overdue
+                Status = FollowUpStatus.Pending,
+                Priority = FollowUpPriority.Critical,
+                AssignedToUserId = repUser?.Id,
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-10)
+            },
+            new FollowUpTask
+            {
+                Id = Guid.NewGuid(),
+                AssetId = (colomboApt ?? kandyVilla).Id,
+                Title = "Quarterly Inverter HVAC Servicing & Coil Anti-Corrosion Treatment",
+                Description = "Chemical coil treatment against ocean salt air corrosion, drain line flushing, and HEPA filter sterilization.",
+                DueDateUtc = DateTime.UtcNow.AddDays(-12),
+                Status = FollowUpStatus.Completed,
+                Priority = FollowUpPriority.Medium,
+                CompletedAtUtc = DateTime.UtcNow.AddDays(-12),
+                AssignedToUserId = repUser?.Id,
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-20)
+            },
+            new FollowUpTask
+            {
+                Id = Guid.NewGuid(),
+                AssetId = (galleBungalow ?? kandyVilla).Id,
+                Title = "Heritage Villa Solar Hybrid Inverter Inspection",
+                Description = "Verify rooftop solar photovoltaic string output and lithium-iron battery charge synchronization after grid fluctuations.",
+                DueDateUtc = DateTime.UtcNow.AddDays(28),
+                Status = FollowUpStatus.Pending,
+                Priority = FollowUpPriority.Low,
+                AssignedToUserId = repUser?.Id,
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-1)
+            }
+        };
+
+        await _context.FollowUpTasks.AddRangeAsync(demoTasks, cancellationToken);
+        _logger.LogInformation("Seeded 5 realistic property continuity follow-up tasks.");
     }
 }

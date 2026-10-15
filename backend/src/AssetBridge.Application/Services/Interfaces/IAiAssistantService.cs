@@ -8,4 +8,5 @@ public interface IAiAssistantService
     Task<AiOrchestrationResponseDto> OrchestrateWorkflowAsync(AiOrchestrationRequestDto request, string callerUserId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RagDocumentDto>> GetDocumentsAsync(CancellationToken cancellationToken = default);
     Task<(byte[] Bytes, string ContentType, string FileName)> DownloadDocumentAsync(string documentId, CancellationToken cancellationToken = default);
+    Task<AiHealthDto> CheckHealthAsync(CancellationToken cancellationToken = default);
 }

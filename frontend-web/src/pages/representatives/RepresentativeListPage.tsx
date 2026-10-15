@@ -115,6 +115,8 @@ export const RepresentativeListPage: React.FC = () => {
             <option value="Inactive">Inactive</option>
             <option value="Pending">Pending</option>
             <option value="Verified">Verified</option>
+            <option value="Rejected">Rejected</option>
+            <option value="Unverified">Unverified</option>
           </select>
         </div>
       </div>

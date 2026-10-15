@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { Bot, FileText, Send, Sparkles, AlertCircle, Download, RefreshCw } from 'lucide-react';
-import { aiApi, AiChatMessage } from '../../lib/api/aiApi';
+import React, { useState, useEffect } from 'react';
+import { Bot, FileText, Send, Sparkles, AlertCircle, Download, RefreshCw, ShieldCheck } from 'lucide-react';
+import { aiApi, AiChatMessage, AiHealthResponse } from '../../lib/api/aiApi';
 
 export const AiAssistantPage: React.FC = () => {
   const [query, setQuery] = useState('');
   const [lastQuery, setLastQuery] = useState<string>('');
   const [isTyping, setIsTyping] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [health, setHealth] = useState<AiHealthResponse | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
   const [messages, setMessages] = useState<AiChatMessage[]>([
     {
       role: 'ai',
@@ -14,6 +16,24 @@ export const AiAssistantPage: React.FC = () => {
       sources: []
     }
   ]);
+
+  const checkHealthStatus = async () => {
+    try {
+      setCheckingHealth(true);
+      const res = await aiApi.getHealth();
+      if (res.success && res.data) {
+        setHealth(res.data);
+      }
+    } catch {
+      // Ignored - fallback active
+    } finally {
+      setCheckingHealth(false);
+    }
+  };
+
+  useEffect(() => {
+    checkHealthStatus();
+  }, []);
 
   const handleSend = async (e: React.FormEvent, customQuery?: string) => {
     if (e) e.preventDefault();
@@ -100,28 +120,51 @@ export const AiAssistantPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
           <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-2xs">
             <Bot className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">AI Assistant</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">AI Assistant</h1>
+              {health && (
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  health.microservice_reachable
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${health.microservice_reachable ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                  {health.microservice_reachable ? 'AI Microservice Online' : 'Domain Fallback Engine Active'}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-500">Real-time Question-Aware RAG Diagnostic & Maintenance Platform</p>
           </div>
         </div>
 
-        <button
-          onClick={() => setMessages([{
-            role: 'ai',
-            content: 'Conversation reset. How can I assist with your asset maintenance or incident today?',
-            sources: []
-          }])}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition shadow-2xs"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Reset Chat
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => checkHealthStatus()}
+            disabled={checkingHealth}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition shadow-2xs"
+            title="Check AI service connectivity"
+          >
+            <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
+            Check Health
+          </button>
+          <button
+            onClick={() => setMessages([{
+              role: 'ai',
+              content: 'Conversation reset. How can I assist with your asset maintenance or incident today?',
+              sources: []
+            }])}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition shadow-2xs"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Reset Chat
+          </button>
+        </div>
       </div>
 
       {/* Main AI Card */}
@@ -264,6 +307,25 @@ export const AiAssistantPage: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Error Alert Banner with Retry Action */}
+        {errorMsg && (
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between text-xs text-amber-800">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+            {lastQuery && (
+              <button
+                type="button"
+                onClick={(e) => handleSend(e, lastQuery)}
+                className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] transition shrink-0"
+              >
+                Retry Question
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Quick Question Starters */}
         <div className="pt-2 border-t border-slate-100 space-y-2">

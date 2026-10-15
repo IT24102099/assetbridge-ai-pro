@@ -220,3 +220,30 @@ public class AiOrchestrationResponseDto
     [JsonPropertyName("follow_up_scheduled")]
     public bool FollowUpScheduled { get; set; }
 }
+
+public class AiHealthDto
+{
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "Healthy";
+
+    [JsonPropertyName("service")]
+    public string Service { get; set; } = "AssetBridge-AI-Service";
+
+    [JsonPropertyName("microservice_reachable")]
+    public bool MicroserviceReachable { get; set; }
+
+    [JsonPropertyName("mode")]
+    public string Mode { get; set; } = "Online";
+
+    [JsonPropertyName("registered_agents_count")]
+    public int RegisteredAgentsCount { get; set; } = 4;
+
+    [JsonPropertyName("rag_collections_count")]
+    public int RagCollectionsCount { get; set; } = 4;
+
+    [JsonPropertyName("architecture")]
+    public string Architecture { get; set; } = "4-Agent + 4-RAG Vector Platform";
+
+    [JsonPropertyName("governance_rule")]
+    public string GovernanceRule { get; set; } = "AI recommends -> Backend validates -> Human approves -> Backend executes -> Audit records";
+}

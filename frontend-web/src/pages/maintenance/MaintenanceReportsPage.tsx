@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { maintenanceApi } from '../../lib/api/maintenanceApi';
 import { quotationApi } from '../../lib/api/quotationApi';
-import { MaintenanceJobResponseDto, MaintenanceJobStatus } from '../../types/maintenance';
+import { MaintenanceJobResponseDto } from '../../types/maintenance';
 import { QuotationResponseDto } from '../../types/quotation';
 import { StatCard } from '../../components/common/StatCard';
 import { LoadingState, ErrorState, EmptyState } from '../../components/common/FeedbackStates';
@@ -54,12 +54,29 @@ export default function MaintenanceReportsPage() {
     return <ErrorState message={error} onRetry={loadReportData} />;
   }
 
-  const completedJobs = jobs.filter(
-    (j) => j.status === MaintenanceJobStatus.Completed || j.status === MaintenanceJobStatus.Closed
-  );
+  const normalizeJobStatus = (status: any, statusName?: string): string => {
+    const val = String(statusName || status || '').toLowerCase();
+    if (val === '1' || val === 'planned') return 'Planned';
+    if (val === '2' || val === 'scheduled') return 'Scheduled';
+    if (val === '3' || val === 'inprogress' || val === 'in progress') return 'InProgress';
+    if (val === '4' || val === 'completed') return 'Completed';
+    if (val === '5' || val === 'cancelled') return 'Cancelled';
+    if (val === '6' || val === 'closed') return 'Closed';
+    return 'Planned';
+  };
+
+  const completedJobs = jobs.filter((j) => {
+    const s = normalizeJobStatus(j.status, j.statusName);
+    return s === 'Completed' || s === 'Closed';
+  });
+
+  const inProgressJobs = jobs.filter((j) => {
+    const s = normalizeJobStatus(j.status, j.statusName);
+    return s === 'InProgress';
+  });
 
   const totalSpentLkr = completedJobs.reduce(
-    (acc, j) => acc + (j.actualCost || j.approvedBudget || 0),
+    (acc, j) => acc + (j.actualCost && j.actualCost > 0 ? j.actualCost : (j.approvedBudget || 0)),
     0
   );
 
@@ -72,7 +89,8 @@ export default function MaintenanceReportsPage() {
   const costByProvider: Record<string, number> = {};
   jobs.forEach((j) => {
     const prov = j.providerBusinessName || 'Unassigned';
-    costByProvider[prov] = (costByProvider[prov] || 0) + (j.actualCost || j.approvedBudget || 0);
+    const amount = (j.actualCost && j.actualCost > 0) ? j.actualCost : (j.approvedBudget || 0);
+    costByProvider[prov] = (costByProvider[prov] || 0) + amount;
   });
 
   return (
@@ -90,28 +108,36 @@ export default function MaintenanceReportsPage() {
         <StatCard
           title="Total Maintenance Spend"
           value={`LKR ${totalSpentLkr.toLocaleString('en-US', { minimumFractionDigits: 0 })}`}
-          subtitle={`${completedJobs.length} completed work orders`}
+          subtitle={
+            completedJobs.length > 0
+              ? `${completedJobs.length} completed work orders (actual billed cost)`
+              : '0 completed orders (awaiting job sign-offs)'
+          }
           icon={DollarSign}
           variant="emerald"
         />
         <StatCard
           title="Average Cost / Job"
           value={`LKR ${avgJobCostLkr.toLocaleString('en-US', { maximumFractionDigits: 0 })}`}
-          subtitle="Mean repair expenditure"
+          subtitle={
+            completedJobs.length > 0
+              ? 'Mean expenditure per completed repair'
+              : 'Calculated upon first completed work order'
+          }
           icon={TrendingUp}
           variant="blue"
         />
         <StatCard
           title="Committed Budget"
           value={`LKR ${totalApprovedBudgetLkr.toLocaleString('en-US', { minimumFractionDigits: 0 })}`}
-          subtitle={`${jobs.length} total work orders`}
+          subtitle={`${jobs.length} total work orders authorized`}
           icon={Layers}
           variant="purple"
         />
         <StatCard
           title="Active Work In-Progress"
-          value={jobs.filter((j) => j.status === MaintenanceJobStatus.InProgress).length}
-          subtitle="Current contractor dispatches"
+          value={inProgressJobs.length}
+          subtitle="Contractors currently executing on-site"
           icon={Wrench}
           variant="amber"
         />

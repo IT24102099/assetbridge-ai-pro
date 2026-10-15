@@ -8,7 +8,8 @@ import {
   Star,
   Building2,
   ShieldCheck,
-  Plus
+  Plus,
+  Info
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { quotationApi } from '../../lib/api/quotationApi';
@@ -291,6 +292,62 @@ export default function CompareQuotationsPage() {
             onAction={() => navigate('/quotations')}
           />
         )
+      ) : comparisonResult.candidates.length === 1 ? (
+        <div className="space-y-6">
+          <div className="p-6 rounded-3xl bg-amber-50 border border-amber-200 text-amber-900 space-y-4 shadow-xs">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-amber-900">
+                  Single Quotation Available — Comparative Evaluation Requires 2+ Contractor Bids
+                </h3>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Only one quotation from <strong>{comparisonResult.candidates[0].providerBusinessName}</strong> has been submitted for this incident. Side-by-side competitive evaluation requires at least two contractor quotations to evaluate price variance, warranty, and score trade-offs.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Submitted Quote Total</span>
+                <span className="text-xl font-bold text-slate-900">
+                  LKR {comparisonResult.candidates[0].totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </span>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Contractor: <strong className="text-slate-800">{comparisonResult.candidates[0].providerBusinessName}</strong> • Rating: ★ {comparisonResult.candidates[0].providerRating?.toFixed(1) || '4.5'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => navigate(`/quotations/${comparisonResult.candidates[0].quotationId}`)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
+                >
+                  View Quotation Details
+                </button>
+                <button
+                  onClick={() => navigate('/quotations')}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                >
+                  Invite Another Contractor
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Internal Market Estimates Transparency Section */}
+          <div className="p-5 rounded-3xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-slate-800">
+              <Info className="h-4 w-4 text-blue-600 shrink-0" />
+              <span>Internal Market Estimates Reference Benchmark (Colombo Metropolitan Area, 2026)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Reference estimates displayed in the platform are derived from CIDA-indexed indicative unit rates (2026 benchmark) for the Colombo and Western Province area. They serve as an analytical sanity check to assist overseas property owners in assessing contractor cost variance, and do not represent binding statutory certifications or replace human authorization.
+            </p>
+          </div>
+        </div>
       ) : (
         <>
           {/* AI Recommendation Banner */}
@@ -444,6 +501,17 @@ export default function CompareQuotationsPage() {
                 );
               })}
             </div>
+          </div>
+
+          {/* Internal Market Estimates Transparency Section */}
+          <div className="p-5 rounded-3xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-slate-800">
+              <Info className="h-4 w-4 text-blue-600 shrink-0" />
+              <span>Internal Market Estimates Reference Benchmark (Colombo Metropolitan Area, 2026)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Reference estimates displayed in the platform are derived from CIDA-indexed indicative unit rates (2026 benchmark) for the Colombo and Western Province area. They serve as an analytical sanity check to assist overseas property owners in assessing contractor cost variance, and do not represent binding statutory certifications or replace human authorization.
+            </p>
           </div>
         </>
       )}

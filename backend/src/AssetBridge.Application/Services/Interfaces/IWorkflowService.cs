@@ -28,4 +28,8 @@ public interface IWorkflowService
 
     // Dashboard metrics
     Task<WorkflowDashboardMetricsDto> GetDashboardMetricsAsync(Guid currentUserId, string currentUserRole);
+
+    // Component 4: Workflow Simplification & Continuity Agent
+    Task<WorkflowAiAssistanceDto> GetWorkflowAiAssistanceAsync(Guid workflowId, Guid currentUserId, string currentUserRole);
+    Task<WorkflowAiAskResponseDto> AskWorkflowAgentAsync(Guid workflowId, WorkflowAiAskRequestDto request, Guid currentUserId, string currentUserRole);
 }
