@@ -202,7 +202,7 @@ export const ProviderAvailabilityPage: React.FC = () => {
       </div>
 
       {/* Main Container matching Screen 8 wireframe */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6 max-w-4xl mx-auto">
+      <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 max-w-3xl mx-auto">
         {/* Provider Selector Dropdown matching Screen 8 wireframe */}
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
@@ -249,7 +249,7 @@ export const ProviderAvailabilityPage: React.FC = () => {
         {/* Calendar Grid matching Screen 8 wireframe */}
         <div>
           {/* Day Headers */}
-          <div className="grid grid-cols-7 gap-2 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
             <div>Sun</div>
             <div>Mon</div>
             <div>Tue</div>
@@ -260,10 +260,10 @@ export const ProviderAvailabilityPage: React.FC = () => {
           </div>
 
           {/* Days Grid */}
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
             {/* Blank offset days */}
             {Array.from({ length: firstDayIndex }).map((_, idx) => (
-              <div key={`blank-${idx}`} className="h-14 sm:h-16 rounded-xl bg-slate-50/50" />
+              <div key={`blank-${idx}`} className="h-11 sm:h-13 rounded-xl bg-slate-50/50" />
             ))}
 
             {/* Days of current month */}
@@ -276,26 +276,26 @@ export const ProviderAvailabilityPage: React.FC = () => {
                 <div
                   key={`day-${day}`}
                   onClick={() => handleSelectDay(day)}
-                  className={`h-14 sm:h-16 rounded-xl border p-2 flex flex-col justify-between transition cursor-pointer relative ${
+                  className={`h-11 sm:h-13 rounded-xl border p-1.5 flex flex-col justify-between transition cursor-pointer relative ${
                     isSelected
                       ? 'border-blue-600 bg-blue-50/40 ring-2 ring-blue-500/20 shadow-xs'
                       : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50/60'
                   }`}
                 >
-                  <span className="text-xs font-bold text-slate-700">{day}</span>
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-700">{day}</span>
 
                   <div className="flex items-center justify-end">
                     {status === 'Available' && (
-                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-200" title="Available" />
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200" title="Available" />
                     )}
                     {status === 'Busy' && (
-                      <span className="h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-rose-200" title="Busy" />
+                      <span className="h-2 w-2 rounded-full bg-rose-500 ring-2 ring-rose-200" title="Busy" />
                     )}
                     {status === 'Unavailable' && (
-                      <span className="h-2.5 w-2.5 rounded-full bg-slate-400 ring-2 ring-slate-200" title="Unavailable" />
+                      <span className="h-2 w-2 rounded-full bg-slate-400 ring-2 ring-slate-200" title="Unavailable" />
                     )}
                     {status === 'OnLeave' && (
-                      <span className="h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-amber-200" title="On Leave" />
+                      <span className="h-2 w-2 rounded-full bg-amber-500 ring-2 ring-amber-200" title="On Leave" />
                     )}
                   </div>
                 </div>

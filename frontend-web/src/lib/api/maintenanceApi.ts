@@ -15,9 +15,14 @@ export const maintenanceApi = {
   getJobs: async (
     params?: MaintenanceJobQueryParametersDto
   ): Promise<ApiResponse<PagedResponse<MaintenanceJobResponseDto>>> => {
+    const queryParams: any = { ...params };
+    if (params?.searchTerm) {
+      queryParams.searchTerm = params.searchTerm;
+      queryParams.search = params.searchTerm;
+    }
     const response = await apiClient.get<ApiResponse<PagedResponse<MaintenanceJobResponseDto>>>(
       '/maintenance-jobs',
-      { params }
+      { params: queryParams }
     );
     return response.data;
   },

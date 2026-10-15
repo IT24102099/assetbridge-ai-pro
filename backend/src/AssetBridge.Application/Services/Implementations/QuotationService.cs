@@ -1,6 +1,7 @@
 using AssetBridge.Application.Common.Interfaces;
 using AssetBridge.Application.Common.Models;
 using AssetBridge.Application.DTOs.Maintenance;
+using AssetBridge.Application.DTOs.Notifications;
 using AssetBridge.Application.Services.Interfaces;
 using AssetBridge.Domain.Entities.Incidents;
 using AssetBridge.Domain.Entities.Maintenance;
@@ -18,15 +19,18 @@ public class QuotationService : IQuotationService
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<QuotationService> _logger;
+    private readonly INotificationService? _notificationService;
 
     public QuotationService(
         IApplicationDbContext context,
         ICurrentUserService currentUserService,
-        ILogger<QuotationService> logger)
+        ILogger<QuotationService> logger,
+        INotificationService? notificationService = null)
     {
         _context = context;
         _currentUserService = currentUserService;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<QuotationResponseDto> CreateQuotationAsync(CreateQuotationRequestDto request, CancellationToken cancellationToken = default)
@@ -49,6 +53,30 @@ public class QuotationService : IQuotationService
         }
 
         ValidateProviderAccess(provider);
+
+        if (request.ValidUntilUtc <= DateTime.UtcNow)
+        {
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                { "ValidUntilUtc", new[] { "Quotation validity date must be in the future." } }
+            });
+        }
+
+        var existingActive = await _context.Quotations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(q => q.IncidentId == request.IncidentId &&
+                                      q.ProviderId == request.ProviderId &&
+                                      (q.Status == QuotationStatus.Draft ||
+                                       q.Status == QuotationStatus.Submitted ||
+                                       q.Status == QuotationStatus.UnderReview), cancellationToken);
+
+        if (existingActive != null)
+        {
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                { "Quotation", new[] { $"An active quotation with status '{existingActive.Status}' already exists from this contractor for this incident. Please update the existing quotation." } }
+            });
+        }
 
         if (request.Items == null || !request.Items.Any())
         {
@@ -121,6 +149,24 @@ public class QuotationService : IQuotationService
 
         _logger.LogInformation("Quotation {QuotationId} created with total {TotalAmount} LKR by Provider {ProviderId}",
             quotation.Id, quotation.TotalAmount, request.ProviderId);
+
+        if (_notificationService != null && incident.Asset?.OwnerId != null)
+        {
+            try
+            {
+                await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                {
+                    UserId = incident.Asset.OwnerId,
+                    Title = $"New Quotation Submitted: {provider.BusinessName}",
+                    Message = $"A quotation of {quotation.TotalAmount:N2} LKR was submitted by {provider.BusinessName} for incident '{incident.Title}'.",
+                    Type = NotificationType.ApprovalRequired
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to dispatch notification for quotation creation {QuotationId}", quotation.Id);
+            }
+        }
 
         return await GetQuotationByIdAsync(quotation.Id, cancellationToken);
     }
@@ -274,7 +320,7 @@ public class QuotationService : IQuotationService
                 var currentUserId = GetAuthenticatedUserId();
                 if (_currentUserService.Role != UserRole.Owner || quotation.Incident?.Asset?.OwnerId != currentUserId)
                 {
-                    throw new UnauthorizedAccessException("Only the property owner or managers can accept/reject quotations.");
+                    throw new ForbiddenAccessException("Only the property owner or managers can accept/reject quotations.");
                 }
             }
         }
@@ -288,6 +334,32 @@ public class QuotationService : IQuotationService
 
         await _context.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Quotation {QuotationId} status changed to {Status}", id, request.Status);
+
+        if (_notificationService != null && quotation.Provider?.UserId != null)
+        {
+            try
+            {
+                var notifType = request.Status == QuotationStatus.Accepted ? NotificationType.Approved :
+                                request.Status == QuotationStatus.Rejected ? NotificationType.Rejected :
+                                NotificationType.WorkflowStatusChanged;
+
+                var statusLabel = request.Status == QuotationStatus.Accepted ? "Accepted" :
+                                  request.Status == QuotationStatus.Rejected ? "Rejected" :
+                                  request.Status.ToString();
+
+                await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                {
+                    UserId = quotation.Provider.UserId,
+                    Title = $"Quotation {statusLabel}: {quotation.Incident?.Title ?? "Maintenance Request"}",
+                    Message = $"Your quotation for incident '{quotation.Incident?.Title ?? "Maintenance Request"}' ({quotation.TotalAmount:N2} LKR) has been {statusLabel.ToLowerInvariant()}.",
+                    Type = notifType
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to dispatch notification for quotation status change {QuotationId}", quotation.Id);
+            }
+        }
 
         return MapToDto(quotation);
     }
@@ -460,7 +532,7 @@ public class QuotationService : IQuotationService
 
         if (provider.UserId != currentUserId)
         {
-            throw new UnauthorizedAccessException("You do not have permission to manage this quotation.");
+            throw new ForbiddenAccessException("You do not have permission to manage this quotation.");
         }
     }
 
@@ -477,14 +549,14 @@ public class QuotationService : IQuotationService
         {
             if (quotation.Incident.Asset.OwnerId != currentUserId)
             {
-                throw new UnauthorizedAccessException("You do not have permission to view this quotation.");
+                throw new ForbiddenAccessException("You do not have permission to view this quotation.");
             }
         }
         else if (_currentUserService.Role == UserRole.ServiceProvider && quotation.Provider != null)
         {
             if (quotation.Provider.UserId != currentUserId)
             {
-                throw new UnauthorizedAccessException("You do not have permission to view this quotation.");
+                throw new ForbiddenAccessException("You do not have permission to view this quotation.");
             }
         }
     }

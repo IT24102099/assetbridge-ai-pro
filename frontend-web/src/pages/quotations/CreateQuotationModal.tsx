@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileText, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { X, FileText, Plus, Trash2, AlertCircle, ShieldCheck } from 'lucide-react';
 import { quotationApi } from '../../lib/api/quotationApi';
 import { incidentApi } from '../../lib/api/incidentApi';
 import { providerApi } from '../../lib/api/providerApi';
 import { IncidentResponseDto } from '../../types/incident';
 import { ServiceProviderResponseDto } from '../../types/provider';
 import { CreateQuotationItemRequestDto } from '../../types/quotation';
+import { useAuth } from '../../context/AuthContext';
 
 interface CreateQuotationModalProps {
   isOpen: boolean;
@@ -14,8 +15,10 @@ interface CreateQuotationModalProps {
 }
 
 export default function CreateQuotationModal({ isOpen, onClose, onCreated }: CreateQuotationModalProps) {
+  const { user } = useAuth();
   const [incidents, setIncidents] = useState<IncidentResponseDto[]>([]);
   const [providers, setProviders] = useState<ServiceProviderResponseDto[]>([]);
+  const [myProviderProfile, setMyProviderProfile] = useState<ServiceProviderResponseDto | null>(null);
   const [loadingData, setLoadingData] = useState(false);
 
   const [incidentId, setIncidentId] = useState('');
@@ -32,6 +35,8 @@ export default function CreateQuotationModal({ isOpen, onClose, onCreated }: Cre
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isServiceProvider = user?.role === 'ServiceProvider';
+
   useEffect(() => {
     if (isOpen) {
       loadOptions();
@@ -39,30 +44,74 @@ export default function CreateQuotationModal({ isOpen, onClose, onCreated }: Cre
       const thirtyDays = new Date();
       thirtyDays.setDate(thirtyDays.getDate() + 30);
       setValidUntil(thirtyDays.toISOString().slice(0, 10));
+
+      // Restore saved draft if available
+      try {
+        const savedDraft = sessionStorage.getItem('assetbridge_quotation_draft');
+        if (savedDraft) {
+          const draft = JSON.parse(savedDraft);
+          if (draft.incidentId) setIncidentId(draft.incidentId);
+          if (draft.notes) setNotes(draft.notes);
+          if (draft.taxAndOtherCharges) setTaxAndOtherCharges(draft.taxAndOtherCharges);
+          if (draft.items && draft.items.length > 0) setItems(draft.items);
+        }
+      } catch {
+        // ignore draft parse error
+      }
     }
   }, [isOpen]);
 
   const loadOptions = async () => {
     try {
       setLoadingData(true);
-      const [incRes, provRes] = await Promise.all([
-        incidentApi.getIncidents({ pageSize: 50 }),
-        providerApi.getProviders({ pageSize: 50 })
-      ]);
+      setError(null);
 
-      if (incRes.success && incRes.data) {
-        setIncidents(incRes.data.items || []);
-        if (incRes.data.items?.length > 0) {
-          setIncidentId(incRes.data.items[0].id);
+      const incPromise = incidentApi.getIncidents({ pageSize: 50 });
+
+      if (isServiceProvider) {
+        // For ServiceProviders: fetch only their own profile
+        const [incRes, myProfileRes] = await Promise.all([
+          incPromise,
+          providerApi.getCurrentProfile().catch(() => null)
+        ]);
+
+        if (incRes.success && incRes.data) {
+          setIncidents(incRes.data.items || []);
+          if (incRes.data.items?.length > 0) {
+            setIncidentId(incRes.data.items[0].id);
+          }
+        }
+
+        if (myProfileRes && myProfileRes.success && myProfileRes.data) {
+          setMyProviderProfile(myProfileRes.data);
+          setProviderId(myProfileRes.data.id);
+          setProviders([myProfileRes.data]);
+        } else {
+          setError(
+            'No Service Provider business profile was found linked to your account. Please set up your contractor profile in settings before submitting quotations.'
+          );
+        }
+      } else {
+        // For Managers / Admins: load all providers
+        const [incRes, provRes] = await Promise.all([
+          incPromise,
+          providerApi.getProviders({ pageSize: 50 })
+        ]);
+
+        if (incRes.success && incRes.data) {
+          setIncidents(incRes.data.items || []);
+          if (incRes.data.items?.length > 0) {
+            setIncidentId(incRes.data.items[0].id);
+          }
+        }
+        if (provRes.success && provRes.data) {
+          setProviders(provRes.data.items || []);
+          if (provRes.data.items?.length > 0) {
+            setProviderId(provRes.data.items[0].id);
+          }
         }
       }
-      if (provRes.success && provRes.data) {
-        setProviders(provRes.data.items || []);
-        if (provRes.data.items?.length > 0) {
-          setProviderId(provRes.data.items[0].id);
-        }
-      }
-    } catch (err: any) {
+    } catch {
       setError('Failed to load incidents or service providers.');
     } finally {
       setLoadingData(false);
@@ -98,10 +147,27 @@ export default function CreateQuotationModal({ isOpen, onClose, onCreated }: Cre
       return;
     }
 
+    const validityDate = new Date(validUntil);
+    if (isNaN(validityDate.getTime()) || validityDate <= new Date()) {
+      setError('Quotation validity date must be in the future.');
+      return;
+    }
+
     if (items.some((it) => !it.description.trim() || it.quantity <= 0 || it.unitPrice < 0)) {
       setError('All quotation line items must have a description, positive quantity, and valid unit price.');
       return;
     }
+
+    // Preserve draft in case of network issue
+    const draftData = {
+      incidentId,
+      providerId,
+      validUntil,
+      notes,
+      taxAndOtherCharges,
+      items
+    };
+    sessionStorage.setItem('assetbridge_quotation_draft', JSON.stringify(draftData));
 
     try {
       setSubmitting(true);
@@ -110,7 +176,7 @@ export default function CreateQuotationModal({ isOpen, onClose, onCreated }: Cre
       const res = await quotationApi.createQuotation({
         incidentId,
         providerId,
-        validUntilUtc: new Date(validUntil).toISOString(),
+        validUntilUtc: validityDate.toISOString(),
         notes: notes.trim() || undefined,
         taxAndOtherCharges: Number(taxAndOtherCharges || 0),
         items: items.map((it) => ({
@@ -121,13 +187,15 @@ export default function CreateQuotationModal({ isOpen, onClose, onCreated }: Cre
       });
 
       if (res.success) {
+        sessionStorage.removeItem('assetbridge_quotation_draft');
         onCreated();
         onClose();
       } else {
         setError(res.message || 'Failed to submit quotation.');
       }
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Failed to submit quotation.');
+      const apiMessage = err?.response?.data?.message || err?.message || 'Failed to submit quotation.';
+      setError(apiMessage);
     } finally {
       setSubmitting(false);
     }
@@ -184,12 +252,21 @@ export default function CreateQuotationModal({ isOpen, onClose, onCreated }: Cre
 
             {/* Provider */}
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700">Contractor / Provider</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700">Contractor / Provider</label>
+                {isServiceProvider && myProviderProfile && (
+                  <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-0.5">
+                    <ShieldCheck className="h-3 w-3" /> Verified Profile
+                  </span>
+                )}
+              </div>
               <select
                 value={providerId}
                 onChange={(e) => setProviderId(e.target.value)}
-                disabled={loadingData || submitting}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 transition"
+                disabled={loadingData || submitting || isServiceProvider}
+                className={`w-full border rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500 transition ${
+                  isServiceProvider ? 'bg-slate-100/80 text-slate-600 border-slate-200 cursor-not-allowed' : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
                 required
               >
                 {providers.length === 0 ? (
@@ -202,6 +279,11 @@ export default function CreateQuotationModal({ isOpen, onClose, onCreated }: Cre
                   ))
                 )}
               </select>
+              {isServiceProvider && myProviderProfile && (
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Submitting on behalf of your verified profile: <span className="font-semibold text-slate-700">{myProviderProfile.businessName}</span>
+                </p>
+              )}
             </div>
 
             {/* Validity Date */}

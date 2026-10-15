@@ -9,7 +9,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { maintenanceApi } from '../../lib/api/maintenanceApi';
-import { MaintenanceJobResponseDto, MaintenanceJobStatus } from '../../types/maintenance';
+import { MaintenanceJobResponseDto } from '../../types/maintenance';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingState, ErrorState, EmptyState } from '../../components/common/FeedbackStates';
 import { useAuth } from '../../context/AuthContext';
@@ -27,6 +27,8 @@ export default function MaintenanceJobListPage() {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,13 +37,31 @@ export default function MaintenanceJobListPage() {
   // Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const loadJobs = async () => {
+  const loadJobs = async (page: number = currentPage, search: string = searchQuery, status: string = statusFilter) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await maintenanceApi.getJobs({ pageSize: 50 });
+      const params: any = {
+        pageNumber: page,
+        pageSize: itemsPerPage,
+      };
+      if (search.trim()) {
+        params.searchTerm = search.trim();
+        params.search = search.trim();
+      }
+      if (status !== 'all') {
+        params.status = status;
+      }
+
+      const res = await maintenanceApi.getJobs(params);
       if (res.success && res.data) {
         setJobs(res.data.items || []);
+        setTotalCount(res.data.totalCount || 0);
+        setTotalPages(res.data.totalPages || 1);
+      } else {
+        setJobs([]);
+        setTotalCount(0);
+        setTotalPages(1);
       }
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load maintenance jobs.');
@@ -51,25 +71,19 @@ export default function MaintenanceJobListPage() {
   };
 
   useEffect(() => {
-    loadJobs();
-  }, []);
+    const timer = setTimeout(() => {
+      loadJobs(currentPage, searchQuery, statusFilter);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [currentPage, statusFilter, searchQuery]);
 
-  const filtered = jobs.filter((j) => {
-    const matchesSearch =
-      !searchQuery ||
-      j.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      j.providerBusinessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      j.incidentTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      j.description.toLowerCase().includes(searchQuery.toLowerCase());
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setCurrentPage(1);
+  };
 
-    const matchesStatus =
-      statusFilter === 'all' || j.status.toString() === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
-  const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const hasActiveFilters = !!searchQuery.trim() || statusFilter !== 'all';
 
   return (
     <div className="space-y-6">
@@ -119,33 +133,42 @@ export default function MaintenanceJobListPage() {
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500 transition"
           >
             <option value="all">All Statuses</option>
-            <option value={MaintenanceJobStatus.Planned.toString()}>Planned</option>
-            <option value={MaintenanceJobStatus.Scheduled.toString()}>Scheduled</option>
-            <option value={MaintenanceJobStatus.InProgress.toString()}>In Progress</option>
-            <option value={MaintenanceJobStatus.Completed.toString()}>Completed</option>
-            <option value={MaintenanceJobStatus.Cancelled.toString()}>Cancelled</option>
-            <option value={MaintenanceJobStatus.Closed.toString()}>Closed</option>
+            <option value="Planned">Planned</option>
+            <option value="Scheduled">Scheduled</option>
+            <option value="InProgress">In Progress</option>
+            <option value="Completed">Completed</option>
+            <option value="Cancelled">Cancelled</option>
+            <option value="Closed">Closed</option>
           </select>
         </div>
+
+        {hasActiveFilters && (
+          <button
+            onClick={handleClearFilters}
+            className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition shrink-0"
+          >
+            Clear Filters
+          </button>
+        )}
       </div>
 
       {/* Jobs Table */}
       {loading ? (
         <LoadingState message="Loading maintenance work orders..." />
       ) : error ? (
-        <ErrorState message={error} onRetry={loadJobs} />
-      ) : filtered.length === 0 ? (
+        <ErrorState message={error} onRetry={() => loadJobs(currentPage, searchQuery, statusFilter)} />
+      ) : jobs.length === 0 ? (
         <EmptyState
           title="No maintenance jobs found"
           description={
-            searchQuery || statusFilter !== 'all'
-              ? 'Try changing your search parameters or filter criteria.'
+            hasActiveFilters
+              ? 'No maintenance jobs match your current search and filter criteria.'
               : canCreateJob
               ? 'Create a maintenance job from an approved incident quotation to begin repairs.'
               : 'Maintenance work orders created by contractors and managers will appear here.'
           }
-          actionLabel={canCreateJob ? '+ Create Maintenance Job' : undefined}
-          onAction={canCreateJob ? () => setIsCreateModalOpen(true) : undefined}
+          actionLabel={hasActiveFilters ? 'Clear Filters' : canCreateJob ? '+ Create Maintenance Job' : undefined}
+          onAction={hasActiveFilters ? handleClearFilters : canCreateJob ? () => setIsCreateModalOpen(true) : undefined}
         />
       ) : (
         <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
@@ -162,7 +185,7 @@ export default function MaintenanceJobListPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginated.map((job) => (
+                {jobs.map((job) => (
                   <tr key={job.id} className="hover:bg-slate-50/60 transition">
                     <td className="py-3 px-4">
                       <div>
@@ -219,8 +242,8 @@ export default function MaintenanceJobListPage() {
           {/* Numbered Pagination */}
           <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50">
             <span className="text-xs text-slate-500">
-              Showing {(currentPage - 1) * itemsPerPage + 1} to{' '}
-              {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length} jobs
+              Showing {totalCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to{' '}
+              {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} jobs
             </span>
 
             <div className="flex items-center gap-1.5">
@@ -263,7 +286,7 @@ export default function MaintenanceJobListPage() {
         <CreateMaintenanceJobModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
-          onCreated={loadJobs}
+          onCreated={() => loadJobs(1, searchQuery, statusFilter)}
         />
       )}
     </div>

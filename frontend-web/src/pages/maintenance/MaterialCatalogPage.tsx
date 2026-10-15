@@ -137,17 +137,17 @@ export default function MaterialCatalogPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Material & Service Pricing Catalog</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Standard Sri Lankan reference rates in LKR for verified contractor quotation validation
+            Internal market reference rates in LKR (Colombo Metropolitan Area, 2026) for verified contractor quotation validation
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span
             className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center gap-1.5 cursor-help"
-            title="Calibrated against 2026 Sri Lankan Construction & Maintenance Market Rates (CIDA/ICTAD benchmark) for quotation validation"
+            title="Internal Market Estimates (Colombo Metropolitan Area, 2026) compiled for quotation auditing and price transparency"
           >
             <ShieldCheck className="h-4 w-4 text-blue-600" />
-            LKR Benchmark 2026
+            Internal Market Estimates (2026)
           </span>
         </div>
       </div>
@@ -156,7 +156,7 @@ export default function MaterialCatalogPage() {
       <div className="p-4 rounded-3xl bg-gradient-to-r from-blue-900 to-slate-900 text-white shadow-xs flex items-center gap-3">
         <Info className="h-5 w-5 text-cyan-400 shrink-0" />
         <p className="text-xs text-slate-200 leading-relaxed">
-          These rates serve as standard price validation benchmarks when comparing submitted contractor quotations to ensure overseas asset owners receive transparent and competitive market rates.
+          These rates represent Internal Market Estimates (Colombo Metropolitan Area, 2026) compiled for indicative quotation auditing and variance checking. They provide standard reference points for overseas asset owners without claiming official statutory certification.
         </p>
       </div>
 
@@ -252,7 +252,7 @@ export default function MaterialCatalogPage() {
         </div>
 
         <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/50 text-[11px] text-slate-500">
-          Displaying {filtered.length} standard trade items • Indexed against Colombo & Kandy wholesale material benchmarks
+          Displaying {filtered.length} standard trade items • Internal Market Estimates (Colombo Metropolitan Area, 2026)
         </div>
       </div>
     </div>

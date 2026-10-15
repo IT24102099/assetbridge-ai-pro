@@ -4,12 +4,18 @@ import {
   Sparkles,
   ArrowLeft,
   CheckCircle2,
-  ShieldAlert
+  ShieldAlert,
+  Star,
+  Building2,
+  ShieldCheck,
+  Plus
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { quotationApi } from '../../lib/api/quotationApi';
 import { incidentApi } from '../../lib/api/incidentApi';
+import { providerApi } from '../../lib/api/providerApi';
 import { IncidentResponseDto } from '../../types/incident';
+import { ServiceProviderResponseDto } from '../../types/provider';
 import {
   QuotationComparisonResultDto
 } from '../../types/quotation';
@@ -27,6 +33,7 @@ export default function CompareQuotationsPage() {
   const [selectedIncidentId, setSelectedIncidentId] = useState<string>(initialIncidentId);
   const [incidentQuotationCounts, setIncidentQuotationCounts] = useState<Record<string, number>>({});
   const [comparisonResult, setComparisonResult] = useState<QuotationComparisonResultDto | null>(null);
+  const [recommendedProviders, setRecommendedProviders] = useState<ServiceProviderResponseDto[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,14 +93,31 @@ export default function CompareQuotationsPage() {
       setLoading(true);
       setError(null);
       const res = await quotationApi.compareQuotations({ incidentId });
-      if (res.success && res.data) {
+      if (res.success && res.data && res.data.candidates && res.data.candidates.length > 0) {
         setComparisonResult(res.data);
+        setRecommendedProviders([]);
       } else {
-        setComparisonResult(null);
+        setComparisonResult(res.data || null);
+        // Pre-quotation intelligence: fetch verified providers specializing in incident trade
+        const inc = incidents.find((i) => i.id === incidentId);
+        try {
+          const provRes = await providerApi.getProviders({
+            category: inc?.category,
+            pageSize: 6,
+          });
+          if (provRes.success && provRes.data?.items) {
+            setRecommendedProviders(provRes.data.items);
+          } else {
+            setRecommendedProviders([]);
+          }
+        } catch {
+          setRecommendedProviders([]);
+        }
       }
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Failed to compare quotations.');
       setComparisonResult(null);
+      setRecommendedProviders([]);
     } finally {
       setLoading(false);
     }
@@ -183,12 +207,90 @@ export default function CompareQuotationsPage() {
       ) : error ? (
         <ErrorState message={error} onRetry={() => selectedIncidentId && runComparison(selectedIncidentId)} />
       ) : !comparisonResult || comparisonResult.candidates.length === 0 ? (
-        <EmptyState
-          title="No quotations to compare"
-          description="At least one contractor quotation is required for this incident to run comparison analytics."
-          actionLabel="Go to Quotations"
-          onAction={() => navigate('/quotations')}
-        />
+        recommendedProviders.length > 0 ? (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 border border-blue-900/50 rounded-3xl p-6 text-white shadow-md relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold">
+                    <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
+                    Pre-Quotation AI Provider Intelligence
+                  </div>
+                  <h2 className="text-lg font-bold text-white">
+                    No quotations submitted yet for this incident
+                  </h2>
+                  <p className="text-xs text-slate-300 max-w-xl">
+                    AssetBridge AI has identified verified contractors specializing in{' '}
+                    <span className="font-semibold text-cyan-300">
+                      {incidents.find((i) => i.id === selectedIncidentId)?.category || 'Maintenance'}
+                    </span>
+                    . Invite candidates or create itemized estimates below:
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate('/quotations')}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 self-start sm:self-auto shadow-sm"
+                >
+                  <Plus className="h-4 w-4" /> Create Quotation
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recommendedProviders.map((prov) => (
+                <div
+                  key={prov.id}
+                  className="bg-white border border-slate-200 rounded-3xl p-5 hover:shadow-md transition flex flex-col justify-between space-y-4"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="h-8 w-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <Building2 className="h-4 w-4" />
+                      </div>
+                      {prov.verificationStatus === 'Verified' ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                          <ShieldCheck className="h-3 w-3" /> Verified Contractor
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                          Pending Verification
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">{prov.businessName}</h4>
+                      <p className="text-xs text-slate-500">{prov.city || 'Colombo, Sri Lanka'}</p>
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-1 text-xs text-slate-600">
+                      <span className="flex items-center gap-1 font-bold text-amber-600">
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                        {prov.rating.toFixed(1)}
+                      </span>
+                      <span>•</span>
+                      <span>{prov.completedJobsCount || 0} jobs completed</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => navigate('/quotations')}
+                    className="w-full py-2 px-3 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition text-center"
+                  >
+                    Request Contractor Quotation
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <EmptyState
+            title="No quotations to compare"
+            description="At least one contractor quotation is required for this incident to run comparison analytics."
+            actionLabel="Go to Quotations"
+            onAction={() => navigate('/quotations')}
+          />
+        )
       ) : (
         <>
           {/* AI Recommendation Banner */}

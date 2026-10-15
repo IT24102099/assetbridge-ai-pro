@@ -66,6 +66,33 @@ async def test_cost_recommendation_agent_run(sample_incident_request: AgentRunRe
 
 
 @pytest.mark.asyncio
+async def test_cost_recommendation_agent_pre_quotation_provider_recommendation():
+    """Verify Agent 3 can recommend suitable verified providers before quotations exist."""
+    agent = global_agent_registry.get_agent("CostRecommendationAgent")
+    assert agent is not None
+
+    req = AgentRunRequest(
+        workflow_instance_id="wf-test-pre-quote",
+        incident_id="inc-test-pre-quote",
+        asset_id="asset-test-pre-quote",
+        context_data={
+            "mode": "provider_recommendation",
+            "category": "Plumbing",
+            "city": "Colombo",
+            "estimated_budget_lkr": 50000.0
+        }
+    )
+
+    summary = await agent.run(req)
+    assert summary.status == AgentRunStatus.SUCCESS
+    assert summary.structured_payload.get("recommendation_type") == "PreQuotationProviderRecommendation"
+    assert "recommended_providers" in summary.structured_payload
+    assert len(summary.structured_payload["recommended_providers"]) > 0
+    assert summary.structured_payload["maintenance_recommendation"]["recommended_provider_id"] is not None
+
+
+
+@pytest.mark.asyncio
 async def test_validation_continuity_agent_run(sample_incident_request: AgentRunRequest):
     agent = global_agent_registry.get_agent("ValidationContinuityAgent")
     assert agent is not None

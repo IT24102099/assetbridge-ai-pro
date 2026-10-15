@@ -94,7 +94,11 @@ export const Topbar: React.FC<TopbarProps> = ({
 
     setIsDropdownOpen(false);
     const titleLower = notification.title.toLowerCase();
-    if (titleLower.includes('incident')) {
+    if (titleLower.includes('maintenance') || titleLower.includes('job') || titleLower.includes('repair')) {
+      navigate('/maintenance/jobs');
+    } else if (titleLower.includes('inspection')) {
+      navigate('/inspections');
+    } else if (titleLower.includes('incident')) {
       navigate('/incidents');
     } else if (titleLower.includes('follow-up') || titleLower.includes('task')) {
       navigate('/follow-up');

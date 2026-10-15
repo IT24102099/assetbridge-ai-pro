@@ -79,6 +79,8 @@ public class MaintenanceJobQueryParametersDto
     public Guid? IncidentId { get; set; }
     public Guid? ProviderId { get; set; }
     public MaintenanceJobStatus? Status { get; set; }
+    public string? SearchTerm { get; set; }
+    public string? Search { get => SearchTerm; set => SearchTerm = value; }
 
     public int PageNumber { get; set; } = 1;
 
