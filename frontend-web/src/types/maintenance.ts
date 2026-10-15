@@ -69,7 +69,9 @@ export interface UpdateMaintenanceJobStatusRequestDto {
 export interface MaintenanceJobQueryParametersDto {
   incidentId?: string;
   providerId?: string;
-  status?: MaintenanceJobStatus;
+  status?: MaintenanceJobStatus | string;
+  searchTerm?: string;
+  search?: string;
   pageNumber?: number;
   pageSize?: number;
   sortBy?: string;

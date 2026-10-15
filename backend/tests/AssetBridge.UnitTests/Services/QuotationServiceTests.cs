@@ -445,4 +445,154 @@ public class QuotationServiceTests : IDisposable
         var ex = await act.Should().ThrowAsync<ValidationException>();
         ex.Which.Errors["Status"].Should().Contain("Cannot add items to an accepted quotation.");
     }
+
+    [Fact]
+    public async Task CreateQuotationAsync_ShouldSucceed_WhenAuthorizedServiceProviderSubmitsQuotationForOwnProfile()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var request = new CreateQuotationRequestDto
+        {
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            ValidUntilUtc = DateTime.UtcNow.AddDays(14),
+            Notes = "Complete repair package including parts",
+            TaxAndOtherCharges = 1500,
+            Items = new List<CreateQuotationItemRequestDto>
+            {
+                new() { Description = "Copper Pipes & Valves", Quantity = 2, UnitPrice = 4500 },
+                new() { Description = "Plumbing Labor", Quantity = 1, UnitPrice = 8000 }
+            }
+        };
+
+        // Act
+        var result = await _quotationSut.CreateQuotationAsync(request);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.IncidentId.Should().Be(_incidentId);
+        result.ProviderId.Should().Be(_providerId);
+        result.Status.Should().Be(QuotationStatus.Submitted);
+        result.Subtotal.Should().Be(17000); // (2 * 4500) + (1 * 8000)
+        result.TotalAmount.Should().Be(18500); // 17000 + 1500
+        result.Items.Should().HaveCount(2);
+
+        var persisted = await _dbContext.Quotations.Include(q => q.Items).FirstOrDefaultAsync(q => q.Id == result.Id);
+        persisted.Should().NotBeNull();
+        persisted!.Status.Should().Be(QuotationStatus.Submitted);
+    }
+
+    [Fact]
+    public async Task CreateQuotationAsync_ShouldThrowForbiddenAccessException_WhenServiceProviderSubmitsForDifferentProvider()
+    {
+        // Arrange
+        var otherProviderUserId = Guid.NewGuid();
+        var otherProviderId = Guid.NewGuid();
+        _dbContext.Users.Add(new User { Id = otherProviderUserId, FullName = "Other Contractor", Email = "other@test.lk", Role = UserRole.ServiceProvider });
+        _dbContext.ServiceProviders.Add(new ServiceProvider
+        {
+            Id = otherProviderId,
+            UserId = otherProviderUserId,
+            BusinessName = "Other Plumbing Co",
+            ContactPerson = "Sunil",
+            PhoneNumber = "0771122334",
+            Email = "other@test.lk",
+            PrimaryDistrict = "Colombo",
+            City = "Colombo",
+            VerificationStatus = VerificationStatus.Verified
+        });
+        await _dbContext.SaveChangesAsync();
+
+        // Current user is _providerUserId, but trying to submit for otherProviderId
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var request = new CreateQuotationRequestDto
+        {
+            IncidentId = _incidentId,
+            ProviderId = otherProviderId,
+            ValidUntilUtc = DateTime.UtcNow.AddDays(7),
+            Items = new List<CreateQuotationItemRequestDto>
+            {
+                new() { Description = "Service", Quantity = 1, UnitPrice = 5000 }
+            }
+        };
+
+        // Act
+        Func<Task> act = async () => await _quotationSut.CreateQuotationAsync(request);
+
+        // Assert - MUST throw ForbiddenAccessException (403) so client does NOT wipe tokens or redirect to login
+        await act.Should().ThrowAsync<ForbiddenAccessException>()
+            .WithMessage("You do not have permission to manage this quotation.");
+    }
+
+    [Fact]
+    public async Task CreateQuotationAsync_ShouldThrowValidationException_WhenActiveQuotationAlreadyExistsForSameIncident()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        _dbContext.Quotations.Add(new Quotation
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            Status = QuotationStatus.Submitted,
+            Subtotal = 10000,
+            TotalAmount = 10000,
+            ValidUntilUtc = DateTime.UtcNow.AddDays(10)
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var request = new CreateQuotationRequestDto
+        {
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            ValidUntilUtc = DateTime.UtcNow.AddDays(7),
+            Items = new List<CreateQuotationItemRequestDto>
+            {
+                new() { Description = "Second duplicate quote", Quantity = 1, UnitPrice = 12000 }
+            }
+        };
+
+        // Act
+        Func<Task> act = async () => await _quotationSut.CreateQuotationAsync(request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("Quotation");
+    }
+
+    [Fact]
+    public async Task CreateQuotationAsync_ShouldThrowValidationException_WhenValidUntilIsInThePast()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_providerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.ServiceProvider);
+
+        var request = new CreateQuotationRequestDto
+        {
+            IncidentId = _incidentId,
+            ProviderId = _providerId,
+            ValidUntilUtc = DateTime.UtcNow.AddDays(-1), // past date
+            Items = new List<CreateQuotationItemRequestDto>
+            {
+                new() { Description = "Expired quote", Quantity = 1, UnitPrice = 8000 }
+            }
+        };
+
+        // Act
+        Func<Task> act = async () => await _quotationSut.CreateQuotationAsync(request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().ContainKey("ValidUntilUtc");
+    }
 }

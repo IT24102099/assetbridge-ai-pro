@@ -381,4 +381,211 @@ public class MaintenanceJobServiceTests : IDisposable
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
     }
+
+    [Fact]
+    public async Task GetJobsAsync_ShouldFilterBySearchTerm_AcrossJobTitleAndDescription()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        _dbContext.MaintenanceJobs.AddRange(
+            new MaintenanceJob
+            {
+                Id = Guid.NewGuid(),
+                IncidentId = _incidentId,
+                ProviderId = _providerId,
+                Title = "Plumbing Leak Fix",
+                Description = "Repairing main kitchen valve",
+                ScheduledStartUtc = DateTime.UtcNow.AddDays(1),
+                ScheduledEndUtc = DateTime.UtcNow.AddDays(2),
+                ApprovedBudget = 15000,
+                Status = MaintenanceJobStatus.Planned,
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-3)
+            },
+            new MaintenanceJob
+            {
+                Id = Guid.NewGuid(),
+                IncidentId = _incidentId,
+                ProviderId = _providerId,
+                Title = "Electrical Rewiring",
+                Description = "Replace copper circuit breakers",
+                ScheduledStartUtc = DateTime.UtcNow.AddDays(2),
+                ScheduledEndUtc = DateTime.UtcNow.AddDays(3),
+                ApprovedBudget = 25000,
+                Status = MaintenanceJobStatus.Scheduled,
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-2)
+            }
+        );
+        await _dbContext.SaveChangesAsync();
+
+        // Act - search by title keyword
+        var titleSearchQuery = new MaintenanceJobQueryParametersDto
+        {
+            SearchTerm = "Plumbing",
+            PageNumber = 1,
+            PageSize = 10
+        };
+        var titleResult = await _jobSut.GetJobsAsync(titleSearchQuery);
+
+        // Act - search by description keyword
+        var descSearchQuery = new MaintenanceJobQueryParametersDto
+        {
+            SearchTerm = "circuit breakers",
+            PageNumber = 1,
+            PageSize = 10
+        };
+        var descResult = await _jobSut.GetJobsAsync(descSearchQuery);
+
+        // Assert
+        titleResult.Should().NotBeNull();
+        titleResult.Items.Should().ContainSingle(j => j.Title == "Plumbing Leak Fix");
+
+        descResult.Should().NotBeNull();
+        descResult.Items.Should().ContainSingle(j => j.Title == "Electrical Rewiring");
+    }
+
+    [Fact]
+    public async Task GetJobsAsync_ShouldFilterBySearchTerm_AcrossIncidentTitleAndProviderBusinessName()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        var otherProviderId = Guid.NewGuid();
+        var otherProviderUserId = Guid.NewGuid();
+        _dbContext.Users.Add(new User { Id = otherProviderUserId, FullName = "Islandwide Electricals", Email = "island@test.lk", Role = UserRole.ServiceProvider });
+        _dbContext.ServiceProviders.Add(new ServiceProvider
+        {
+            Id = otherProviderId,
+            UserId = otherProviderUserId,
+            BusinessName = "Apex Electrical Services",
+            ContactPerson = "Kamal",
+            PhoneNumber = "0779988776",
+            Email = "apex@test.lk",
+            PrimaryDistrict = "Kandy",
+            City = "Kandy",
+            VerificationStatus = VerificationStatus.Verified
+        });
+
+        _dbContext.MaintenanceJobs.AddRange(
+            new MaintenanceJob
+            {
+                Id = Guid.NewGuid(),
+                IncidentId = _incidentId,
+                ProviderId = _providerId,
+                Title = "Special Tile Replacement",
+                Description = "General maintenance",
+                ScheduledStartUtc = DateTime.UtcNow.AddDays(1),
+                ScheduledEndUtc = DateTime.UtcNow.AddDays(2),
+                ApprovedBudget = 18000,
+                Status = MaintenanceJobStatus.Planned,
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-2)
+            },
+            new MaintenanceJob
+            {
+                Id = Guid.NewGuid(),
+                IncidentId = _incidentId,
+                ProviderId = otherProviderId,
+                Title = "Main Switchboard Upgrade",
+                Description = "General maintenance",
+                ScheduledStartUtc = DateTime.UtcNow.AddDays(2),
+                ScheduledEndUtc = DateTime.UtcNow.AddDays(3),
+                ApprovedBudget = 32000,
+                Status = MaintenanceJobStatus.Planned,
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-1)
+            }
+        );
+        await _dbContext.SaveChangesAsync();
+
+        // Act - search by provider business name
+        var providerSearchQuery = new MaintenanceJobQueryParametersDto
+        {
+            SearchTerm = "Apex Electrical",
+            PageNumber = 1,
+            PageSize = 10
+        };
+        var providerResult = await _jobSut.GetJobsAsync(providerSearchQuery);
+
+        // Act - search by incident title
+        var incidentSearchQuery = new MaintenanceJobQueryParametersDto
+        {
+            SearchTerm = "Roof Leak",
+            PageNumber = 1,
+            PageSize = 10
+        };
+        var incidentResult = await _jobSut.GetJobsAsync(incidentSearchQuery);
+
+        // Assert
+        providerResult.Should().NotBeNull();
+        providerResult.Items.Should().ContainSingle(j => j.Title == "Main Switchboard Upgrade");
+
+        incidentResult.Should().NotBeNull();
+        incidentResult.Items.Should().NotBeEmpty();
+        incidentResult.Items.Should().AllSatisfy(j => j.IncidentTitle.Should().Be("Roof Leak"));
+    }
+
+    [Fact]
+    public async Task GetJobsAsync_ShouldCombineSearchStatusAndPaginationCorrectly()
+    {
+        // Arrange
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated).Returns(true);
+        _currentUserServiceMock.Setup(s => s.UserId).Returns(_managerUserId);
+        _currentUserServiceMock.Setup(s => s.Role).Returns(UserRole.Manager);
+
+        for (int i = 1; i <= 5; i++)
+        {
+            _dbContext.MaintenanceJobs.Add(new MaintenanceJob
+            {
+                Id = Guid.NewGuid(),
+                IncidentId = _incidentId,
+                ProviderId = _providerId,
+                Title = $"HVAC Duct Cleaning Phase {i}",
+                Description = "Seasonal AC repair",
+                ScheduledStartUtc = DateTime.UtcNow.AddDays(i),
+                ScheduledEndUtc = DateTime.UtcNow.AddDays(i + 1),
+                ApprovedBudget = 10000 * i,
+                Status = (i % 2 == 0) ? MaintenanceJobStatus.InProgress : MaintenanceJobStatus.Planned,
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-i)
+            });
+        }
+        await _dbContext.SaveChangesAsync();
+
+        // Act - filter by SearchTerm="HVAC", Status=Planned, PageSize=2, PageNumber=1
+        var queryPage1 = new MaintenanceJobQueryParametersDto
+        {
+            SearchTerm = "HVAC",
+            Status = MaintenanceJobStatus.Planned,
+            PageNumber = 1,
+            PageSize = 2,
+            SortBy = "approvedbudget",
+            SortDescending = false
+        };
+        var resultPage1 = await _jobSut.GetJobsAsync(queryPage1);
+
+        // Act - Page 2
+        var queryPage2 = new MaintenanceJobQueryParametersDto
+        {
+            SearchTerm = "HVAC",
+            Status = MaintenanceJobStatus.Planned,
+            PageNumber = 2,
+            PageSize = 2,
+            SortBy = "approvedbudget",
+            SortDescending = false
+        };
+        var resultPage2 = await _jobSut.GetJobsAsync(queryPage2);
+
+        // Assert
+        resultPage1.Should().NotBeNull();
+        resultPage1.TotalCount.Should().Be(3);
+        resultPage1.Items.Count.Should().Be(2);
+        resultPage1.Items.Should().AllSatisfy(j => j.Status.Should().Be(MaintenanceJobStatus.Planned));
+
+        resultPage2.Should().NotBeNull();
+        resultPage2.TotalCount.Should().Be(3);
+        resultPage2.Items.Count.Should().Be(1);
+        resultPage2.Items.First().ApprovedBudget.Should().Be(50000);
+    }
 }

@@ -1,6 +1,7 @@
 using AssetBridge.Application.Common.Interfaces;
 using AssetBridge.Application.Common.Models;
 using AssetBridge.Application.DTOs.Maintenance;
+using AssetBridge.Application.DTOs.Notifications;
 using AssetBridge.Application.Services.Interfaces;
 using AssetBridge.Domain.Entities.Incidents;
 using AssetBridge.Domain.Entities.Inspections;
@@ -19,15 +20,18 @@ public class MaintenanceJobService : IMaintenanceJobService
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<MaintenanceJobService> _logger;
+    private readonly INotificationService? _notificationService;
 
     public MaintenanceJobService(
         IApplicationDbContext context,
         ICurrentUserService currentUserService,
-        ILogger<MaintenanceJobService> logger)
+        ILogger<MaintenanceJobService> logger,
+        INotificationService? notificationService = null)
     {
         _context = context;
         _currentUserService = currentUserService;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<MaintenanceJobResponseDto> CreateJobAsync(CreateMaintenanceJobRequestDto request, CancellationToken cancellationToken = default)
@@ -97,6 +101,24 @@ public class MaintenanceJobService : IMaintenanceJobService
         _logger.LogInformation("MaintenanceJob {JobId} created for Incident {IncidentId} with Provider {ProviderId}",
             job.Id, request.IncidentId, request.ProviderId);
 
+        if (_notificationService != null && provider.UserId != Guid.Empty)
+        {
+            try
+            {
+                await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                {
+                    UserId = provider.UserId,
+                    Title = $"New Maintenance Job Assigned: {job.Title}",
+                    Message = $"You have been assigned to maintenance job '{job.Title}' for property '{incident.Asset?.Name}'. Scheduled start: {job.ScheduledStartUtc:yyyy-MM-dd HH:mm} UTC.",
+                    Type = NotificationType.ExecutionStarted
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to dispatch notification for maintenance job creation {JobId}", job.Id);
+            }
+        }
+
         return await GetJobByIdAsync(job.Id, cancellationToken);
     }
 
@@ -152,6 +174,16 @@ public class MaintenanceJobService : IMaintenanceJobService
         if (query.Status.HasValue)
         {
             dbQuery = dbQuery.Where(j => j.Status == query.Status.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm))
+        {
+            var term = query.SearchTerm.Trim().ToLower();
+            dbQuery = dbQuery.Where(j =>
+                j.Title.ToLower().Contains(term) ||
+                j.Description.ToLower().Contains(term) ||
+                (j.Incident != null && j.Incident.Title.ToLower().Contains(term)) ||
+                (j.Provider != null && j.Provider.BusinessName.ToLower().Contains(term)));
         }
 
         var totalCount = await dbQuery.CountAsync(cancellationToken);
@@ -274,6 +306,36 @@ public class MaintenanceJobService : IMaintenanceJobService
 
         await _context.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("MaintenanceJob {JobId} status updated to {Status}", id, request.Status);
+
+        if (_notificationService != null && job.Incident?.Asset?.OwnerId != null)
+        {
+            try
+            {
+                var notifType = request.Status == MaintenanceJobStatus.Completed
+                    ? NotificationType.ExecutionCompleted
+                    : NotificationType.WorkflowStatusChanged;
+
+                var title = request.Status == MaintenanceJobStatus.Completed
+                    ? $"Maintenance Job Completed: {job.Title}"
+                    : $"Maintenance Job Status Updated: {job.Title} ({request.Status})";
+
+                var message = request.Status == MaintenanceJobStatus.Completed
+                    ? $"Maintenance job '{job.Title}' on property '{job.Incident.Asset.Name}' was marked as completed. Actual cost: {(job.ActualCost.HasValue ? $"{job.ActualCost.Value:N2} LKR" : "N/A")}."
+                    : $"Maintenance job '{job.Title}' status changed to {request.Status}.";
+
+                await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                {
+                    UserId = job.Incident.Asset.OwnerId,
+                    Title = title,
+                    Message = message,
+                    Type = notifType
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to dispatch notification for maintenance job status change {JobId}", job.Id);
+            }
+        }
 
         return MapToDto(job);
     }
