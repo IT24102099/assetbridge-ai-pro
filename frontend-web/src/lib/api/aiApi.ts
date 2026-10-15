@@ -161,7 +161,23 @@ export const aiApi = {
 
   downloadDocumentUrl: (documentId: string): string => {
     return `/api/ai/documents/${documentId}/download`;
+  },
+
+  getHealth: async (): Promise<ApiResponse<AiHealthResponse>> => {
+    const response = await apiClient.get<ApiResponse<AiHealthResponse>>('/ai/health');
+    return response.data;
   }
 };
+
+export interface AiHealthResponse {
+  status: string;
+  service: string;
+  microservice_reachable: boolean;
+  mode: string;
+  registered_agents_count: number;
+  rag_collections_count: number;
+  architecture: string;
+  governance_rule: string;
+}
 
 

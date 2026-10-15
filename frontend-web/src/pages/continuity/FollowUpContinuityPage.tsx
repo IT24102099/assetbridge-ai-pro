@@ -175,6 +175,36 @@ export default function FollowUpContinuityPage() {
     }
   };
 
+  const normalizeFollowUpStatus = (status: any, statusName?: string): string => {
+    const val = String(statusName || status || '').toLowerCase().replace(/[\s_-]/g, '');
+    if (val === '1' || val === 'pending') return 'Pending';
+    if (val === '2' || val === 'inprogress') return 'InProgress';
+    if (val === '3' || val === 'completed') return 'Completed';
+    if (val === '4' || val === 'cancelled') return 'Cancelled';
+    if (val === '5' || val === 'overdue') return 'Overdue';
+    return 'Pending';
+  };
+
+  const normalizeFollowUpPriority = (priority: any, priorityName?: string): string => {
+    const val = String(priorityName || priority || '').toLowerCase().replace(/[\s_-]/g, '');
+    if (val === '1' || val === 'low') return 'Low';
+    if (val === '2' || val === 'medium') return 'Medium';
+    if (val === '3' || val === 'high') return 'High';
+    if (val === '4' || val === 'urgent' || val === 'critical') return 'Critical';
+    return 'Medium';
+  };
+
+  const isCompletedTask = (t: FollowUpTaskDto) =>
+    normalizeFollowUpStatus(t.status, t.statusName) === 'Completed';
+
+  const isCancelledTask = (t: FollowUpTaskDto) =>
+    normalizeFollowUpStatus(t.status, t.statusName) === 'Cancelled';
+
+  const isPendingOrInProgress = (t: FollowUpTaskDto) => {
+    const s = normalizeFollowUpStatus(t.status, t.statusName);
+    return s === 'Pending' || s === 'InProgress';
+  };
+
   const filtered = tasks.filter((t) => {
     const matchesSearch =
       !searchQuery ||
@@ -182,48 +212,23 @@ export default function FollowUpContinuityPage() {
       t.assetName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.description.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const isStatusMatch = (statusVal: any, filterVal: string) => {
-      if (filterVal === 'all') return true;
-      const s = String(statusVal).toLowerCase();
-      const f = filterVal.toLowerCase();
-      if (s === f) return true;
-      if (f === 'completed' && (s === '3' || s === 'completed')) return true;
-      if (f === 'cancelled' && (s === '4' || s === 'cancelled')) return true;
-      if (f === 'pending' && (s === '1' || s === 'pending')) return true;
-      if (f === 'inprogress' && (s === '2' || s === 'inprogress')) return true;
-      if (f === 'overdue' && (s === '5' || s === 'overdue')) return true;
-      return false;
-    };
-
+    const taskStatus = normalizeFollowUpStatus(t.status, t.statusName);
     const matchesStatus =
       statusFilter === 'all' ||
-      isStatusMatch(t.status, statusFilter) ||
-      isStatusMatch(t.statusName, statusFilter);
-    const matchesPriority = priorityFilter === 'all' || t.priority.toString().toLowerCase() === priorityFilter.toLowerCase() || t.priorityName?.toLowerCase() === priorityFilter.toLowerCase();
+      (statusFilter.toLowerCase() === 'overdue' && (t.isOverdue || taskStatus === 'Overdue')) ||
+      taskStatus.toLowerCase() === statusFilter.toLowerCase().replace(/[\s_-]/g, '');
+
+    const taskPriority = normalizeFollowUpPriority(t.priority, t.priorityName);
+    const matchesPriority =
+      priorityFilter === 'all' ||
+      ((priorityFilter === 'Critical' || priorityFilter === 'Urgent') && (taskPriority === 'Critical' || taskPriority === 'Urgent')) ||
+      taskPriority.toLowerCase() === priorityFilter.toLowerCase().replace(/[\s_-]/g, '');
 
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  const isCompletedTask = (t: FollowUpTaskDto) =>
-    t.status === FollowUpStatus.Completed ||
-    (t.status as unknown) === 'Completed' ||
-    t.statusName?.toLowerCase() === 'completed';
-
-  const isCancelledTask = (t: FollowUpTaskDto) =>
-    t.status === FollowUpStatus.Cancelled ||
-    (t.status as unknown) === 'Cancelled' ||
-    t.statusName?.toLowerCase() === 'cancelled';
-
-  const isPendingOrInProgress = (t: FollowUpTaskDto) =>
-    t.status === FollowUpStatus.Pending ||
-    t.status === FollowUpStatus.InProgress ||
-    (t.status as unknown) === 'Pending' ||
-    (t.status as unknown) === 'InProgress' ||
-    t.statusName?.toLowerCase() === 'pending' ||
-    t.statusName?.toLowerCase() === 'inprogress';
 
   const pendingCount = tasks.filter(isPendingOrInProgress).length;
   const overdueCount = tasks.filter((t) => t.isOverdue).length;
@@ -314,11 +319,11 @@ export default function FollowUpContinuityPage() {
             className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500 transition"
           >
             <option value="all">All Statuses</option>
-            <option value={FollowUpStatus.Pending.toString()}>Pending</option>
-            <option value={FollowUpStatus.InProgress.toString()}>In Progress</option>
-            <option value={FollowUpStatus.Completed.toString()}>Completed</option>
-            <option value={FollowUpStatus.Cancelled.toString()}>Cancelled</option>
-            <option value={FollowUpStatus.Overdue.toString()}>Overdue</option>
+            <option value="Pending">Pending</option>
+            <option value="InProgress">In Progress</option>
+            <option value="Completed">Completed</option>
+            <option value="Cancelled">Cancelled</option>
+            <option value="Overdue">Overdue</option>
           </select>
 
           <select
@@ -330,10 +335,10 @@ export default function FollowUpContinuityPage() {
             className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500 transition"
           >
             <option value="all">All Priorities</option>
-            <option value={FollowUpPriority.Low.toString()}>Low</option>
-            <option value={FollowUpPriority.Medium.toString()}>Medium</option>
-            <option value={FollowUpPriority.High.toString()}>High</option>
-            <option value={FollowUpPriority.Urgent.toString()}>Urgent</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical / Urgent</option>
           </select>
         </div>
       </div>
@@ -395,17 +400,22 @@ export default function FollowUpContinuityPage() {
                     </td>
 
                     <td className="py-3 px-4">
-                      <span
-                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                          task.priority === FollowUpPriority.Urgent
-                            ? 'bg-red-50 text-red-700 border border-red-200'
-                            : task.priority === FollowUpPriority.High
-                            ? 'bg-orange-50 text-orange-700 border border-orange-200'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {task.priorityName}
-                      </span>
+                      {(() => {
+                        const pri = normalizeFollowUpPriority(task.priority, task.priorityName);
+                        return (
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                              pri === 'Urgent' || pri === 'Critical'
+                                ? 'bg-red-50 text-red-700 border border-red-200'
+                                : pri === 'High'
+                                ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {task.priorityName || pri}
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     <td className="py-3 px-4">

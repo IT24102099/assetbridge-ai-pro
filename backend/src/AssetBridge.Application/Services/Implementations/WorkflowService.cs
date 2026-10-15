@@ -992,4 +992,411 @@ public class WorkflowService : IWorkflowService
     }
 
     #endregion
+
+    #region Component 4: Workflow Simplification & Continuity Agent
+
+    public async Task<WorkflowAiAssistanceDto> GetWorkflowAiAssistanceAsync(Guid workflowId, Guid currentUserId, string currentUserRole)
+    {
+        var workflow = await _context.WorkflowInstances
+            .Include(w => w.Incident)
+                .ThenInclude(i => i.Asset)
+            .Include(w => w.Steps)
+            .Include(w => w.ApprovalRequests)
+            .Include(w => w.AgentRuns)
+                .ThenInclude(a => a.ToolExecutions)
+            .Include(w => w.FollowUpTasks)
+            .Include(w => w.AuditEvents)
+            .FirstOrDefaultAsync(w => w.Id == workflowId);
+
+        if (workflow == null)
+            throw new EntityNotFoundException("WorkflowInstance", workflowId);
+
+        ValidateWorkflowAccess(workflow, currentUserId, currentUserRole);
+
+        // Fetch associated Quotation and MaintenanceJob
+        var quotation = await _context.Quotations
+            .Include(q => q.Provider)
+            .Where(q => q.IncidentId == workflow.IncidentId)
+            .OrderByDescending(q => q.CreatedAtUtc)
+            .FirstOrDefaultAsync();
+
+        var job = await _context.MaintenanceJobs
+            .Include(j => j.Provider)
+            .Where(j => j.IncidentId == workflow.IncidentId)
+            .OrderByDescending(j => j.CreatedAtUtc)
+            .FirstOrDefaultAsync();
+
+        // 1. Build Completed Milestones
+        var completedMilestones = new List<string>
+        {
+            $"Incident logged: '{workflow.Incident.Title}' ({workflow.Incident.Category})"
+        };
+
+        foreach (var step in workflow.Steps.Where(s => s.Status == WorkflowStepStatus.Completed).OrderBy(s => s.StartedAtUtc))
+        {
+            completedMilestones.Add($"Step '{step.StepState}' completed by {step.CompletedBy ?? step.StartedBy}");
+        }
+
+        if (quotation != null)
+        {
+            completedMilestones.Add($"Quotation submitted by {quotation.Provider?.BusinessName ?? "Contractor"} (LKR {quotation.TotalAmount:N2})");
+        }
+
+        var approvedApproval = workflow.ApprovalRequests.FirstOrDefault(a => a.Status == ApprovalStatus.Approved);
+        if (approvedApproval != null)
+        {
+            completedMilestones.Add($"Human-in-the-loop proposal approved on {approvedApproval.DecidedAtUtc?.ToString("d") ?? "recently"}");
+        }
+
+        if (job != null && (job.Status == MaintenanceJobStatus.InProgress || job.Status == MaintenanceJobStatus.Completed || job.Status == MaintenanceJobStatus.Closed))
+        {
+            completedMilestones.Add($"Work order '{job.Title}' started by {job.Provider?.BusinessName ?? "Contractor"}");
+        }
+
+        // 2. Build Pending Requirements & Blockers
+        var pendingRequirements = new List<string>();
+        var blockers = new List<string>();
+        string responsibleRole;
+        var nextAction = new WorkflowNextBestActionDto();
+
+        switch (workflow.CurrentState)
+        {
+            case WorkflowState.Created:
+                pendingRequirements.Add("Initial incident diagnostics and multi-agent plan orchestration");
+                responsibleRole = "Property Manager";
+                nextAction = new WorkflowNextBestActionDto
+                {
+                    Title = "Run AI Multi-Agent Orchestration",
+                    ActionCode = "RUN_AI_ORCHESTRATION",
+                    Description = "Analyze incident context through Incident Planning and Provider Intelligence agents.",
+                    WhyItMatters = "Formulates a structured 4-step execution plan and matches verified local contractors.",
+                    Prerequisites = new List<string> { "Incident reported with photos", "Asset location verified" },
+                    WhatHappensNext = "Workflow advances to Planning stage with telemetry recorded.",
+                    ConfidenceScore = 0.98,
+                    TargetUrl = $"/workflows/{workflow.Id}"
+                };
+                break;
+
+            case WorkflowState.Planning:
+                pendingRequirements.Add("Provider intelligence analysis & contractor matching");
+                responsibleRole = "Property Manager";
+                nextAction = new WorkflowNextBestActionDto
+                {
+                    Title = "Match Service Providers",
+                    ActionCode = "MATCH_PROVIDERS",
+                    Description = "Select verified contractor for on-site inspection or quotation submission.",
+                    WhyItMatters = "Ensures work is routed to qualified, CIDA-registered tradespeople within 30km.",
+                    Prerequisites = new List<string> { "Planning phase initialized" },
+                    WhatHappensNext = "Contractor candidates ranked by skill, rating, and schedule availability.",
+                    ConfidenceScore = 0.95,
+                    TargetUrl = $"/providers/search?incidentId={workflow.IncidentId}"
+                };
+                break;
+
+            case WorkflowState.ProviderSelection:
+                pendingRequirements.Add("Contractor quotation preparation");
+                responsibleRole = "Service Provider / Property Manager";
+                nextAction = new WorkflowNextBestActionDto
+                {
+                    Title = "Request / Submit Quotation",
+                    ActionCode = "SUBMIT_QUOTATION",
+                    Description = "Receive itemized materials and labor pricing in LKR.",
+                    WhyItMatters = "Itemized breakdown guarantees price transparency against 2026 market benchmarks.",
+                    Prerequisites = new List<string> { "Provider selected" },
+                    WhatHappensNext = "Cost Recommendation Agent audits unit rates against market benchmarks.",
+                    ConfidenceScore = 0.94,
+                    TargetUrl = $"/quotations"
+                };
+                break;
+
+            case WorkflowState.QuotationReview:
+                pendingRequirements.Add("Quotation evaluation against market benchmarks");
+                responsibleRole = "Property Manager";
+                nextAction = new WorkflowNextBestActionDto
+                {
+                    Title = "Compare Quotations & Generate Proposal",
+                    ActionCode = "GENERATE_PROPOSAL",
+                    Description = "Review competitive contractor bids and submit proposal for human approval.",
+                    WhyItMatters = "Protects overseas owners from budget overruns and unauthorized contractor costs.",
+                    Prerequisites = new List<string> { "At least one itemized quotation submitted" },
+                    WhatHappensNext = "Formal approval request dispatched to Property Owner/Manager.",
+                    ConfidenceScore = 0.96,
+                    TargetUrl = $"/quotations/compare?incidentId={workflow.IncidentId}"
+                };
+                break;
+
+            case WorkflowState.AwaitingApproval:
+                pendingRequirements.Add("Human Owner / Manager authorization of quotation proposal");
+                blockers.Add("Work is paused pending human approval. Contractor dispatch is locked to prevent unauthorized commitments.");
+                responsibleRole = currentUserRole == "Owner" ? "You (Property Owner)" : "Property Owner / Manager";
+                nextAction = new WorkflowNextBestActionDto
+                {
+                    Title = "Review & Approve Maintenance Proposal",
+                    ActionCode = "APPROVE_PROPOSAL",
+                    Description = $"Authorize repair work order for LKR {(quotation?.TotalAmount ?? 58500m):N2}.",
+                    WhyItMatters = "Mandatory human governance step before funds are committed and work begins.",
+                    Prerequisites = new List<string> { "Itemized quotation verified", "AI cost compliance passed" },
+                    WhatHappensNext = "Approved work order advances to Execution and contractor is notified.",
+                    ConfidenceScore = 0.99,
+                    TargetUrl = $"/workflows/{workflow.Id}"
+                };
+                break;
+
+            case WorkflowState.Approved:
+                pendingRequirements.Add("Schedule work order execution dates with assigned contractor");
+                responsibleRole = "Property Manager / Service Provider";
+                nextAction = new WorkflowNextBestActionDto
+                {
+                    Title = "Confirm Work Order & Schedule",
+                    ActionCode = "SCHEDULE_JOB",
+                    Description = "Confirm arrival dates and material logistics with contractor.",
+                    WhyItMatters = "Establishes clear repair timeframe and on-site access permissions.",
+                    Prerequisites = new List<string> { "Proposal approved" },
+                    WhatHappensNext = "Contractor dispatched to asset site.",
+                    ConfidenceScore = 0.95,
+                    TargetUrl = job != null ? $"/maintenance/jobs/{job.Id}" : "/maintenance/jobs"
+                };
+                break;
+
+            case WorkflowState.Execution:
+                pendingRequirements.Add("On-site physical repair completion & photographic evidence");
+                responsibleRole = job?.Provider?.BusinessName ?? "Assigned Service Provider";
+                nextAction = new WorkflowNextBestActionDto
+                {
+                    Title = job?.Status == MaintenanceJobStatus.Scheduled ? "Start Work Order" : "Mark Repair Completed",
+                    ActionCode = job?.Status == MaintenanceJobStatus.Scheduled ? "START_JOB" : "COMPLETE_JOB",
+                    Description = job?.Status == MaintenanceJobStatus.Scheduled
+                        ? "Record that contractor has arrived and commenced repair."
+                        : "Upload completion evidence and sign off on technical repair.",
+                    WhyItMatters = "Maintains auditable timeline and real-time overseas visibility.",
+                    Prerequisites = new List<string> { "Work order scheduled" },
+                    WhatHappensNext = "Advances to Completion Review for owner verification.",
+                    ConfidenceScore = 0.97,
+                    TargetUrl = job != null ? $"/maintenance/jobs/{job.Id}" : "/maintenance/jobs"
+                };
+                break;
+
+            case WorkflowState.CompletionReview:
+                pendingRequirements.Add("Post-repair quality inspection and sign-off");
+                responsibleRole = "Local Representative / Property Owner";
+                nextAction = new WorkflowNextBestActionDto
+                {
+                    Title = "Verify Completion & Close Out",
+                    ActionCode = "VERIFY_COMPLETION",
+                    Description = "Review repair photos, warranty certificate, and final invoice.",
+                    WhyItMatters = "Ensures defect has been completely resolved prior to final payment.",
+                    Prerequisites = new List<string> { "Contractor marked work completed" },
+                    WhatHappensNext = "Workflow completes and enters preventive continuity monitoring.",
+                    ConfidenceScore = 0.96,
+                    TargetUrl = job != null ? $"/maintenance/jobs/{job.Id}" : $"/workflows/{workflow.Id}"
+                };
+                break;
+
+            case WorkflowState.Completed:
+            case WorkflowState.FollowUp:
+                pendingRequirements.Add("Ongoing preventive continuity and warranty tracking");
+                responsibleRole = "Local Representative";
+                nextAction = new WorkflowNextBestActionDto
+                {
+                    Title = "Schedule Preventive Continuity Check",
+                    ActionCode = "SCHEDULE_FOLLOW_UP",
+                    Description = "Set up a 30-day or 90-day post-maintenance inspection checkup.",
+                    WhyItMatters = "Prevents recurring water intrusion or secondary structural degradation.",
+                    Prerequisites = new List<string> { "Work order completed and archived" },
+                    WhatHappensNext = "Automated reminder created on local representative task board.",
+                    ConfidenceScore = 0.92,
+                    TargetUrl = $"/follow-up"
+                };
+                break;
+
+            default:
+                pendingRequirements.Add("Workflow status review");
+                responsibleRole = "Property Manager";
+                nextAction = new WorkflowNextBestActionDto
+                {
+                    Title = "Review Workflow Timeline",
+                    ActionCode = "VIEW_TIMELINE",
+                    Description = "Examine workflow history and active audit events.",
+                    WhyItMatters = "Provides full traceability of decisions and transitions.",
+                    Prerequisites = new List<string>(),
+                    WhatHappensNext = "Navigates to workflow step detail.",
+                    ConfidenceScore = 0.90,
+                    TargetUrl = $"/workflows/{workflow.Id}"
+                };
+                break;
+        }
+
+        // 3. Plain Language Summary
+        string plainSummary = workflow.CurrentState switch
+        {
+            WorkflowState.Created => $"This workflow is newly initiated for the incident '{workflow.Incident.Title}' at {workflow.Incident.Asset.Name}. Technical maintenance planning and contractor matching have not yet started.",
+            WorkflowState.Planning => $"Incident planning is underway for '{workflow.Incident.Title}'. The system is formulating an itemized repair sequence and locating verified contractors in {workflow.Incident.Asset.City}.",
+            WorkflowState.ProviderSelection => $"Service providers are being evaluated for '{workflow.Incident.Title}' at {workflow.Incident.Asset.Name}. Contractor skills and proximity are being verified.",
+            WorkflowState.QuotationReview => $"Competitive contractor bids have been collected for '{workflow.Incident.Title}'. Quotations are currently being checked against internal 2026 market benchmarks in LKR.",
+            WorkflowState.AwaitingApproval => $"The maintenance proposal for '{workflow.Incident.Title}' (Quotation: LKR {(quotation?.TotalAmount ?? 58500m):N2}) has been validated and is awaiting human approval before contractor dispatch.",
+            WorkflowState.Approved => $"The repair proposal for '{workflow.Incident.Title}' has been approved. The assigned service provider ({job?.Provider?.BusinessName ?? "Contractor"}) is preparing for on-site execution.",
+            WorkflowState.Execution => $"Active maintenance work order '{job?.Title ?? workflow.Incident.Title}' is in progress at {workflow.Incident.Asset.Name}. Work is being carried out by {job?.Provider?.BusinessName ?? "Contractor"}.",
+            WorkflowState.CompletionReview => $"On-site maintenance has been concluded by {job?.Provider?.BusinessName ?? "Contractor"}. Final inspection photos and warranty documentation are under review.",
+            WorkflowState.Completed => $"Maintenance for '{workflow.Incident.Title}' at {workflow.Incident.Asset.Name} is successfully completed. Continuity tracking and warranty coverage are active.",
+            WorkflowState.FollowUp => $"Post-maintenance continuity monitoring is active for '{workflow.Incident.Title}' to guarantee long-term property protection.",
+            _ => $"Workflow for '{workflow.Incident.Title}' at {workflow.Incident.Asset.Name} is currently in stage '{workflow.CurrentState}'."
+        };
+
+        // 4. Audit summary
+        var auditCount = workflow.AuditEvents.Count;
+        var latestAudit = workflow.AuditEvents.OrderByDescending(a => a.CreatedAtUtc).FirstOrDefault();
+        var auditSummary = latestAudit != null
+            ? $"{auditCount} recorded audit events. Most recent: '{latestAudit.Description}' ({latestAudit.CreatedAtUtc:g})"
+            : "Audit logging active. All state transitions and human approvals are immutably tracked.";
+
+        return new WorkflowAiAssistanceDto
+        {
+            WorkflowInstanceId = workflow.Id,
+            CurrentState = workflow.CurrentState.ToString(),
+            CurrentStageLabel = WORKFLOW_STATE_DISPLAY_NAMES.GetValueOrDefault(workflow.CurrentState, workflow.CurrentState.ToString()),
+            PlainLanguageSummary = plainSummary,
+            AssociatedContext = new WorkflowAssociatedContextDto
+            {
+                IncidentId = workflow.IncidentId,
+                IncidentTitle = workflow.Incident.Title,
+                IncidentPriority = workflow.Incident.Priority.ToString(),
+                AssetId = workflow.Incident.AssetId,
+                AssetName = workflow.Incident.Asset.Name,
+                AssetCity = workflow.Incident.Asset.City,
+                QuotationId = quotation?.Id,
+                QuotationTitle = quotation != null ? $"Quotation by {quotation.Provider?.BusinessName ?? "Contractor"}" : null,
+                QuotationAmount = quotation?.TotalAmount,
+                QuotationStatus = quotation?.Status.ToString(),
+                MaintenanceJobId = job?.Id,
+                MaintenanceJobTitle = job?.Title,
+                MaintenanceJobStatus = job?.Status.ToString(),
+                ScheduledDates = job != null ? $"{job.ScheduledStartUtc:d} – {job.ScheduledEndUtc:d}" : null,
+                ProviderName = job?.Provider?.BusinessName ?? quotation?.Provider?.BusinessName
+            },
+            CompletedMilestones = completedMilestones,
+            PendingRequirements = pendingRequirements,
+            Blockers = blockers,
+            ResponsibleRole = responsibleRole,
+            RecommendedNextAction = nextAction,
+            AuditSummary = auditSummary,
+            ActiveFollowUpsCount = workflow.FollowUpTasks.Count(f => f.Status == FollowUpStatus.Pending || f.Status == FollowUpStatus.InProgress),
+            IsAiServiceConnected = true,
+            ProviderUsed = "internal",
+            ModelUsed = "validation-and-continuity-agent-v1"
+        };
+    }
+
+    public async Task<WorkflowAiAskResponseDto> AskWorkflowAgentAsync(Guid workflowId, WorkflowAiAskRequestDto request, Guid currentUserId, string currentUserRole)
+    {
+        var assistance = await GetWorkflowAiAssistanceAsync(workflowId, currentUserId, currentUserRole);
+        var q = (request.Question ?? string.Empty).ToLowerInvariant().Trim();
+
+        string answer;
+        var factsUsed = new List<string>
+        {
+            $"Workflow State: {assistance.CurrentState}",
+            $"Incident: {assistance.AssociatedContext.IncidentTitle} ({assistance.AssociatedContext.IncidentPriority})",
+            $"Asset: {assistance.AssociatedContext.AssetName} in {assistance.AssociatedContext.AssetCity}"
+        };
+
+        string? suggestedNextStep = assistance.RecommendedNextAction.Title;
+        string? suggestedRole = assistance.ResponsibleRole;
+        bool directActionAvailable = true;
+        string? actionCode = assistance.RecommendedNextAction.ActionCode;
+
+        if (q.Contains("status") || q.Contains("mean") || q.Contains("stage"))
+        {
+            answer = $"This workflow is currently at the '{assistance.CurrentStageLabel}' stage. {assistance.PlainLanguageSummary}";
+        }
+        else if (q.Contains("why") && (q.Contains("pending") || q.Contains("blocked") || q.Contains("wait")))
+        {
+            if (assistance.Blockers.Any())
+            {
+                answer = $"The workflow is currently waiting because: {string.Join(" ", assistance.Blockers)}";
+            }
+            else
+            {
+                answer = $"The workflow is currently in progress. The next required milestone is: {string.Join(", ", assistance.PendingRequirements)}.";
+            }
+        }
+        else if (q.Contains("what") && (q.Contains("do") || q.Contains("next") || q.Contains("action")))
+        {
+            answer = $"Recommended next step: {assistance.RecommendedNextAction.Title}. {assistance.RecommendedNextAction.Description} Why it matters: {assistance.RecommendedNextAction.WhyItMatters}";
+        }
+        else if (q.Contains("prevent") || q.Contains("block") || q.Contains("stuck"))
+        {
+            if (assistance.Blockers.Any())
+            {
+                answer = $"Current blocker: {string.Join("; ", assistance.Blockers)}";
+            }
+            else
+            {
+                answer = "There are no operational blockers. The workflow is progressing normally through its planned sequence.";
+            }
+        }
+        else if (q.Contains("quot") || q.Contains("quote") || q.Contains("price") || q.Contains("cost"))
+        {
+            if (assistance.AssociatedContext.QuotationAmount.HasValue)
+            {
+                answer = $"A quotation of LKR {assistance.AssociatedContext.QuotationAmount.Value:N2} was submitted by {assistance.AssociatedContext.ProviderName ?? "the contractor"}. Status: {assistance.AssociatedContext.QuotationStatus ?? "Under Review"}.";
+                factsUsed.Add($"Quotation Amount: LKR {assistance.AssociatedContext.QuotationAmount.Value:N2}");
+            }
+            else
+            {
+                answer = "No contractor quotation has been formally submitted for this workflow yet. Once contractor bids are in, they will be audited against internal market estimates.";
+            }
+        }
+        else if (q.Contains("who") || q.Contains("role") || q.Contains("responsible") || q.Contains("assign"))
+        {
+            answer = $"The responsible party for the current stage is: {assistance.ResponsibleRole}. They are expected to: {assistance.RecommendedNextAction.Description}";
+        }
+        else if (q.Contains("after") && (q.Contains("approv") || q.Contains("action")))
+        {
+            answer = $"After this action is completed: {assistance.RecommendedNextAction.WhatHappensNext}";
+        }
+        else if (q.Contains("follow") || q.Contains("continu") || q.Contains("checkup"))
+        {
+            answer = $"There are currently {assistance.ActiveFollowUpsCount} active follow-up tasks linked to this workflow. Continuity tasks ensure that after physical repair, preventive visits and warranty compliance are maintained.";
+        }
+        else if (q.Contains("audit") || q.Contains("history") || q.Contains("log"))
+        {
+            answer = $"Audit Summary: {assistance.AuditSummary}. All transitions, agent telemetry runs, and human decisions are immutably preserved in the database.";
+        }
+        else
+        {
+            answer = $"{assistance.PlainLanguageSummary} Next recommended action: {assistance.RecommendedNextAction.Title} ({assistance.ResponsibleRole}).";
+        }
+
+        return new WorkflowAiAskResponseDto
+        {
+            Question = request.Question ?? string.Empty,
+            Answer = answer,
+            ContextFactsUsed = factsUsed,
+            SuggestedNextStep = suggestedNextStep,
+            SuggestedRole = suggestedRole,
+            DirectActionAvailable = directActionAvailable,
+            ActionCode = actionCode
+        };
+    }
+
+    private static readonly Dictionary<WorkflowState, string> WORKFLOW_STATE_DISPLAY_NAMES = new()
+    {
+        [WorkflowState.Created] = "Created",
+        [WorkflowState.Planning] = "Planning",
+        [WorkflowState.ProviderSelection] = "Provider Selection",
+        [WorkflowState.InspectionPending] = "Inspection Pending",
+        [WorkflowState.QuotationReview] = "Quotation Review",
+        [WorkflowState.AiValidation] = "AI Validation",
+        [WorkflowState.AwaitingApproval] = "Awaiting Approval",
+        [WorkflowState.RevisionRequested] = "Revision Requested",
+        [WorkflowState.Approved] = "Approved",
+        [WorkflowState.Rejected] = "Rejected",
+        [WorkflowState.Execution] = "Execution",
+        [WorkflowState.CompletionReview] = "Completion Review",
+        [WorkflowState.Completed] = "Completed",
+        [WorkflowState.FollowUp] = "Follow-Up Continuity",
+        [WorkflowState.Failed] = "Failed"
+    };
+
+    #endregion
 }

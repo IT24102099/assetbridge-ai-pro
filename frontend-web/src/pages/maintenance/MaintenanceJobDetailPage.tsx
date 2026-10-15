@@ -15,12 +15,23 @@ import { LoadingState, ErrorState } from '../../components/common/FeedbackStates
 import { useAuth } from '../../context/AuthContext';
 
 const STAGES = [
-  { status: MaintenanceJobStatus.Planned, label: 'Planned' },
-  { status: MaintenanceJobStatus.Scheduled, label: 'Scheduled' },
-  { status: MaintenanceJobStatus.InProgress, label: 'In Progress' },
-  { status: MaintenanceJobStatus.Completed, label: 'Completed' },
-  { status: MaintenanceJobStatus.Closed, label: 'Closed' }
+  { status: 'Planned', label: 'Planned' },
+  { status: 'Scheduled', label: 'Scheduled' },
+  { status: 'InProgress', label: 'In Progress' },
+  { status: 'Completed', label: 'Completed' },
+  { status: 'Closed', label: 'Closed' }
 ];
+
+const normalizeJobStatus = (status: any, statusName?: string): string => {
+  const val = String(statusName || status || '').toLowerCase();
+  if (val === '1' || val === 'planned') return 'Planned';
+  if (val === '2' || val === 'scheduled') return 'Scheduled';
+  if (val === '3' || val === 'inprogress' || val === 'in progress') return 'InProgress';
+  if (val === '4' || val === 'completed') return 'Completed';
+  if (val === '5' || val === 'cancelled') return 'Cancelled';
+  if (val === '6' || val === 'closed') return 'Closed';
+  return 'Planned';
+};
 
 export default function MaintenanceJobDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -104,7 +115,10 @@ export default function MaintenanceJobDetailPage() {
     );
   }
 
-  const currentStageIndex = STAGES.findIndex((s) => s.status === job.status);
+  const currentStatus = normalizeJobStatus(job.status, job.statusName);
+  const currentStageIndex = STAGES.findIndex(
+    (s) => s.status.toLowerCase() === currentStatus.toLowerCase()
+  );
 
   return (
     <div className="space-y-6">
@@ -120,28 +134,28 @@ export default function MaintenanceJobDetailPage() {
 
         {canUpdateStatus && (
           <div className="flex items-center gap-2">
-            {job.status === MaintenanceJobStatus.Scheduled && (
+            {currentStatus === 'Scheduled' && (
               <button
                 onClick={() => handleOpenStatusModal(MaintenanceJobStatus.InProgress)}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition shadow-xs"
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
               >
                 Start Work Order
               </button>
             )}
 
-            {job.status === MaintenanceJobStatus.InProgress && (
+            {currentStatus === 'InProgress' && (
               <button
                 onClick={() => handleOpenStatusModal(MaintenanceJobStatus.Completed)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
               >
                 Mark Job Completed
               </button>
             )}
 
-            {job.status === MaintenanceJobStatus.Completed && (
+            {currentStatus === 'Completed' && (
               <button
                 onClick={() => handleOpenStatusModal(MaintenanceJobStatus.Closed)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition shadow-xs"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
               >
                 Close & Archive Job
               </button>

@@ -90,4 +90,13 @@ public class AiController : BaseApiController
             return NotFound(ApiResponse<object>.FailureResult($"Knowledge document '{documentId}' was not found."));
         }
     }
+
+    [HttpGet("health")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<AiHealthDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetHealth(CancellationToken cancellationToken)
+    {
+        var health = await _aiService.CheckHealthAsync(cancellationToken);
+        return HandleSuccess(health, "AI microservice health status retrieved.");
+    }
 }

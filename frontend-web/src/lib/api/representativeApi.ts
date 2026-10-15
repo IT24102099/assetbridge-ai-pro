@@ -6,6 +6,8 @@ import {
   UpdateRepresentativeRequestDto,
   UpdateVerificationRequestDto,
   RepresentativeQueryParametersDto,
+  RepresentativeDocumentResponseDto,
+  ReviewRepresentativeDocumentRequestDto
 } from '../../types/representative';
 
 export const representativeApi = {
@@ -17,7 +19,7 @@ export const representativeApi = {
       queryParams.search = params.searchTerm;
     }
     if (params?.status) {
-      queryParams.verificationStatus = params.status;
+      queryParams.status = params.status;
     }
     const response = await apiClient.get<ApiResponse<PagedResponse<RepresentativeResponseDto>>>(
       '/representatives',
@@ -72,6 +74,43 @@ export const representativeApi = {
 
   deleteRepresentative: async (id: string): Promise<ApiResponse<boolean>> => {
     const response = await apiClient.delete<ApiResponse<boolean>>(`/representatives/${id}`);
+    return response.data;
+  },
+
+  uploadDocument: async (
+    id: string,
+    file: File,
+    documentType: string
+  ): Promise<ApiResponse<RepresentativeDocumentResponseDto>> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('documentType', documentType);
+    const response = await apiClient.post<ApiResponse<RepresentativeDocumentResponseDto>>(
+      `/representatives/${id}/documents`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
+    );
+    return response.data;
+  },
+
+  getDocuments: async (id: string): Promise<ApiResponse<RepresentativeDocumentResponseDto[]>> => {
+    const response = await apiClient.get<ApiResponse<RepresentativeDocumentResponseDto[]>>(
+      `/representatives/${id}/documents`
+    );
+    return response.data;
+  },
+
+  reviewDocument: async (
+    id: string,
+    documentId: string,
+    data: ReviewRepresentativeDocumentRequestDto
+  ): Promise<ApiResponse<RepresentativeDocumentResponseDto>> => {
+    const response = await apiClient.patch<ApiResponse<RepresentativeDocumentResponseDto>>(
+      `/representatives/${id}/documents/${documentId}/review`,
+      data
+    );
     return response.data;
   },
 };

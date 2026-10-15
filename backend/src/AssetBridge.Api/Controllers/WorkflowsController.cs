@@ -234,4 +234,32 @@ public class WorkflowsController : BaseApiController
     }
 
     #endregion
+
+    #region Component 4: Workflow Simplification & Continuity Agent Endpoints
+
+    [HttpGet("{id:guid}/ai-assistance")]
+    [ProducesResponseType(typeof(ApiResponse<WorkflowAiAssistanceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetWorkflowAiAssistance(Guid id)
+    {
+        var currentUserId = _currentUserService.UserId ?? throw new UnauthorizedAccessException("User is not authenticated.");
+        var currentUserRole = _currentUserService.Role?.ToString() ?? string.Empty;
+        var result = await _workflowService.GetWorkflowAiAssistanceAsync(id, currentUserId, currentUserRole);
+        return HandleSuccess(result, "Workflow AI assistance and simplification context generated successfully.");
+    }
+
+    [HttpPost("{id:guid}/ai-ask")]
+    [ProducesResponseType(typeof(ApiResponse<WorkflowAiAskResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AskWorkflowAgent(Guid id, [FromBody] WorkflowAiAskRequestDto request)
+    {
+        var currentUserId = _currentUserService.UserId ?? throw new UnauthorizedAccessException("User is not authenticated.");
+        var currentUserRole = _currentUserService.Role?.ToString() ?? string.Empty;
+        request.WorkflowInstanceId = id;
+        var result = await _workflowService.AskWorkflowAgentAsync(id, request, currentUserId, currentUserRole);
+        return HandleSuccess(result, "Workflow question answered using authenticated workflow state.");
+    }
+
+    #endregion
 }
