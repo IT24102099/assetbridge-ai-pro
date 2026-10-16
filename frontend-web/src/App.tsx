@@ -63,8 +63,8 @@ export const App: React.FC = () => {
       {/* Protected Routes using Wireframe AppLayout */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
+          {/* General Protected Routes */}
           <Route path="/dashboard" element={<DashboardRouter />} />
-          <Route path="/manager" element={<ManagerDashboardPage />} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
           {/* Member 1: Asset & Incident Management Routes */}
@@ -83,8 +83,6 @@ export const App: React.FC = () => {
           <Route path="/providers/search" element={<ProviderSearchPage />} />
           <Route path="/provider-search" element={<ProviderSearchPage />} />
           <Route path="/provider-availability" element={<ProviderAvailabilityPage />} />
-          <Route path="/assignments" element={<AssignmentsPage />} />
-          <Route path="/verifications" element={<VerificationsPage />} />
 
           {/* Member 3: Maintenance, Inspection & Quotations Routes */}
           <Route path="/maintenance" element={<MaintenanceDashboardPage />} />
@@ -104,11 +102,18 @@ export const App: React.FC = () => {
           <Route path="/workflows/:id/proposal" element={<AiProposalReviewPage />} />
           <Route path="/workflows/agents" element={<AgentActivityPage />} />
           <Route path="/approvals" element={<Navigate to="/workflows" replace />} />
-          <Route path="/audit-logs" element={<AuditLogsPage />} />
           <Route path="/follow-up" element={<FollowUpContinuityPage />} />
           <Route path="/continuity" element={<FollowUpContinuityPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/profile" element={<SettingsPage />} />
+
+          {/* Manager & Admin Restricted Routes */}
+          <Route element={<ProtectedRoute allowedRoles={['Manager', 'Admin']} />}>
+            <Route path="/manager" element={<ManagerDashboardPage />} />
+            <Route path="/assignments" element={<AssignmentsPage />} />
+            <Route path="/verifications" element={<VerificationsPage />} />
+            <Route path="/audit-logs" element={<AuditLogsPage />} />
+          </Route>
         </Route>
       </Route>
 

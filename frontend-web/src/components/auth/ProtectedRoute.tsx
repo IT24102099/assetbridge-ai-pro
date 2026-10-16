@@ -1,24 +1,42 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { UserRole } from '../../types/auth';
 
-export const ProtectedRoute: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+interface ProtectedRouteProps {
+  allowedRoles?: UserRole[];
+}
+
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
+      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-          <p className="text-xs text-muted-foreground font-medium">Verifying authentication session...</p>
+          <div className="h-9 w-9 animate-spin rounded-full border-3 border-blue-600 border-t-transparent shadow-xs" />
+          <p className="text-xs text-slate-500 font-semibold tracking-wide">
+            Verifying authentication session...
+          </p>
         </div>
       </div>
     );
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    const destination = location.pathname + location.search;
+    const redirectUrl = `/login?redirect=${encodeURIComponent(destination)}`;
+    return <Navigate to={redirectUrl} state={{ from: location }} replace />;
+  }
+
+  if (allowedRoles && allowedRoles.length > 0) {
+    if (!user || !allowedRoles.includes(user.role)) {
+      return <Navigate to="/unauthorized" replace />;
+    }
   }
 
   return <Outlet />;
 };
+
+export default ProtectedRoute;

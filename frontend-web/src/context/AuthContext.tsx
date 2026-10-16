@@ -20,7 +20,7 @@ const isTokenExpired = (jwtToken: string): boolean => {
     const parts = jwtToken.split('.');
     if (parts.length !== 3) return true;
     const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-    if (!payload.exp) return false;
+    if (!payload.exp) return true; // Tokens without expiry are considered invalid
     return Date.now() >= payload.exp * 1000;
   } catch {
     return true;
@@ -41,7 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (err: any) {
       console.error('Failed to refresh user profile from /api/auth/me', err);
-      if (err?.response?.status === 401) {
+      if (err?.response?.status === 401 || err?.response?.status === 403) {
         localStorage.removeItem('assetbridge_token');
         localStorage.removeItem('assetbridge_user');
         setToken(null);
@@ -51,32 +51,72 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    try {
-      const storedToken = localStorage.getItem('assetbridge_token');
-      const storedUser = localStorage.getItem('assetbridge_user');
+    let isMounted = true;
 
-      if (storedToken && storedUser) {
+    const initializeSession = async () => {
+      try {
+        const storedToken = localStorage.getItem('assetbridge_token');
+
+        if (!storedToken) {
+          if (isMounted) {
+            setToken(null);
+            setUser(null);
+            setIsLoading(false);
+          }
+          return;
+        }
+
         if (isTokenExpired(storedToken)) {
           console.warn('Persisted session token has expired. Clearing session.');
           localStorage.removeItem('assetbridge_token');
           localStorage.removeItem('assetbridge_user');
+          if (isMounted) {
+            setToken(null);
+            setUser(null);
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        // Token exists and client expiry is valid -> verify with backend before granting access
+        try {
+          const res = await authApi.getCurrentUser();
+          if (res.data && isMounted) {
+            setToken(storedToken);
+            setUser(res.data);
+            localStorage.setItem('assetbridge_user', JSON.stringify(res.data));
+          } else {
+            throw new Error('User profile data missing from auth verification response');
+          }
+        } catch (apiErr: any) {
+          console.error('Session verification with backend failed:', apiErr);
+          localStorage.removeItem('assetbridge_token');
+          localStorage.removeItem('assetbridge_user');
+          if (isMounted) {
+            setToken(null);
+            setUser(null);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse or verify stored auth session:', e);
+        localStorage.removeItem('assetbridge_token');
+        localStorage.removeItem('assetbridge_user');
+        if (isMounted) {
           setToken(null);
           setUser(null);
-        } else {
-          setToken(storedToken);
-          const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
-          // Refresh authenticated profile in background to ensure dynamic real full name
-          fetchFreshUser();
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
         }
       }
-    } catch (e) {
-      console.error('Failed to parse stored auth session:', e);
-      localStorage.removeItem('assetbridge_token');
-      localStorage.removeItem('assetbridge_user');
-    } finally {
-      setIsLoading(false);
-    }
+    };
+
+    initializeSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const login = (newToken: string, newUser: UserProfile) => {
