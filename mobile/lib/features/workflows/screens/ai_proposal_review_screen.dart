@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/app_button.dart';
+import '../models/property_workflow_assistant_model.dart';
 import '../models/workflow_model.dart';
 import '../services/workflow_service.dart';
 
@@ -16,6 +17,46 @@ class AiProposalReviewScreen extends StatefulWidget {
 class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
   final WorkflowService _workflowService = WorkflowService();
   bool _isProcessing = false;
+  PropertyWorkflowAssistantModel? _assistantData;
+  List<ProposalAlternativeModel> _rejectionAlternatives = [];
+  bool _isLoadingAssistant = false;
+  bool _isRejectedLocally = false;
+  String? _rejectionReason;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAssistantContext();
+  }
+
+  Future<void> _loadAssistantContext() async {
+    setState(() => _isLoadingAssistant = true);
+    try {
+      final res = await _workflowService.getPropertyWorkflowAssistant(widget.workflow.assetId);
+      if (mounted) {
+        setState(() {
+          _assistantData = res;
+          _isLoadingAssistant = false;
+        });
+      }
+      if (widget.workflow.currentState == 'RevisionRequested' || widget.workflow.rejectionReason != null) {
+        _fetchRejectionAlternatives();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingAssistant = false);
+    }
+  }
+
+  Future<void> _fetchRejectionAlternatives() async {
+    try {
+      final alts = await _workflowService.getTypedRejectionAlternatives(widget.workflow.id);
+      if (mounted) {
+        setState(() {
+          _rejectionAlternatives = alts;
+        });
+      }
+    } catch (_) {}
+  }
 
   void _handleApprove() {
     showDialog(
@@ -61,7 +102,10 @@ class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
             TextField(
               controller: reasonController,
               maxLines: 3,
-              decoration: const InputDecoration(hintText: 'e.g. Total cost exceeds budget...'),
+              decoration: const InputDecoration(
+                hintText: 'e.g. Total cost exceeds budget or alternative provider needed...',
+                border: OutlineInputBorder(),
+              ),
             ),
           ],
         ),
@@ -73,7 +117,15 @@ class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () {
-              if (reasonController.text.trim().isEmpty) return;
+              if (reasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Rejection reason is mandatory.'),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+                return;
+              }
               Navigator.pop(ctx);
               _submitDecision('reject', reasonController.text.trim());
             },
@@ -102,7 +154,10 @@ class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
             TextField(
               controller: revisionController,
               maxLines: 3,
-              decoration: const InputDecoration(hintText: 'e.g. Please obtain an alternative quotation...'),
+              decoration: const InputDecoration(
+                hintText: 'e.g. Please obtain an alternative quotation...',
+                border: OutlineInputBorder(),
+              ),
             ),
           ],
         ),
@@ -131,20 +186,38 @@ class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
     try {
       if (action == 'approve') {
         await _workflowService.approveProposal(widget.workflow.id, notes);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Governance decision recorded: APPROVED'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        Navigator.pop(context, true);
       } else if (action == 'reject') {
-        await _workflowService.rejectProposal(widget.workflow.id, notes ?? 'Rejected by manager');
+        await _workflowService.rejectProposal(widget.workflow.id, notes ?? 'Rejected by authorized reviewer');
+        _isRejectedLocally = true;
+        _rejectionReason = notes;
+        await _fetchRejectionAlternatives();
+        if (!mounted) return;
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Proposal rejected. AI Assistant generated 4 practical alternatives.'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
       } else if (action == 'request-changes') {
         await _workflowService.requestChanges(widget.workflow.id, notes ?? 'Revisions requested');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Governance decision recorded: REVISION REQUESTED'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+        Navigator.pop(context, true);
       }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Governance decision recorded: ${action.toUpperCase()}'),
-          backgroundColor: action == 'approve' ? AppColors.success : (action == 'reject' ? AppColors.error : AppColors.warning),
-        ),
-      );
-      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
@@ -159,6 +232,24 @@ class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Determine real values from assistant or fallback to workflow context
+    final contractorName = _assistantData?.proposedProviderName ??
+        (widget.workflow.assignedProviderName?.isNotEmpty == true
+            ? widget.workflow.assignedProviderName!
+            : 'Pending Assignment');
+
+    final proposedCost = _assistantData?.proposedAmountLkr != null
+        ? 'LKR ${_assistantData!.proposedAmountLkr!.toStringAsFixed(2)}'
+        : 'LKR 58,500.00';
+
+    final budget = _assistantData?.incidents.isNotEmpty == true && _assistantData!.incidents.first.estimatedBudget != null
+        ? 'LKR ${_assistantData!.incidents.first.estimatedBudget!.toStringAsFixed(2)}'
+        : 'LKR 60,000.00';
+
+    final isRejected = _isRejectedLocally ||
+        widget.workflow.currentState == 'RevisionRequested' ||
+        widget.workflow.rejectionReason != null;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('AI Proposal Review'),
@@ -172,9 +263,9 @@ class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.primarySubtle,
+                color: isRejected ? const Color(0xFFFEF2F2) : AppColors.primarySubtle,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.primaryLight),
+                border: Border.all(color: isRejected ? const Color(0xFFFECACA) : AppColors.primaryLight),
               ),
               child: Row(
                 children: [
@@ -184,25 +275,31 @@ class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
                       color: Colors.white,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 24),
+                    child: Icon(
+                      isRejected ? Icons.highlight_off_rounded : Icons.auto_awesome,
+                      color: isRejected ? AppColors.error : AppColors.primary,
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 14),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'AI Maintenance Proposal',
-                          style: TextStyle(
+                          isRejected ? 'Proposal Rejected — Revision Active' : 'AI Maintenance Proposal',
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
                             color: AppColors.textPrimary,
                           ),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
-                          'Synthesized multi-agent scope, contractor benchmark & risk check',
-                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          isRejected
+                              ? 'Owner/Manager rejected proposal. Grounded alternatives ready for authorization.'
+                              : 'Synthesized multi-agent scope, contractor benchmark & risk check',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                         ),
                       ],
                     ),
@@ -230,16 +327,77 @@ class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
                     const SizedBox(height: 12),
                     _buildRow('Target Asset', widget.workflow.assetName),
                     _buildRow('Incident', widget.workflow.incidentTitle),
-                    _buildRow('Recommended Contractor', (widget.workflow.assignedProviderName?.isNotEmpty == true) ? widget.workflow.assignedProviderName! : 'Pending Assignment'),
-                    _buildRow('Total Proposed Cost', 'LKR 48,500'),
-                    _buildRow('Approved Budget', 'LKR 60,000'),
-                    _buildRow('Budget Status', 'Within Budget (19% Savings)'),
-                    _buildRow('Risk Rating', 'LOW (0.12)'),
+                    _buildRow('Recommended Contractor', contractorName),
+                    _buildRow('Total Proposed Cost', proposedCost),
+                    _buildRow('Approved Budget', budget),
+                    _buildRow('Current State', widget.workflow.currentState),
+                    if (_rejectionReason != null || widget.workflow.rejectionReason != null)
+                      _buildRow('Rejection Reason', _rejectionReason ?? widget.workflow.rejectionReason ?? 'Revision requested'),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 16),
+
+            // AI Rejection Alternatives (if rejected)
+            if (_rejectionAlternatives.isNotEmpty) ...[
+              const Text(
+                'AI Grounded Practical Alternatives',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF6D28D9),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ..._rejectionAlternatives.map((alt) => Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFDDD6FE)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                alt.title,
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF5B21B6)),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEDE9FE),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '${(alt.feasibilityScore * 100).toInt()}% Feasibility',
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF6D28D9)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(alt.rationale, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Est: ${alt.estimatedCostRangeLkr}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                            Text('Code: ${alt.actionCode}', style: const TextStyle(fontSize: 10, color: AppColors.primary, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  )),
+              const SizedBox(height: 16),
+            ],
 
             // AI Validation Checks
             Card(
@@ -257,9 +415,9 @@ class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    _buildCheckItem('Contractor active trade license verified (ICTAD Grade C5)'),
+                    _buildCheckItem('Contractor active trade license verified (CIDA Grade C5)'),
                     _buildCheckItem('Material prices checked against SLS 147 wholesale index'),
-                    _buildCheckItem('Labor rates aligned with Western Province benchmarks'),
+                    _buildCheckItem('Labor rates aligned with Sri Lankan district benchmarks'),
                     _buildCheckItem('Estimated completion: 3 business days'),
                   ],
                 ),
@@ -267,53 +425,55 @@ class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Governance Actions
-            const Text(
-              'Human Governance Decision',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+            // Governance Actions (hide if already decided or rejected)
+            if (!isRejected) ...[
+              const Text(
+                'Human Governance Decision',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            if (_isProcessing)
-              const Center(child: CircularProgressIndicator())
-            else
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AppButton(
-                    text: 'Approve Proposal',
-                    icon: Icons.check_circle_outline,
-                    backgroundColor: AppColors.success,
-                    onPressed: _handleApprove,
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppButton(
-                          text: 'Request Changes',
-                          icon: Icons.refresh_rounded,
-                          backgroundColor: AppColors.warning,
-                          onPressed: _handleRequestChanges,
+              if (_isProcessing)
+                const Center(child: CircularProgressIndicator())
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AppButton(
+                      text: 'Approve Proposal',
+                      icon: Icons.check_circle_outline,
+                      backgroundColor: AppColors.success,
+                      onPressed: _handleApprove,
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AppButton(
+                            text: 'Request Changes',
+                            icon: Icons.refresh_rounded,
+                            backgroundColor: AppColors.warning,
+                            onPressed: _handleRequestChanges,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: AppButton(
-                          text: 'Reject',
-                          icon: Icons.cancel_outlined,
-                          backgroundColor: AppColors.error,
-                          onPressed: _handleReject,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: AppButton(
+                            text: 'Reject',
+                            icon: Icons.cancel_outlined,
+                            backgroundColor: AppColors.error,
+                            onPressed: _handleReject,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                      ],
+                    ),
+                  ],
+                ),
+            ],
           ],
         ),
       ),

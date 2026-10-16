@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_text_field.dart';
+import '../../../shared/widgets/evidence_capture_widget.dart';
 import '../../assets/models/asset_model.dart';
 import '../../assets/services/asset_service.dart';
 import '../models/incident_model.dart';
@@ -25,7 +25,6 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
 
   final AssetService _assetService = AssetService();
   final IncidentService _incidentService = IncidentService();
-  final ImagePicker _imagePicker = ImagePicker();
 
   List<AssetModel> _assets = [];
   String? _selectedAssetId;
@@ -78,41 +77,6 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     } catch (_) {
       setState(() => _isLoadingAssets = false);
     }
-  }
-
-  Future<void> _pickPhotos() async {
-    try {
-      final List<XFile> picked = await _imagePicker.pickMultiImage();
-      if (picked.isNotEmpty) {
-        setState(() {
-          _selectedPhotos.addAll(picked.map((x) => File(x.path)));
-        });
-      }
-    } catch (e) {
-      // Fallback to single image pick if multi-image picker is not supported on this platform/device
-      try {
-        final XFile? singlePicked = await _imagePicker.pickImage(source: ImageSource.gallery);
-        if (singlePicked != null) {
-          setState(() {
-            _selectedPhotos.add(File(singlePicked.path));
-          });
-        }
-      } catch (err) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open gallery: $err'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
-  }
-
-  void _removePhoto(int index) {
-    setState(() {
-      _selectedPhotos.removeAt(index);
-    });
   }
 
   Future<void> _handleSubmit() async {
@@ -335,95 +299,17 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                     const SizedBox(height: 20),
 
                     // Photo Evidence Upload Section
-                    const Text(
-                      'Defect Photo Evidence',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Attach clear photos of the defect to assist AI analysis & contractor quoting.',
-                      style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Evidence Preview Grid
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        ..._selectedPhotos.asMap().entries.map((entry) {
-                          final idx = entry.key;
-                          final file = entry.value;
-                          return Stack(
-                            children: [
-                              Container(
-                                width: 88,
-                                height: 88,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.border),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.file(
-                                    file,
-                                    width: 88,
-                                    height: 88,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                top: 4,
-                                right: 4,
-                                child: InkWell(
-                                  onTap: () => _removePhoto(idx),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.black54,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(Icons.close, size: 14, color: Colors.white),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        }),
-                        InkWell(
-                          onTap: _pickPhotos,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            width: 88,
-                            height: 88,
-                            decoration: BoxDecoration(
-                              color: AppColors.primarySubtle,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.primaryLight),
-                            ),
-                            child: const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add_a_photo_outlined, size: 24, color: AppColors.primary),
-                                SizedBox(height: 4),
-                                Text(
-                                  '+ Add Photo',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                    EvidenceCaptureWidget(
+                      initialFiles: _selectedPhotos,
+                      onFilesChanged: (files) {
+                        setState(() {
+                          _selectedPhotos.clear();
+                          _selectedPhotos.addAll(files);
+                        });
+                      },
+                      title: 'Defect Photo Evidence',
+                      subtitle: 'Capture camera photo or select from gallery to assist AI analysis & contractor quoting.',
+                      isUploading: _isSubmitting && _selectedPhotos.isNotEmpty,
                     ),
                     const SizedBox(height: 32),
 

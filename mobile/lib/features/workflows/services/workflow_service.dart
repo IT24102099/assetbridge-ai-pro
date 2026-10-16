@@ -2,6 +2,7 @@ import '../../../core/networking/api_client.dart';
 import '../../../core/networking/api_endpoints.dart';
 import '../../../shared/models/api_response.dart';
 import '../../../shared/models/paged_response.dart';
+import '../models/property_workflow_assistant_model.dart';
 import '../models/workflow_model.dart';
 
 class WorkflowService {
@@ -57,8 +58,12 @@ class WorkflowService {
   }
 
   Future<void> requestChanges(String workflowId, String revisionReason) async {
-    final body = {'revisionReason': revisionReason};
-    await _apiClient.post(ApiEndpoints.requestWorkflowChanges(workflowId), body: body);
+    final body = {
+      'reason': revisionReason,
+      'changesRequested': revisionReason,
+      'revisionReason': revisionReason,
+    };
+    await _apiClient.post(ApiEndpoints.requestWorkflowRevision(workflowId), body: body);
   }
 
   Future<List<AgentRunModel>> getAgentRuns(String workflowId) async {
@@ -74,5 +79,61 @@ class WorkflowService {
           .toList();
     }
     return [];
+  }
+
+  Future<void> sendProposalToOwner(String workflowId, {String? quotationId, String? proposalNotes}) async {
+    final body = {
+      'quotationId': quotationId,
+      'proposalNotes': proposalNotes,
+    };
+    await _apiClient.post(ApiEndpoints.sendProposal(workflowId), body: body);
+  }
+
+  Future<void> processOwnerDecision(String workflowId, {required String decision, String? rejectionReason, String? comments}) async {
+    final body = {
+      'decision': decision,
+      'rejectionReason': rejectionReason,
+      'comments': comments,
+    };
+    await _apiClient.post(ApiEndpoints.ownerDecision(workflowId), body: body);
+  }
+
+  Future<List<Map<String, dynamic>>> getRejectionAlternatives(String workflowId) async {
+    final json = await _apiClient.get(ApiEndpoints.rejectionAlternatives(workflowId));
+    final apiResponse = ApiResponse<List<dynamic>>.fromJson(
+      json,
+      (data) => data as List<dynamic>,
+    );
+    if (apiResponse.success && apiResponse.data != null) {
+      return apiResponse.data!.map((item) => item as Map<String, dynamic>).toList();
+    }
+    return [];
+  }
+
+  Future<List<ProposalAlternativeModel>> getTypedRejectionAlternatives(String workflowId) async {
+    final json = await _apiClient.get(ApiEndpoints.rejectionAlternatives(workflowId));
+    final apiResponse = ApiResponse<List<dynamic>>.fromJson(
+      json,
+      (data) => data as List<dynamic>,
+    );
+    if (apiResponse.success && apiResponse.data != null) {
+      return apiResponse.data!
+          .map((item) => ProposalAlternativeModel.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<PropertyWorkflowAssistantModel> getPropertyWorkflowAssistant(String assetId) async {
+    final json = await _apiClient.get(ApiEndpoints.propertyAssistant(assetId));
+    final apiResponse = ApiResponse<PropertyWorkflowAssistantModel>.fromJson(
+      json,
+      (data) => PropertyWorkflowAssistantModel.fromJson(data as Map<String, dynamic>),
+    );
+
+    if (apiResponse.success && apiResponse.data != null) {
+      return apiResponse.data!;
+    }
+    throw Exception(apiResponse.message.isNotEmpty ? apiResponse.message : 'Failed to fetch property workflow assistant intelligence.');
   }
 }

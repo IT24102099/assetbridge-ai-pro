@@ -2,6 +2,8 @@ using AssetBridge.Application.DTOs.Workflow;
 using AssetBridge.Application.Services.Implementations;
 using AssetBridge.Domain.Entities.Assets;
 using AssetBridge.Domain.Entities.Incidents;
+using AssetBridge.Domain.Entities.Maintenance;
+using AssetBridge.Domain.Entities.Providers;
 using AssetBridge.Domain.Entities.Users;
 using AssetBridge.Domain.Entities.Workflow;
 using AssetBridge.Domain.Enums;
@@ -367,6 +369,275 @@ public class ApprovalWorkflowTests : IDisposable
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
+    public async Task SendProposalToOwner_NoQuotation_ThrowsValidationException()
+    {
+        // Act: Attempt to send proposal when no quotation exists for the incident
+        var act = async () => await _sut.SendProposalToOwnerAsync(_workflowId, new SendProposalToOwnerDto
+        {
+            ProposalNotes = "Please review"
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*Cannot dispatch proposal without an associated contractor quotation*");
+    }
+
+    [Fact]
+    public async Task SendProposalToOwner_WithQuotation_TransitionsToAwaitingApprovalAndNotifiesOwner()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerId,
+            BusinessName = "Ceylinco Renovations",
+            PrimaryDistrict = "Gampaha",
+            VerificationStatus = VerificationStatus.Verified
+        };
+        _dbContext.ServiceProviders.Add(provider);
+
+        var quotation = new Quotation
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            ProviderId = provider.Id,
+            TotalAmount = 58500m,
+            Subtotal = 50000m,
+            TaxAndOtherCharges = 8500m,
+            ValidUntilUtc = DateTime.UtcNow.AddDays(14),
+            Status = QuotationStatus.Submitted
+        };
+        _dbContext.Quotations.Add(quotation);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.SendProposalToOwnerAsync(_workflowId, new SendProposalToOwnerDto
+        {
+            QuotationId = quotation.Id,
+            ProposalNotes = "Verified CIDA-certified contractor with prompt timeline."
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        result.Should().NotBeNull();
+        result.CurrentState.Should().Be("AwaitingApproval");
+
+        var wf = await _dbContext.WorkflowInstances.FindAsync(_workflowId);
+        wf!.CurrentState.Should().Be(WorkflowState.AwaitingApproval);
+
+        var notification = await _dbContext.Notifications.FirstOrDefaultAsync(n => n.RelatedWorkflowInstanceId == _workflowId);
+        notification.Should().NotBeNull();
+        notification!.UserId.Should().Be(_ownerId);
+        notification.Type.Should().Be(NotificationType.ApprovalRequired);
+    }
+
+    [Fact]
+    public async Task ProcessOwnerProposalDecision_OwnerApproves_TransitionsToApproved()
+    {
+        // Arrange: Send proposal first
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerId,
+            BusinessName = "Ceylinco Renovations",
+            PrimaryDistrict = "Gampaha",
+            VerificationStatus = VerificationStatus.Verified
+        };
+        _dbContext.ServiceProviders.Add(provider);
+
+        var quotation = new Quotation
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            ProviderId = provider.Id,
+            TotalAmount = 58500m,
+            ValidUntilUtc = DateTime.UtcNow.AddDays(14),
+            Status = QuotationStatus.Submitted
+        };
+        _dbContext.Quotations.Add(quotation);
+        await _dbContext.SaveChangesAsync();
+
+        await _sut.SendProposalToOwnerAsync(_workflowId, new SendProposalToOwnerDto
+        {
+            QuotationId = quotation.Id
+        }, _managerId, UserRole.Manager.ToString());
+
+        // Act: Owner accepts
+        var result = await _sut.ProcessOwnerProposalDecisionAsync(_workflowId, new OwnerProposalDecisionDto
+        {
+            Decision = "Approve",
+            Comments = "Price looks very fair, please proceed."
+        }, _ownerId, UserRole.Owner.ToString());
+
+        // Assert
+        result.Should().NotBeNull();
+        result.CurrentState.Should().Be("Approved");
+
+        var wf = await _dbContext.WorkflowInstances.FindAsync(_workflowId);
+        wf!.CurrentState.Should().Be(WorkflowState.Approved);
+
+        var approval = await _dbContext.ApprovalRequests.FirstOrDefaultAsync(a => a.WorkflowInstanceId == _workflowId);
+        approval!.Status.Should().Be(ApprovalStatus.Approved);
+        approval.Decision.Should().Be(ApprovalDecision.Approve);
+    }
+
+    [Fact]
+    public async Task ProcessOwnerProposalDecision_OwnerRejectsWithoutReason_ThrowsValidationException()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerId,
+            BusinessName = "Ceylinco Renovations",
+            PrimaryDistrict = "Gampaha",
+            VerificationStatus = VerificationStatus.Verified
+        };
+        _dbContext.ServiceProviders.Add(provider);
+
+        var quotation = new Quotation
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            ProviderId = provider.Id,
+            TotalAmount = 58500m,
+            ValidUntilUtc = DateTime.UtcNow.AddDays(14),
+            Status = QuotationStatus.Submitted
+        };
+        _dbContext.Quotations.Add(quotation);
+        await _dbContext.SaveChangesAsync();
+
+        await _sut.SendProposalToOwnerAsync(_workflowId, new SendProposalToOwnerDto { QuotationId = quotation.Id }, _managerId, UserRole.Manager.ToString());
+
+        // Act: Owner rejects without reason
+        var act = async () => await _sut.ProcessOwnerProposalDecisionAsync(_workflowId, new OwnerProposalDecisionDto
+        {
+            Decision = "Reject",
+            RejectionReason = ""
+        }, _ownerId, UserRole.Owner.ToString());
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*A specific rejection reason or feedback is required*");
+    }
+
+    [Fact]
+    public async Task ProcessOwnerProposalDecision_OwnerRejectsWithReason_TransitionsToRevisionRequested()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerId,
+            BusinessName = "Ceylinco Renovations",
+            PrimaryDistrict = "Gampaha",
+            VerificationStatus = VerificationStatus.Verified
+        };
+        _dbContext.ServiceProviders.Add(provider);
+
+        var quotation = new Quotation
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            ProviderId = provider.Id,
+            TotalAmount = 58500m,
+            ValidUntilUtc = DateTime.UtcNow.AddDays(14),
+            Status = QuotationStatus.Submitted
+        };
+        _dbContext.Quotations.Add(quotation);
+        await _dbContext.SaveChangesAsync();
+
+        await _sut.SendProposalToOwnerAsync(_workflowId, new SendProposalToOwnerDto { QuotationId = quotation.Id }, _managerId, UserRole.Manager.ToString());
+
+        // Act: Owner rejects with reason
+        var result = await _sut.ProcessOwnerProposalDecisionAsync(_workflowId, new OwnerProposalDecisionDto
+        {
+            Decision = "Reject",
+            RejectionReason = "Quotation exceeds my expected budget for roof repair",
+            Comments = "Can we get an alternative quotation or trim the scope?"
+        }, _ownerId, UserRole.Owner.ToString());
+
+        // Assert
+        result.Should().NotBeNull();
+        result.CurrentState.Should().Be("RevisionRequested");
+
+        var wf = await _dbContext.WorkflowInstances.FindAsync(_workflowId);
+        wf!.CurrentState.Should().Be(WorkflowState.RevisionRequested);
+
+        var approval = await _dbContext.ApprovalRequests.FirstOrDefaultAsync(a => a.WorkflowInstanceId == _workflowId);
+        approval!.Status.Should().Be(ApprovalStatus.Rejected);
+        approval.Decision.Should().Be(ApprovalDecision.Reject);
+    }
+
+    [Fact]
+    public async Task GetRejectionAlternatives_RejectedWorkflow_ReturnsFourGroundedAlternatives()
+    {
+        // Arrange
+        var provider = new ServiceProvider
+        {
+            Id = Guid.NewGuid(),
+            UserId = _providerId,
+            BusinessName = "Ceylinco Renovations",
+            PrimaryDistrict = "Gampaha",
+            VerificationStatus = VerificationStatus.Verified
+        };
+        _dbContext.ServiceProviders.Add(provider);
+
+        var quotation = new Quotation
+        {
+            Id = Guid.NewGuid(),
+            IncidentId = _incidentId,
+            ProviderId = provider.Id,
+            TotalAmount = 58500m,
+            ValidUntilUtc = DateTime.UtcNow.AddDays(14),
+            Status = QuotationStatus.Submitted
+        };
+        _dbContext.Quotations.Add(quotation);
+        await _dbContext.SaveChangesAsync();
+
+        await _sut.SendProposalToOwnerAsync(_workflowId, new SendProposalToOwnerDto { QuotationId = quotation.Id }, _managerId, UserRole.Manager.ToString());
+        await _sut.ProcessOwnerProposalDecisionAsync(_workflowId, new OwnerProposalDecisionDto
+        {
+            Decision = "Reject",
+            RejectionReason = "Quotation exceeds budget"
+        }, _ownerId, UserRole.Owner.ToString());
+
+        // Act
+        var alternatives = await _sut.GetRejectionAlternativesAsync(_workflowId, _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        alternatives.Should().NotBeNull();
+        alternatives.Should().HaveCount(4);
+        alternatives.Select(a => a.AlternativeType).Should().Contain(new[]
+        {
+            "RevisedQuotation",
+            "AlternativeProvider",
+            "AdjustScope",
+            "ReInspection"
+        });
+        alternatives.All(a => a.Rationale.Contains("Quotation exceeds budget")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetPropertyWorkflowAssistant_ValidAsset_ReturnsGroundedPropertyData()
+    {
+        // Arrange
+        var asset = await _dbContext.Assets.FirstAsync();
+
+        // Act
+        var assistant = await _sut.GetPropertyWorkflowAssistantAsync(asset.Id, _managerId, UserRole.Manager.ToString());
+
+        // Assert
+        assistant.Should().NotBeNull();
+        assistant.AssetId.Should().Be(asset.Id);
+        assistant.AssetName.Should().Be("Negombo Beach Villa");
+        assistant.ConfirmedFacts.Should().NotBeEmpty();
+        assistant.ConfirmedFacts.Should().Contain(f => f.Contains("Negombo Beach Villa"));
+        assistant.Incidents.Should().NotBeEmpty();
+        assistant.Incidents.First().Title.Should().Be("Roof tiles cracked after heavy storm");
+        assistant.RecommendedNextAction.Should().NotBeNull();
     }
 
     public void Dispose()

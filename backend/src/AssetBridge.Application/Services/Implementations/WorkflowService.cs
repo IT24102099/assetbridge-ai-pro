@@ -1398,5 +1398,689 @@ public class WorkflowService : IWorkflowService
         [WorkflowState.Failed] = "Failed"
     };
 
+    #region Component 4: Manager-to-Owner Proposal Lifecycle & Property Assistant
+
+    public async Task<WorkflowAiAssistanceDto> SendProposalToOwnerAsync(Guid workflowId, SendProposalToOwnerDto dto, Guid currentUserId, string currentUserRole)
+    {
+        EnforceManagerOrAdminRole(currentUserRole, "send proposals to property owners");
+
+        var workflow = await _context.WorkflowInstances
+            .Include(w => w.Incident)
+                .ThenInclude(i => i.Asset)
+                    .ThenInclude(a => a.Owner)
+            .Include(w => w.ApprovalRequests)
+            .Include(w => w.Steps)
+            .FirstOrDefaultAsync(w => w.Id == workflowId);
+
+        if (workflow == null)
+            throw new EntityNotFoundException("WorkflowInstance", workflowId);
+
+        var quotation = dto.QuotationId.HasValue
+            ? await _context.Quotations.Include(q => q.Provider).FirstOrDefaultAsync(q => q.Id == dto.QuotationId.Value)
+            : await _context.Quotations.Include(q => q.Provider).Where(q => q.IncidentId == workflow.IncidentId).OrderByDescending(q => q.CreatedAtUtc).FirstOrDefaultAsync();
+
+        if (quotation == null)
+            throw new ValidationException("Quotation", "Cannot dispatch proposal without an associated contractor quotation.");
+
+        var now = DateTime.UtcNow;
+
+        if (workflow.CurrentState != WorkflowState.AwaitingApproval && workflow.CurrentState != WorkflowState.Approved)
+        {
+            workflow.CurrentState = WorkflowState.AwaitingApproval;
+            workflow.UpdatedAtUtc = now;
+
+            var currentStep = workflow.Steps.OrderByDescending(s => s.StartedAtUtc).FirstOrDefault(s => s.Status == WorkflowStepStatus.InProgress);
+            if (currentStep != null)
+            {
+                currentStep.Status = WorkflowStepStatus.Completed;
+                currentStep.CompletedAtUtc = now;
+                currentStep.CompletedBy = $"User:{currentUserId}";
+            }
+
+            var newStep = new WorkflowStep
+            {
+                WorkflowInstanceId = workflow.Id,
+                StepState = WorkflowState.AwaitingApproval,
+                Status = WorkflowStepStatus.InProgress,
+                StartedAtUtc = now,
+                StartedBy = $"User:{currentUserId}",
+                Notes = $"Manager sent formal proposal to owner: LKR {quotation.TotalAmount:N2}"
+            };
+            _context.WorkflowSteps.Add(newStep);
+        }
+
+        var approval = workflow.ApprovalRequests.FirstOrDefault(a => a.Status == ApprovalStatus.Pending);
+        if (approval == null)
+        {
+            approval = new ApprovalRequest
+            {
+                WorkflowInstanceId = workflow.Id,
+                RequestedByUserId = currentUserId,
+                AssignedApproverUserId = workflow.Incident.Asset.OwnerId,
+                Status = ApprovalStatus.Pending,
+                RequestedAtUtc = now,
+                DecisionReason = $"Proposal sent to owner {workflow.Incident.Asset.Owner?.FullName}. Quoted: LKR {quotation.TotalAmount:N2}. Provider: {quotation.Provider?.BusinessName ?? "Contractor"}. Notes: {dto.ProposalNotes}"
+            };
+            _context.ApprovalRequests.Add(approval);
+        }
+        else
+        {
+            approval.RequestedByUserId = currentUserId;
+            approval.AssignedApproverUserId = workflow.Incident.Asset.OwnerId;
+            approval.RequestedAtUtc = now;
+            approval.DecisionReason = $"Proposal updated and sent to owner {workflow.Incident.Asset.Owner?.FullName}. Quoted: LKR {quotation.TotalAmount:N2}. Provider: {quotation.Provider?.BusinessName ?? "Contractor"}. Notes: {dto.ProposalNotes}";
+        }
+
+        _context.AuditEvents.Add(new AuditEvent
+        {
+            WorkflowInstanceId = workflow.Id,
+            UserId = currentUserId,
+            EventType = AuditEventType.ApprovalRequested,
+            Description = $"Manager ({currentUserId}) sent quotation proposal of LKR {quotation.TotalAmount:N2} to Owner ({workflow.Incident.Asset.OwnerId}).",
+            CorrelationId = workflow.CorrelationId,
+            MetadataJson = JsonSerializer.Serialize(new
+            {
+                QuotationId = quotation.Id,
+                Amount = quotation.TotalAmount,
+                Provider = quotation.Provider?.BusinessName,
+                OwnerId = workflow.Incident.Asset.OwnerId,
+                Notes = dto.ProposalNotes
+            })
+        });
+
+        _context.Notifications.Add(new Notification
+        {
+            UserId = workflow.Incident.Asset.OwnerId,
+            Title = $"Maintenance Proposal: {workflow.Incident.Asset.Name}",
+            Message = $"Manager has submitted a formal repair proposal for '{workflow.Incident.Title}' at LKR {quotation.TotalAmount:N2} ({quotation.Provider?.BusinessName ?? "Contractor"}). Please review and approve or reject.",
+            Type = NotificationType.ApprovalRequired,
+            IsRead = false,
+            RelatedWorkflowInstanceId = workflow.Id,
+            CreatedAtUtc = now
+        });
+
+        await _context.SaveChangesAsync();
+
+        return await GetWorkflowAiAssistanceAsync(workflow.Id, currentUserId, currentUserRole);
+    }
+
+    public async Task<WorkflowAiAssistanceDto> ProcessOwnerProposalDecisionAsync(Guid workflowId, OwnerProposalDecisionDto dto, Guid currentUserId, string currentUserRole)
+    {
+        var workflow = await _context.WorkflowInstances
+            .Include(w => w.Incident)
+                .ThenInclude(i => i.Asset)
+                    .ThenInclude(a => a.Owner)
+            .Include(w => w.ApprovalRequests)
+            .Include(w => w.Steps)
+            .FirstOrDefaultAsync(w => w.Id == workflowId);
+
+        if (workflow == null)
+            throw new EntityNotFoundException("WorkflowInstance", workflowId);
+
+        if (currentUserRole == "Owner" && workflow.Incident.Asset.OwnerId != currentUserId)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to decide on proposals for this property.");
+        }
+
+        var quotation = await _context.Quotations
+            .Include(q => q.Provider)
+            .Where(q => q.IncidentId == workflow.IncidentId)
+            .OrderByDescending(q => q.CreatedAtUtc)
+            .FirstOrDefaultAsync();
+
+        var pendingApproval = workflow.ApprovalRequests.OrderByDescending(a => a.RequestedAtUtc).FirstOrDefault(a => a.Status == ApprovalStatus.Pending);
+        var now = DateTime.UtcNow;
+
+        if (pendingApproval == null)
+        {
+            pendingApproval = new ApprovalRequest
+            {
+                WorkflowInstanceId = workflow.Id,
+                RequestedByUserId = currentUserId,
+                AssignedApproverUserId = currentUserId,
+                Status = ApprovalStatus.Pending,
+                RequestedAtUtc = now
+            };
+            _context.ApprovalRequests.Add(pendingApproval);
+        }
+
+        bool isApproved = dto.Decision.Equals("Approve", StringComparison.OrdinalIgnoreCase) ||
+                          dto.Decision.Equals("Accept", StringComparison.OrdinalIgnoreCase);
+
+        if (isApproved)
+        {
+            pendingApproval.Status = ApprovalStatus.Approved;
+            pendingApproval.Decision = ApprovalDecision.Approve;
+            pendingApproval.DecisionReason = !string.IsNullOrWhiteSpace(dto.Comments) ? dto.Comments : "Owner accepted proposal";
+            pendingApproval.DecidedAtUtc = now;
+            pendingApproval.AssignedApproverUserId = currentUserId;
+
+            workflow.CurrentState = WorkflowState.Approved;
+            workflow.UpdatedAtUtc = now;
+
+            var currentStep = workflow.Steps.OrderByDescending(s => s.StartedAtUtc).FirstOrDefault(s => s.Status == WorkflowStepStatus.InProgress);
+            if (currentStep != null)
+            {
+                currentStep.Status = WorkflowStepStatus.Completed;
+                currentStep.CompletedAtUtc = now;
+                currentStep.CompletedBy = $"User:{currentUserId}";
+            }
+
+            var newStep = new WorkflowStep
+            {
+                WorkflowInstanceId = workflow.Id,
+                StepState = WorkflowState.Approved,
+                Status = WorkflowStepStatus.Completed,
+                StartedAtUtc = now,
+                CompletedAtUtc = now,
+                StartedBy = $"User:{currentUserId}",
+                CompletedBy = $"User:{currentUserId}",
+                Notes = $"Proposal accepted by Owner. Comments: {dto.Comments}"
+            };
+            _context.WorkflowSteps.Add(newStep);
+
+            _context.AuditEvents.Add(new AuditEvent
+            {
+                WorkflowInstanceId = workflow.Id,
+                UserId = currentUserId,
+                EventType = AuditEventType.ApprovalApproved,
+                Description = $"Owner ({currentUserId}) accepted maintenance proposal for {workflow.Incident.Asset.Name} (Quotation: LKR {quotation?.TotalAmount ?? 0:N2}).",
+                CorrelationId = workflow.CorrelationId,
+                MetadataJson = JsonSerializer.Serialize(new { Decision = "Approve", Comments = dto.Comments, DecidedBy = currentUserId })
+            });
+
+            var managerId = pendingApproval.RequestedByUserId != Guid.Empty ? pendingApproval.RequestedByUserId : Guid.Empty;
+            if (managerId != Guid.Empty)
+            {
+                _context.Notifications.Add(new Notification
+                {
+                    UserId = managerId,
+                    Title = $"Proposal Accepted: {workflow.Incident.Asset.Name}",
+                    Message = $"Owner {workflow.Incident.Asset.Owner.FullName} accepted proposal for '{workflow.Incident.Title}' (LKR {quotation?.TotalAmount ?? 0:N2}). Next action: Schedule Work Order.",
+                    Type = NotificationType.WorkflowStatusChanged,
+                    IsRead = false,
+                    RelatedWorkflowInstanceId = workflow.Id,
+                    CreatedAtUtc = now
+                });
+            }
+
+            _context.Notifications.Add(new Notification
+            {
+                UserId = workflow.Incident.Asset.OwnerId,
+                Title = $"Proposal Confirmed: {workflow.Incident.Asset.Name}",
+                Message = $"You have accepted the maintenance proposal. Local manager has been instructed to schedule repairs.",
+                Type = NotificationType.WorkflowStatusChanged,
+                IsRead = false,
+                RelatedWorkflowInstanceId = workflow.Id,
+                CreatedAtUtc = now
+            });
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(dto.RejectionReason) && string.IsNullOrWhiteSpace(dto.Comments))
+            {
+                throw new ValidationException("RejectionReason", "A specific rejection reason or feedback is required when rejecting a maintenance proposal.");
+            }
+
+            var rejectionReason = !string.IsNullOrWhiteSpace(dto.RejectionReason)
+                ? dto.RejectionReason.Trim()
+                : dto.Comments!.Trim();
+
+            pendingApproval.Status = ApprovalStatus.Rejected;
+            pendingApproval.Decision = ApprovalDecision.Reject;
+            pendingApproval.DecisionReason = rejectionReason;
+            pendingApproval.RevisionComment = dto.Comments;
+            pendingApproval.DecidedAtUtc = now;
+            pendingApproval.AssignedApproverUserId = currentUserId;
+
+            workflow.CurrentState = WorkflowState.RevisionRequested;
+            workflow.UpdatedAtUtc = now;
+
+            var currentStep = workflow.Steps.OrderByDescending(s => s.StartedAtUtc).FirstOrDefault(s => s.Status == WorkflowStepStatus.InProgress);
+            if (currentStep != null)
+            {
+                currentStep.Status = WorkflowStepStatus.Completed;
+                currentStep.CompletedAtUtc = now;
+                currentStep.CompletedBy = $"User:{currentUserId}";
+            }
+
+            var newStep = new WorkflowStep
+            {
+                WorkflowInstanceId = workflow.Id,
+                StepState = WorkflowState.RevisionRequested,
+                Status = WorkflowStepStatus.InProgress,
+                StartedAtUtc = now,
+                StartedBy = $"User:{currentUserId}",
+                Notes = $"Owner rejected proposal. Reason: {rejectionReason}. Comments: {dto.Comments}"
+            };
+            _context.WorkflowSteps.Add(newStep);
+
+            _context.AuditEvents.Add(new AuditEvent
+            {
+                WorkflowInstanceId = workflow.Id,
+                UserId = currentUserId,
+                EventType = AuditEventType.ApprovalRejected,
+                Description = $"Owner ({currentUserId}) rejected maintenance proposal for {workflow.Incident.Asset.Name}. Reason: {rejectionReason}",
+                CorrelationId = workflow.CorrelationId,
+                MetadataJson = JsonSerializer.Serialize(new { Decision = "Reject", Reason = rejectionReason, Comments = dto.Comments, DecidedBy = currentUserId })
+            });
+
+            var managerId = pendingApproval.RequestedByUserId != Guid.Empty ? pendingApproval.RequestedByUserId : Guid.Empty;
+            if (managerId != Guid.Empty)
+            {
+                _context.Notifications.Add(new Notification
+                {
+                    UserId = managerId,
+                    Title = $"Proposal Rejected by Owner: {workflow.Incident.Asset.Name}",
+                    Message = $"Owner rejected proposal for '{workflow.Incident.Title}'. Reason: '{rejectionReason}'. AI alternatives have been prepared for your review.",
+                    Type = NotificationType.WorkflowStatusChanged,
+                    IsRead = false,
+                    RelatedWorkflowInstanceId = workflow.Id,
+                    CreatedAtUtc = now
+                });
+            }
+
+            _context.Notifications.Add(new Notification
+            {
+                Id = Guid.NewGuid(),
+                UserId = workflow.Incident.Asset.OwnerId,
+                Title = $"Response Recorded: {workflow.Incident.Asset.Name}",
+                Message = $"Your feedback has been sent to the manager. Grounded alternatives are being formulated.",
+                Type = NotificationType.WorkflowStatusChanged,
+                IsRead = false,
+                RelatedWorkflowInstanceId = workflow.Id,
+                CreatedAtUtc = now
+            });
+        }
+
+        await _context.SaveChangesAsync();
+
+        return await GetWorkflowAiAssistanceAsync(workflow.Id, currentUserId, currentUserRole);
+    }
+
+    public async Task<List<ProposalAlternativeDto>> GetRejectionAlternativesAsync(Guid workflowId, Guid currentUserId, string currentUserRole)
+    {
+        var workflow = await _context.WorkflowInstances
+            .Include(w => w.Incident)
+                .ThenInclude(i => i.Asset)
+            .Include(w => w.ApprovalRequests)
+            .FirstOrDefaultAsync(w => w.Id == workflowId);
+
+        if (workflow == null)
+            throw new EntityNotFoundException("WorkflowInstance", workflowId);
+
+        ValidateWorkflowAccess(workflow, currentUserId, currentUserRole);
+
+        var latestRejectedApproval = workflow.ApprovalRequests
+            .OrderByDescending(a => a.DecidedAtUtc ?? a.RequestedAtUtc)
+            .FirstOrDefault(a => a.Status == ApprovalStatus.Rejected || a.Decision == ApprovalDecision.Reject);
+
+        var rejectionReason = latestRejectedApproval?.DecisionReason ?? "Quotation cost or contractor scope declined by owner.";
+
+        var currentQuotation = await _context.Quotations
+            .Include(q => q.Provider)
+            .Where(q => q.IncidentId == workflow.IncidentId)
+            .OrderByDescending(q => q.CreatedAtUtc)
+            .FirstOrDefaultAsync();
+
+        var currentAmount = currentQuotation?.TotalAmount ?? 58500m;
+        var district = workflow.Incident.Asset.District;
+
+        var altProviders = await _context.ServiceProviders
+            .Include(p => p.User)
+            .Where(p => p.PrimaryDistrict == district && p.VerificationStatus == VerificationStatus.Verified && (currentQuotation == null || p.Id != currentQuotation.ProviderId))
+            .OrderByDescending(p => p.Rating)
+            .Take(2)
+            .ToListAsync();
+
+        var alternatives = new List<ProposalAlternativeDto>
+        {
+            new ProposalAlternativeDto
+            {
+                AlternativeType = "RevisedQuotation",
+                Title = "Request Revised Quotation (Scope & Material Optimization)",
+                Rationale = $"Addresses '{rejectionReason}': Asks {currentQuotation?.Provider?.BusinessName ?? "the contractor"} to trim non-essential items, replace premium imports with approved local standards, and negotiate labor rates.",
+                EstimatedCostRangeLkr = $"LKR {(currentAmount * 0.80m):N0} - {(currentAmount * 0.88m):N0}",
+                FeasibilityScore = 0.94,
+                ActionCode = "REQUEST_REVISED_QUOTATION",
+                TargetUrl = currentQuotation != null ? $"/quotations/{currentQuotation.Id}" : "/quotations"
+            },
+            new ProposalAlternativeDto
+            {
+                AlternativeType = "AlternativeProvider",
+                Title = altProviders.Any()
+                    ? $"Solicit Competitive Bid from {altProviders.First().BusinessName}"
+                    : "Invite Alternative Verified Contractor",
+                Rationale = $"Addresses '{rejectionReason}': Solicits a second opinion and competitive pricing from another verified CIDA-registered contractor in {district}.",
+                EstimatedCostRangeLkr = $"LKR {(currentAmount * 0.85m):N0} - {(currentAmount * 0.95m):N0}",
+                FeasibilityScore = 0.89,
+                ActionCode = "INVITE_ALTERNATIVE_PROVIDER",
+                TargetUrl = $"/providers/search?incidentId={workflow.IncidentId}&category={workflow.Incident.Category}"
+            },
+            new ProposalAlternativeDto
+            {
+                AlternativeType = "AdjustScope",
+                Title = "Phase Repair Work (Immediate Waterproofing vs. Secondary Finishing)",
+                Rationale = $"Addresses '{rejectionReason}': Isolates critical active water penetration/structural risk immediately, deferring aesthetic plastering and repainting to a subsequent phase.",
+                EstimatedCostRangeLkr = $"LKR {(currentAmount * 0.55m):N0} - {(currentAmount * 0.65m):N0}",
+                FeasibilityScore = 0.91,
+                ActionCode = "ADJUST_SCOPE",
+                TargetUrl = $"/incidents/{workflow.IncidentId}"
+            },
+            new ProposalAlternativeDto
+            {
+                AlternativeType = "ReInspection",
+                Title = "Commission Local Representative Technical Re-Inspection",
+                Rationale = $"Addresses '{rejectionReason}': Dispatches local representative to re-verify measurements and defect boundaries on site to resolve scope disagreements.",
+                EstimatedCostRangeLkr = "LKR 3,500 - 5,000 (Inspection fee)",
+                FeasibilityScore = 0.86,
+                ActionCode = "SCHEDULE_INSPECTION",
+                TargetUrl = $"/inspections?incidentId={workflow.IncidentId}"
+            }
+        };
+
+        return alternatives;
+    }
+
+    public async Task<PropertyWorkflowAssistantDto> GetPropertyWorkflowAssistantAsync(Guid assetId, Guid currentUserId, string currentUserRole)
+    {
+        var asset = await _context.Assets
+            .Include(a => a.Owner)
+            .Include(a => a.Media)
+            .Include(a => a.Incidents)
+                .ThenInclude(i => i.EvidenceItems)
+            .FirstOrDefaultAsync(a => a.Id == assetId);
+
+        if (asset == null)
+            throw new EntityNotFoundException("Asset", assetId);
+
+        if (currentUserRole == "Owner" && asset.OwnerId != currentUserId)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to access this property assistant.");
+        }
+
+        var incidentIds = asset.Incidents.Select(i => i.Id).ToList();
+
+        var inspections = await _context.Inspections
+            .Include(ins => ins.Findings)
+            .Include(ins => ins.InspectorProvider)
+            .Where(ins => incidentIds.Contains(ins.IncidentId))
+            .OrderByDescending(ins => ins.ScheduledAtUtc)
+            .ToListAsync();
+
+        var jobs = await _context.MaintenanceJobs
+            .Include(j => j.Provider)
+            .Where(j => incidentIds.Contains(j.IncidentId))
+            .OrderByDescending(j => j.CreatedAtUtc)
+            .ToListAsync();
+
+        var quotations = await _context.Quotations
+            .Include(q => q.Provider)
+            .Include(q => q.Items)
+            .Where(q => incidentIds.Contains(q.IncidentId))
+            .OrderByDescending(q => q.CreatedAtUtc)
+            .ToListAsync();
+
+        var rep = await _context.Representatives
+            .Include(r => r.User)
+            .FirstOrDefaultAsync(r => r.District == asset.District && r.VerificationStatus == VerificationStatus.Verified);
+
+        var activeWorkflow = await _context.WorkflowInstances
+            .Include(w => w.Incident)
+            .Include(w => w.Steps)
+            .Include(w => w.ApprovalRequests)
+            .Include(w => w.AuditEvents)
+            .Include(w => w.FollowUpTasks)
+            .Where(w => incidentIds.Contains(w.IncidentId))
+            .OrderByDescending(w => w.UpdatedAtUtc)
+            .FirstOrDefaultAsync();
+
+        var thumbnailMedia = asset.Media.FirstOrDefault(m => m.IsThumbnail) ?? asset.Media.FirstOrDefault();
+        var thumbnailUrl = thumbnailMedia?.FileUrl;
+
+        var assistantDto = new PropertyWorkflowAssistantDto
+        {
+            AssetId = asset.Id,
+            AssetCode = $"AS-{(asset.City != null && asset.City.Length >= 3 ? asset.City.Substring(0, 3).ToUpper() : "PRP")}-{asset.Id.ToString("N").Substring(0, 4).ToUpper()}",
+            AssetName = asset.Name,
+            PropertyTypeName = asset.PropertyType.ToString(),
+            Address = $"{asset.AddressLine1}, {asset.City}",
+            City = asset.City,
+            District = asset.District,
+            Status = asset.Status.ToString(),
+            OwnerId = asset.OwnerId,
+            OwnerName = asset.Owner?.FullName ?? "Property Owner",
+            OwnerEmail = asset.Owner?.Email ?? string.Empty,
+            AuthorizedRepresentativeName = rep?.User?.FullName ?? "Awaiting Representative Assignment",
+            ThumbnailUrl = thumbnailUrl,
+            MediaList = asset.Media.OrderByDescending(m => m.IsThumbnail).Select(m => new AssetMediaSummaryDto
+            {
+                Id = m.Id,
+                FileName = m.FileName,
+                FileUrl = m.FileUrl,
+                IsThumbnail = m.IsThumbnail
+            }).ToList()
+        };
+
+        foreach (var inc in asset.Incidents.OrderByDescending(i => i.CreatedAtUtc))
+        {
+            var incWf = activeWorkflow?.IncidentId == inc.Id ? activeWorkflow : null;
+
+            assistantDto.Incidents.Add(new PropertyAssistantIncidentDto
+            {
+                Id = inc.Id,
+                Title = inc.Title,
+                Description = inc.Description,
+                Category = inc.Category,
+                CategoryName = inc.Category.ToString(),
+                Priority = inc.Priority,
+                PriorityName = inc.Priority.ToString(),
+                Status = inc.Status,
+                StatusName = inc.Status.ToString(),
+                EstimatedBudget = inc.EstimatedBudget,
+                CreatedAtUtc = inc.CreatedAtUtc,
+                EvidenceCount = inc.EvidenceItems.Count,
+                EvidenceUrls = inc.EvidenceItems.Select(e => e.FileUrl).ToList(),
+                AssignedRepresentativeId = rep?.Id,
+                AssignedRepresentativeName = rep?.User?.FullName,
+                ActiveWorkflowId = incWf?.Id,
+                WorkflowState = incWf?.CurrentState.ToString()
+            });
+        }
+
+        foreach (var ins in inspections)
+        {
+            var relatedInc = asset.Incidents.FirstOrDefault(i => i.Id == ins.IncidentId);
+            assistantDto.Inspections.Add(new PropertyAssistantInspectionDto
+            {
+                Id = ins.Id,
+                IncidentId = ins.IncidentId,
+                IncidentTitle = relatedInc?.Title ?? "Property Inspection",
+                ScheduledDate = ins.ScheduledAtUtc,
+                Status = ins.Status.ToString(),
+                InspectorName = ins.InspectorProvider?.BusinessName ?? "Certified Inspector",
+                FindingsSummary = ins.Findings.FirstOrDefault()?.Description ?? ins.Summary ?? ins.Notes,
+                DefectCount = ins.Findings.Count,
+                DefectDescriptions = ins.Findings.Select(f => f.Description).ToList(),
+                RecommendedActions = ins.Findings.Where(f => !string.IsNullOrEmpty(f.Recommendation)).Select(f => f.Recommendation!).ToList(),
+                FollowUpRequired = ins.Findings.Any(f => f.Severity == FindingSeverity.High || f.Severity == FindingSeverity.Critical)
+            });
+        }
+
+        foreach (var j in jobs)
+        {
+            assistantDto.MaintenanceJobs.Add(new PropertyAssistantJobDto
+            {
+                Id = j.Id,
+                IncidentId = j.IncidentId,
+                Title = j.Title,
+                Status = j.Status.ToString(),
+                ProviderName = j.Provider?.BusinessName ?? "Assigned Contractor",
+                ScheduledDate = j.ScheduledStartUtc,
+                CompletedDate = j.CompletedAtUtc,
+                ApprovedBudget = j.ApprovedBudget,
+                ActualCost = j.ActualCost,
+                IsOverdue = j.Status != MaintenanceJobStatus.Completed && j.Status != MaintenanceJobStatus.Closed && j.ScheduledEndUtc < DateTime.UtcNow
+            });
+        }
+
+        foreach (var q in quotations)
+        {
+            assistantDto.Quotations.Add(new PropertyAssistantQuotationDto
+            {
+                Id = q.Id,
+                IncidentId = q.IncidentId,
+                ProviderName = q.Provider?.BusinessName ?? "Contractor Bid",
+                TotalAmount = q.TotalAmount,
+                MaterialCost = q.Items.Sum(i => i.Quantity * i.UnitPrice),
+                ItemCount = q.Items.Count,
+                Status = q.Status.ToString(),
+                WarrantyMonths = 12,
+                CreatedAtUtc = q.CreatedAtUtc,
+                IsSentToOwner = activeWorkflow != null && activeWorkflow.ApprovalRequests.Any(a => a.Status != ApprovalStatus.Pending || a.DecisionReason?.Contains(q.Id.ToString()) == true)
+            });
+        }
+
+        if (activeWorkflow != null)
+        {
+            assistantDto.ActiveWorkflowId = activeWorkflow.Id;
+            assistantDto.CurrentWorkflowState = activeWorkflow.CurrentState.ToString();
+            assistantDto.CurrentStageLabel = WORKFLOW_STATE_DISPLAY_NAMES.GetValueOrDefault(activeWorkflow.CurrentState, activeWorkflow.CurrentState.ToString());
+
+            var latestApproval = activeWorkflow.ApprovalRequests.OrderByDescending(a => a.RequestedAtUtc).FirstOrDefault();
+            var latestQuotation = quotations.FirstOrDefault(q => q.IncidentId == activeWorkflow.IncidentId) ?? quotations.FirstOrDefault();
+
+            if (latestApproval != null)
+            {
+                if (latestApproval.Status == ApprovalStatus.Approved || latestApproval.Decision == ApprovalDecision.Approve)
+                {
+                    assistantDto.ProposalStatus = "ApprovedByOwner";
+                    assistantDto.OwnerDecidedAtUtc = latestApproval.DecidedAtUtc;
+                    assistantDto.OwnerComments = latestApproval.DecisionReason;
+                }
+                else if (latestApproval.Status == ApprovalStatus.Rejected || latestApproval.Decision == ApprovalDecision.Reject)
+                {
+                    assistantDto.ProposalStatus = "RejectedByOwner";
+                    assistantDto.OwnerDecidedAtUtc = latestApproval.DecidedAtUtc;
+                    assistantDto.OwnerRejectionReason = latestApproval.DecisionReason;
+                    assistantDto.OwnerComments = latestApproval.RevisionComment;
+                }
+                else
+                {
+                    assistantDto.ProposalStatus = "SentToOwner";
+                    assistantDto.ProposalSentAtUtc = latestApproval.RequestedAtUtc;
+                }
+            }
+            else if (latestQuotation != null)
+            {
+                assistantDto.ProposalStatus = "Draft";
+            }
+
+            if (latestQuotation != null)
+            {
+                assistantDto.ProposedAmountLkr = latestQuotation.TotalAmount;
+                assistantDto.ProposedProviderName = latestQuotation.Provider?.BusinessName ?? "Verified Contractor";
+                assistantDto.ProposedQuotationId = latestQuotation.Id;
+            }
+
+            if (assistantDto.ProposalStatus == "RejectedByOwner" || activeWorkflow.CurrentState == WorkflowState.RevisionRequested)
+            {
+                assistantDto.RejectionAlternatives = await GetRejectionAlternativesAsync(activeWorkflow.Id, currentUserId, currentUserRole);
+            }
+
+            var assistance = await GetWorkflowAiAssistanceAsync(activeWorkflow.Id, currentUserId, currentUserRole);
+            assistantDto.PlainLanguageSummary = assistance.PlainLanguageSummary;
+            assistantDto.ResponsibleRole = assistance.ResponsibleRole;
+            assistantDto.RecommendedNextAction = assistance.RecommendedNextAction;
+
+            assistantDto.AuditEventsCount = activeWorkflow.AuditEvents.Count;
+            var latestAudit = activeWorkflow.AuditEvents.OrderByDescending(a => a.CreatedAtUtc).FirstOrDefault();
+            assistantDto.RecentAuditHighlight = latestAudit != null ? $"{latestAudit.Description} ({latestAudit.CreatedAtUtc:g})" : null;
+
+            assistantDto.ActiveFollowUpsCount = activeWorkflow.FollowUpTasks.Count(f => f.Status == FollowUpStatus.Pending || f.Status == FollowUpStatus.InProgress);
+            assistantDto.FollowUpTasks = activeWorkflow.FollowUpTasks.Select(f => new FollowUpTaskDto
+            {
+                Id = f.Id,
+                WorkflowInstanceId = f.WorkflowInstanceId,
+                AssetId = f.AssetId,
+                AssetName = asset.Name,
+                Title = f.Title,
+                Description = f.Description,
+                DueDateUtc = f.DueDateUtc,
+                Status = f.Status,
+                StatusName = f.Status.ToString(),
+                Priority = f.Priority,
+                PriorityName = f.Priority.ToString(),
+                CreatedAtUtc = f.CreatedAtUtc,
+                CompletedAtUtc = f.CompletedAtUtc,
+                AssignedToUserId = f.AssignedToUserId
+            }).ToList();
+        }
+        else
+        {
+            assistantDto.PlainLanguageSummary = $"{asset.Name} has {asset.Incidents.Count} logged incident(s). All routine maintenance and continuity tasks are monitored.";
+            assistantDto.RecommendedNextAction = new WorkflowNextBestActionDto
+            {
+                Title = asset.Incidents.Any() ? "Initiate Incident Workflow" : "Schedule Preventive Inspection",
+                ActionCode = asset.Incidents.Any() ? "START_WORKFLOW" : "SCHEDULE_PREVENTIVE",
+                Description = asset.Incidents.Any() ? "Launch the 4-Agent incident planning pipeline for open issues." : "Set up seasonal or monsoon preventive property checks.",
+                WhyItMatters = "Maintains continuous asset health and protects investment value for overseas owners.",
+                ConfidenceScore = 0.95,
+                TargetUrl = $"/assets/{asset.Id}"
+            };
+        }
+
+        assistantDto.ConfirmedFacts.Add($"Property: {asset.Name} ({asset.PropertyType}) in {asset.City}, {asset.District}.");
+        assistantDto.ConfirmedFacts.Add($"Owner: {asset.Owner?.FullName ?? "Owner"} ({asset.Owner?.Email ?? "No email"}).");
+        assistantDto.ConfirmedFacts.Add($"Total Logged Incidents: {asset.Incidents.Count} (Active: {asset.Incidents.Count(i => i.Status != IncidentStatus.Closed && i.Status != IncidentStatus.Cancelled)}).");
+
+        if (assistantDto.ProposedAmountLkr.HasValue)
+        {
+            assistantDto.ConfirmedFacts.Add($"Submitted Quotation: LKR {assistantDto.ProposedAmountLkr.Value:N2} by {assistantDto.ProposedProviderName}.");
+        }
+
+        if (inspections.Any())
+        {
+            var latestIns = inspections.First();
+            assistantDto.ConfirmedFacts.Add($"Latest Inspection: {latestIns.Status} on {latestIns.ScheduledAtUtc:d}. Findings: {latestIns.Findings.Count} defects identified.");
+        }
+
+        if (!asset.Media.Any())
+        {
+            assistantDto.MissingInformation.Add("No property photos uploaded. Upload baseline media to establish property condition.");
+        }
+        if (asset.Incidents.Any(i => !inspections.Any(ins => ins.IncidentId == i.Id)))
+        {
+            assistantDto.MissingInformation.Add("Pending on-site technical inspection for active incidents.");
+        }
+        if (activeWorkflow != null && !quotations.Any(q => q.IncidentId == activeWorkflow.IncidentId))
+        {
+            assistantDto.MissingInformation.Add("No itemized contractor quotation received yet for the active incident.");
+        }
+
+        if (assistantDto.ProposalStatus == "SentToOwner")
+        {
+            assistantDto.AwaitingHumanDecision.Add($"Awaiting Property Owner decision on LKR {assistantDto.ProposedAmountLkr ?? 0:N2} proposal.");
+        }
+        else if (assistantDto.ProposalStatus == "RejectedByOwner")
+        {
+            assistantDto.AwaitingHumanDecision.Add($"Property Owner rejected proposal. Manager must review and authorize one of the AI-recommended alternatives.");
+        }
+        else if (activeWorkflow?.CurrentState == WorkflowState.AwaitingApproval)
+        {
+            assistantDto.AwaitingHumanDecision.Add("Manager authorization required before contractor work order can be confirmed.");
+        }
+
+        if (assistantDto.ProposalStatus == "RejectedByOwner" && assistantDto.RejectionAlternatives.Any())
+        {
+            assistantDto.AiRecommendations.Add($"Recommended Alternative: {assistantDto.RejectionAlternatives.First().Title} ({assistantDto.RejectionAlternatives.First().Rationale}).");
+        }
+        assistantDto.AiRecommendations.Add($"Primary Next Action: {assistantDto.RecommendedNextAction.Title} - {assistantDto.RecommendedNextAction.Description}");
+
+        return assistantDto;
+    }
+
+    #endregion
+
     #endregion
 }

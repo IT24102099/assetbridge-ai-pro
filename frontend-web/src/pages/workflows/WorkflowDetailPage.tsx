@@ -297,8 +297,18 @@ export default function WorkflowDetailPage() {
               <h1 className="text-xl font-bold text-slate-900">{workflow.incidentTitle}</h1>
               <StatusBadge status={workflow.currentStateName} />
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Property: <span className="font-semibold text-slate-700">{workflow.assetName}</span> • Workflow ID: <span className="font-mono text-slate-600">{workflow.id}</span>
+            <p className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+              <span>Property: <span className="font-semibold text-slate-700">{workflow.assetName}</span></span>
+              <button
+                type="button"
+                onClick={() => navigate(`/assets/${workflow.assetId}?tab=assistant`)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md hover:bg-blue-100 transition"
+                title="Open Property Workflow Assistant"
+              >
+                <Bot className="h-3 w-3" />
+                Property Workflow Assistant
+              </button>
+              <span>• Workflow ID: <span className="font-mono text-slate-600">{workflow.id}</span></span>
             </p>
           </div>
         </div>

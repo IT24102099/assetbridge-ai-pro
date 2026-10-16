@@ -261,5 +261,55 @@ public class WorkflowsController : BaseApiController
         return HandleSuccess(result, "Workflow question answered using authenticated workflow state.");
     }
 
+    [HttpPost("{id:guid}/send-proposal")]
+    [Authorize(Roles = "Manager,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<WorkflowAiAssistanceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SendProposalToOwner(Guid id, [FromBody] SendProposalToOwnerDto request)
+    {
+        var currentUserId = _currentUserService.UserId ?? throw new UnauthorizedAccessException("User is not authenticated.");
+        var currentUserRole = _currentUserService.Role?.ToString() ?? string.Empty;
+        var result = await _workflowService.SendProposalToOwnerAsync(id, request, currentUserId, currentUserRole);
+        return HandleSuccess(result, "Maintenance proposal successfully dispatched to property owner with in-app notification.");
+    }
+
+    [HttpPost("{id:guid}/owner-decision")]
+    [Authorize(Roles = "Owner,Manager,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<WorkflowAiAssistanceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RecordOwnerProposalDecision(Guid id, [FromBody] OwnerProposalDecisionDto request)
+    {
+        var currentUserId = _currentUserService.UserId ?? throw new UnauthorizedAccessException("User is not authenticated.");
+        var currentUserRole = _currentUserService.Role?.ToString() ?? string.Empty;
+        var result = await _workflowService.ProcessOwnerProposalDecisionAsync(id, request, currentUserId, currentUserRole);
+        return HandleSuccess(result, $"Owner proposal decision '{request.Decision}' recorded successfully.");
+    }
+
+    [HttpGet("{id:guid}/rejection-alternatives")]
+    [ProducesResponseType(typeof(ApiResponse<List<ProposalAlternativeDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetRejectionAlternatives(Guid id)
+    {
+        var currentUserId = _currentUserService.UserId ?? throw new UnauthorizedAccessException("User is not authenticated.");
+        var currentUserRole = _currentUserService.Role?.ToString() ?? string.Empty;
+        var result = await _workflowService.GetRejectionAlternativesAsync(id, currentUserId, currentUserRole);
+        return HandleSuccess(result, "AI grounded rejection alternatives generated successfully.");
+    }
+
+    [HttpGet("property-assistant/{assetId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<PropertyWorkflowAssistantDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetPropertyWorkflowAssistant(Guid assetId)
+    {
+        var currentUserId = _currentUserService.UserId ?? throw new UnauthorizedAccessException("User is not authenticated.");
+        var currentUserRole = _currentUserService.Role?.ToString() ?? string.Empty;
+        var result = await _workflowService.GetPropertyWorkflowAssistantAsync(assetId, currentUserId, currentUserRole);
+        return HandleSuccess(result, "Property-level workflow assistant data synthesized successfully.");
+    }
+
     #endregion
 }

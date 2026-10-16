@@ -30,6 +30,36 @@ class QuotationService {
     if (apiResponse.success && apiResponse.data != null) {
       return apiResponse.data!;
     }
-    throw Exception(apiResponse.message.isNotEmpty ? apiResponse.message : 'Failed to fetch quotations.');
+    throw Exception(
+        apiResponse.message.isNotEmpty ? apiResponse.message : 'Failed to fetch quotations.');
+  }
+
+  Future<QuotationModel> getQuotationById(String id) async {
+    final json = await _apiClient.get(ApiEndpoints.quotationDetails(id));
+    final data = json['data'] ?? json;
+    return QuotationModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<QuotationModel> updateQuotationStatus(String id, String status) async {
+    final json = await _apiClient.patch(
+      '${ApiEndpoints.quotations}/$id/status',
+      body: {'status': status},
+    );
+    final data = json['data'] ?? json;
+    return QuotationModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> checkBudget({
+    required String incidentId,
+    required double quotationAmount,
+  }) async {
+    final json = await _apiClient.post(
+      '${ApiEndpoints.quotations}/check-budget',
+      body: {
+        'incidentId': incidentId,
+        'quotationAmount': quotationAmount,
+      },
+    );
+    return (json['data'] as Map<String, dynamic>?) ?? {};
   }
 }

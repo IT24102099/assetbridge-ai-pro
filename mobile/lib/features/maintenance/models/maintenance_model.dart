@@ -6,12 +6,17 @@ class MaintenanceJobModel {
   final String incidentTitle;
   final String providerId;
   final String providerName;
+  final String? inspectionId;
   final String title;
   final String description;
   final String status;
-  final double agreedCost;
+  final double agreedCost; // ApprovedBudget
+  final double? actualCost;
   final String? startDateUtc;
   final String? completionDateUtc;
+  final String? scheduledStartUtc;
+  final String? scheduledEndUtc;
+  final String? completionNotes;
 
   MaintenanceJobModel({
     required this.id,
@@ -21,29 +26,47 @@ class MaintenanceJobModel {
     required this.incidentTitle,
     required this.providerId,
     required this.providerName,
+    this.inspectionId,
     required this.title,
     required this.description,
     required this.status,
     required this.agreedCost,
+    this.actualCost,
     this.startDateUtc,
     this.completionDateUtc,
+    this.scheduledStartUtc,
+    this.scheduledEndUtc,
+    this.completionNotes,
   });
 
   factory MaintenanceJobModel.fromJson(Map<String, dynamic> json) {
+    final approvedBudget = (json['approvedBudget'] as num?)?.toDouble() ??
+        (json['agreedCost'] as num?)?.toDouble() ??
+        0.0;
+    final actualCost = (json['actualCost'] as num?)?.toDouble();
+
     return MaintenanceJobModel(
-      id: json['id'] ?? '',
-      assetId: json['assetId'] ?? '',
-      assetName: json['assetName'] ?? 'Property',
-      incidentId: json['incidentId'] ?? '',
-      incidentTitle: json['incidentTitle'] ?? 'Repair Task',
-      providerId: json['providerId'] ?? '',
-      providerName: json['providerName'] ?? json['serviceProviderName'] ?? 'Contractor',
+      id: json['id']?.toString() ?? '',
+      assetId: json['assetId']?.toString() ?? '',
+      assetName: json['assetName'] ?? 'Target Property',
+      incidentId: json['incidentId']?.toString() ?? '',
+      incidentTitle: json['incidentTitle'] ?? 'Maintenance Request',
+      providerId: json['providerId']?.toString() ?? '',
+      providerName: json['providerBusinessName'] ??
+          json['providerName'] ??
+          json['serviceProviderName'] ??
+          'Contractor',
+      inspectionId: json['inspectionId']?.toString(),
       title: json['title'] ?? 'Maintenance Work Order',
       description: json['description'] ?? '',
-      status: json['statusName'] ?? json['status'] ?? 'Assigned',
-      agreedCost: (json['agreedCost'] as num?)?.toDouble() ?? 0,
-      startDateUtc: json['startDateUtc'],
-      completionDateUtc: json['completionDateUtc'],
+      status: json['statusName'] ?? json['status'] ?? 'Scheduled',
+      agreedCost: approvedBudget,
+      actualCost: actualCost,
+      startDateUtc: json['startDateUtc'] ?? json['scheduledStartUtc'],
+      completionDateUtc: json['completionDateUtc'] ?? json['completedAtUtc'],
+      scheduledStartUtc: json['scheduledStartUtc'],
+      scheduledEndUtc: json['scheduledEndUtc'],
+      completionNotes: json['completionNotes'],
     );
   }
 }

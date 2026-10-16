@@ -20,7 +20,11 @@ import {
   CreateFollowUpTaskDto,
   WorkflowAiAssistanceDto,
   WorkflowAiAskRequestDto,
-  WorkflowAiAskResponseDto
+  WorkflowAiAskResponseDto,
+  SendProposalToOwnerDto,
+  OwnerProposalDecisionDto,
+  ProposalAlternativeDto,
+  PropertyWorkflowAssistantDto
 } from '../../types/workflow';
 
 export const workflowApi = {
@@ -121,6 +125,27 @@ export const workflowApi = {
       workflow_instance_id: id
     };
     const response = await apiClient.post<ApiResponse<WorkflowAiAskResponseDto>>(`/workflows/${id}/ai-ask`, payload);
+    return response.data;
+  },
+
+  // Component 4 Safe V2: Property Workflow Assistant & Proposal Lifecycle
+  sendProposalToOwner: async (id: string, data: SendProposalToOwnerDto): Promise<ApiResponse<WorkflowAiAssistanceDto>> => {
+    const response = await apiClient.post<ApiResponse<WorkflowAiAssistanceDto>>(`/workflows/${id}/send-proposal`, data);
+    return response.data;
+  },
+
+  processOwnerProposalDecision: async (id: string, data: OwnerProposalDecisionDto): Promise<ApiResponse<WorkflowAiAssistanceDto>> => {
+    const response = await apiClient.post<ApiResponse<WorkflowAiAssistanceDto>>(`/workflows/${id}/owner-decision`, data);
+    return response.data;
+  },
+
+  getRejectionAlternatives: async (id: string): Promise<ApiResponse<ProposalAlternativeDto[]>> => {
+    const response = await apiClient.get<ApiResponse<ProposalAlternativeDto[]>>(`/workflows/${id}/rejection-alternatives`);
+    return response.data;
+  },
+
+  getPropertyAssistant: async (assetId: string): Promise<ApiResponse<PropertyWorkflowAssistantDto>> => {
+    const response = await apiClient.get<ApiResponse<PropertyWorkflowAssistantDto>>(`/workflows/property-assistant/${assetId}`);
     return response.data;
   }
 };
