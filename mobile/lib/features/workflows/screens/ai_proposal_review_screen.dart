@@ -259,6 +259,11 @@ class _AiProposalReviewScreenState extends State<AiProposalReviewScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (_isLoadingAssistant)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12.0),
+                child: LinearProgressIndicator(),
+              ),
             // Proposal Banner
             Container(
               padding: const EdgeInsets.all(16),
