@@ -272,7 +272,7 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
       onClose={onClose}
       title="Report Property Incident"
       description="Submit a maintenance or repair issue for immediate triage and AI planning."
-      size="lg"
+      size="xl"
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
@@ -284,10 +284,11 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
 
         {/* 1. Target Asset Dropdown */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+          <label htmlFor="incident-asset-select" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
             Property Asset <span className="text-red-500">*</span>
           </label>
           <select
+            id="incident-asset-select"
             value={assetId}
             onChange={(e) => setAssetId(e.target.value)}
             disabled={loadingAssets || !!initialAssetId}
@@ -306,13 +307,14 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
           </select>
         </div>
 
-        {/* 2. Category & Priority in 2 Columns */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* 2. Category & Priority Section */}
+        <div className="space-y-4">
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+            <label htmlFor="incident-category-select" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
               Category <span className="text-red-500">*</span>
             </label>
             <select
+              id="incident-category-select"
               value={category}
               onChange={(e) => setCategory(e.target.value as IncidentCategory)}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
@@ -326,30 +328,45 @@ export const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Priority Level <span className="text-red-500">*</span>
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="flex items-center justify-between">
+              <label id="priority-group-label" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Priority Level <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] text-slate-500 font-medium">
+                {priority === 'Emergency' && 'Immediate response required'}
+                {priority === 'High' && 'Urgent attention needed'}
+                {priority === 'Medium' && 'Standard priority'}
+                {priority === 'Low' && 'Non-urgent maintenance'}
+              </span>
+            </div>
+            <div
+              role="radiogroup"
+              aria-labelledby="priority-group-label"
+              className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 w-full"
+            >
               {PRIORITIES.map((p) => {
                 const isSelected = priority === p.value;
                 return (
                   <button
                     key={p.value}
                     type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    tabIndex={0}
                     onClick={() => setPriority(p.value)}
-                    className={`py-2 px-2 rounded-lg text-xs font-bold border transition text-center ${
+                    className={`min-h-[42px] px-3 py-2 rounded-xl text-xs font-bold border transition-all text-center flex items-center justify-center min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 cursor-pointer ${
                       isSelected
                         ? p.value === 'Emergency'
-                          ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                          ? 'bg-red-600 text-white border-red-600 shadow-xs ring-1 ring-red-600'
                           : p.value === 'High'
-                          ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                          ? 'bg-amber-500 text-white border-amber-500 shadow-xs ring-1 ring-amber-500'
                           : p.value === 'Medium'
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                          : 'bg-slate-700 text-white border-slate-700 shadow-xs'
-                        : p.color
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600'
+                          : 'bg-slate-700 text-white border-slate-700 shadow-xs ring-1 ring-slate-700'
+                        : `${p.color} bg-white`
                     }`}
                   >
-                    {p.label}
+                    <span className="truncate">{p.label}</span>
                   </button>
                 );
               })}

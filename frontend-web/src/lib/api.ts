@@ -29,8 +29,9 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('assetbridge_token');
       localStorage.removeItem('assetbridge_user');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      if (!window.location.pathname.startsWith('/login')) {
+        const destination = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `/login?redirect=${destination}`;
       }
     }
     // 403 Forbidden (or other errors): User is authenticated but lacks authorization ->

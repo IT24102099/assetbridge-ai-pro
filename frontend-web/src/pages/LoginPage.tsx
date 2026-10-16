@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authApi } from '../lib/api/authApi';
 import { Logo } from '../components/common/Logo';
@@ -144,8 +144,19 @@ declare global {
    ========================================================================== */
 
 export const LoginPage: React.FC = () => {
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Extract destination from URL query param ?redirect=... or React Router state
+  const searchParams = new URLSearchParams(location.search);
+  const redirectParam = searchParams.get('redirect');
+  const stateFrom = (location.state as any)?.from?.pathname;
+  const rawTarget = redirectParam ? decodeURIComponent(redirectParam) : (stateFrom || '/dashboard');
+  // Security guard against open redirect: ensure path starts with '/' and not '//'
+  const targetDestination = rawTarget && rawTarget.startsWith('/') && !rawTarget.startsWith('//')
+    ? rawTarget
+    : '/dashboard';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -154,6 +165,13 @@ export const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [slowLoading, setSlowLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // If already authenticated and not loading, redirect to target immediately
+  React.useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      navigate(targetDestination, { replace: true });
+    }
+  }, [isAuthenticated, authLoading, targetDestination, navigate]);
 
   React.useEffect(() => {
     let timer: any;
@@ -182,7 +200,7 @@ export const LoginPage: React.FC = () => {
 
       if (res.data) {
         login(res.data.token, res.data.user);
-        navigate('/dashboard');
+        navigate(targetDestination, { replace: true });
       } else {
         setErrorMessage(res.message || 'Google authentication failed.');
       }
@@ -245,7 +263,7 @@ export const LoginPage: React.FC = () => {
 
       if (res.data) {
         login(res.data.token, res.data.user);
-        navigate('/dashboard');
+        navigate(targetDestination, { replace: true });
       } else {
         setErrorMessage(res.message || 'Authentication failed. Please check credentials.');
       }
