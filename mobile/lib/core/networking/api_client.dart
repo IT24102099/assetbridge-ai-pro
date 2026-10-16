@@ -6,7 +6,13 @@ import '../storage/token_storage.dart';
 import 'api_exception.dart';
 
 class ApiClient {
-  final http.Client _client = http.Client();
+  static http.Client? clientOverride;
+  final http.Client? _customClient;
+  static final http.Client _defaultClient = http.Client();
+
+  ApiClient([http.Client? client]) : _customClient = client;
+
+  http.Client get _client => _customClient ?? clientOverride ?? _defaultClient;
   static const Duration _defaultTimeout = Duration(seconds: 45);
 
   Future<Map<String, String>> _getHeaders({bool isMultipart = false}) async {
@@ -124,7 +130,7 @@ class ApiClient {
 
       request.files.add(await http.MultipartFile.fromPath(fileField, file.path));
 
-      final streamedResponse = await request.send().timeout(_defaultTimeout);
+      final streamedResponse = await _client.send(request).timeout(_defaultTimeout);
       final response = await http.Response.fromStream(streamedResponse);
       return _handleResponse(response);
     } catch (e) {
