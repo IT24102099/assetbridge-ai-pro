@@ -267,6 +267,28 @@ void main() {
       expect(job.completionNotes, 'Successfully pressure tested and certified.');
     });
 
+    test('NotificationModel parses notification payload with workflow reference', () {
+      final json = {
+        'id': 'notif-001',
+        'userId': 'usr-001',
+        'title': 'Proposal Ready for Approval',
+        'message': 'AI Proposal for Havelock Residencies requires review.',
+        'typeName': 'ProposalPending',
+        'isRead': false,
+        'relatedWorkflowInstanceId': 'wf-001',
+        'createdAtUtc': '2026-10-16T12:00:00Z',
+      };
+
+      final notif = NotificationModel.fromJson(json);
+      expect(notif.id, 'notif-001');
+      expect(notif.userId, 'usr-001');
+      expect(notif.title, 'Proposal Ready for Approval');
+      expect(notif.typeName, 'ProposalPending');
+      expect(notif.isRead, false);
+      expect(notif.relatedWorkflowInstanceId, 'wf-001');
+      expect(notif.createdAtUtc.year, 2026);
+    });
+
     test('PropertyWorkflowAssistantModel parses backend JSON response and intelligence matrix correctly', () {
       final json = {
         'assetId': 'ast-001',
