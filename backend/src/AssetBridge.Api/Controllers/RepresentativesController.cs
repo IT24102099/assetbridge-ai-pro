@@ -1,3 +1,4 @@
+
 using AssetBridge.Application.Common.Models;
 using AssetBridge.Application.DTOs.Representatives;
 using AssetBridge.Application.Services.Interfaces;
@@ -22,19 +23,29 @@ public class RepresentativesController : BaseApiController
     [ProducesResponseType(typeof(ApiResponse<RepresentativeResponseDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> CreateRepresentative([FromBody] CreateRepresentativeRequestDto request, CancellationToken cancellationToken)
+    public async Task<IActionResult> CreateRepresentative(
+        [FromBody] CreateRepresentativeRequestDto request,
+        CancellationToken cancellationToken)
     {
-        var result = await _representativeService.CreateRepresentativeAsync(request, cancellationToken);
-        return HandleCreated($"/api/representatives/{result.Id}", result, "Representative profile registered successfully.");
+        var result = await _representativeService.CreateRepresentativeAsync(
+            request, cancellationToken);
+
+        return HandleCreated(
+            $"/api/representatives/{result.Id}",
+            result,
+            "Representative profile registered successfully.");
     }
 
     [HttpGet("me")]
     [Authorize(Roles = "Representative,Manager,Admin")]
     [ProducesResponseType(typeof(ApiResponse<RepresentativeResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetCurrentProfile(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetCurrentProfile(
+        CancellationToken cancellationToken)
     {
-        var result = await _representativeService.GetCurrentRepresentativeProfileAsync(cancellationToken);
+        var result = await _representativeService
+            .GetCurrentRepresentativeProfileAsync(cancellationToken);
+
         if (result == null)
         {
             return NotFound(new ApiResponse<object>
@@ -44,23 +55,33 @@ public class RepresentativesController : BaseApiController
             });
         }
 
-        return HandleSuccess(result, "Representative profile retrieved successfully.");
+        return HandleSuccess(
+            result,
+            "Representative profile retrieved successfully.");
     }
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<RepresentativeResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetRepresentativeById(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetRepresentativeById(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var result = await _representativeService.GetRepresentativeByIdAsync(id, cancellationToken);
+        var result = await _representativeService.GetRepresentativeByIdAsync(
+            id, cancellationToken);
+
         return HandleSuccess(result, "Representative retrieved successfully.");
     }
 
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PagedResponse<RepresentativeResponseDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetRepresentatives([FromQuery] RepresentativeQueryParametersDto query, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetRepresentatives(
+        [FromQuery] RepresentativeQueryParametersDto query,
+        CancellationToken cancellationToken)
     {
-        var result = await _representativeService.GetRepresentativesAsync(query, cancellationToken);
+        var result = await _representativeService.GetRepresentativesAsync(
+            query, cancellationToken);
+
         return HandleSuccess(result, "Representatives retrieved successfully.");
     }
 
@@ -68,9 +89,14 @@ public class RepresentativesController : BaseApiController
     [Authorize(Roles = "Representative,Manager,Admin")]
     [ProducesResponseType(typeof(ApiResponse<RepresentativeResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateRepresentative(Guid id, [FromBody] UpdateRepresentativeRequestDto request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateRepresentative(
+        Guid id,
+        [FromBody] UpdateRepresentativeRequestDto request,
+        CancellationToken cancellationToken)
     {
-        var result = await _representativeService.UpdateRepresentativeAsync(id, request, cancellationToken);
+        var result = await _representativeService.UpdateRepresentativeAsync(
+            id, request, cancellationToken);
+
         return HandleSuccess(result, "Representative profile updated successfully.");
     }
 
@@ -79,30 +105,43 @@ public class RepresentativesController : BaseApiController
     [ProducesResponseType(typeof(ApiResponse<RepresentativeResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateVerificationStatus(Guid id, [FromBody] UpdateVerificationRequestDto request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateVerificationStatus(
+        Guid id,
+        [FromBody] UpdateVerificationRequestDto request,
+        CancellationToken cancellationToken)
     {
-        var result = await _representativeService.UpdateVerificationStatusAsync(id, request, cancellationToken);
-        return HandleSuccess(result, "Representative verification status updated successfully.");
+        var result = await _representativeService.UpdateVerificationStatusAsync(
+            id, request, cancellationToken);
+
+        return HandleSuccess(
+            result,
+            "Representative verification status updated successfully.");
     }
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "Representative,Manager,Admin")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteRepresentative(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> DeleteRepresentative(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var result = await _representativeService.DeleteRepresentativeAsync(id, cancellationToken);
+        var result = await _representativeService.DeleteRepresentativeAsync(
+            id, cancellationToken);
+
         return HandleSuccess(result, "Representative profile deleted successfully.");
     }
 
+    // Upload a verification document using multipart/form-data.
     [HttpPost("{id:guid}/documents")]
     [Authorize(Roles = "Representative,Manager,Admin")]
+    [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(ApiResponse<RepresentativeDocumentResponseDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UploadVerificationDocument(
         Guid id,
-        [FromForm] IFormFile file,
+        IFormFile file,
         [FromForm] string documentType,
         CancellationToken cancellationToken)
     {
@@ -116,6 +155,7 @@ public class RepresentativesController : BaseApiController
         }
 
         await using var stream = file.OpenReadStream();
+
         var result = await _representativeService.UploadVerificationDocumentAsync(
             id,
             stream,
@@ -125,16 +165,25 @@ public class RepresentativesController : BaseApiController
             documentType,
             cancellationToken);
 
-        return HandleCreated($"/api/representatives/{id}/documents/{result.Id}", result, "Verification document uploaded successfully.");
+        return HandleCreated(
+            $"/api/representatives/{id}/documents/{result.Id}",
+            result,
+            "Verification document uploaded successfully.");
     }
 
     [HttpGet("{id:guid}/documents")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<RepresentativeDocumentResponseDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetVerificationDocuments(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetVerificationDocuments(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var result = await _representativeService.GetVerificationDocumentsAsync(id, cancellationToken);
-        return HandleSuccess(result, "Verification documents retrieved successfully.");
+        var result = await _representativeService.GetVerificationDocumentsAsync(
+            id, cancellationToken);
+
+        return HandleSuccess(
+            result,
+            "Verification documents retrieved successfully.");
     }
 
     [HttpPatch("{id:guid}/documents/{documentId:guid}/review")]
@@ -148,7 +197,11 @@ public class RepresentativesController : BaseApiController
         [FromBody] ReviewRepresentativeDocumentRequestDto request,
         CancellationToken cancellationToken)
     {
-        var result = await _representativeService.ReviewVerificationDocumentAsync(id, documentId, request, cancellationToken);
-        return HandleSuccess(result, "Document verification status updated successfully.");
+        var result = await _representativeService.ReviewVerificationDocumentAsync(
+            id, documentId, request, cancellationToken);
+
+        return HandleSuccess(
+            result,
+            "Document verification status updated successfully.");
     }
 }
