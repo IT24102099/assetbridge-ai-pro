@@ -4,6 +4,7 @@ import '../../../shared/widgets/feedback_states.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../models/quotation_model.dart';
 import '../services/quotation_service.dart';
+import 'quotation_detail_screen.dart';
 
 class QuotationListScreen extends StatefulWidget {
   const QuotationListScreen({super.key});
@@ -91,51 +92,63 @@ class _QuotationListScreenState extends State<QuotationListScreen> {
         itemBuilder: (context, index) {
           final q = _quotations[index];
           return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        q.providerName,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (ctx) => QuotationDetailScreen(quotation: q),
+                  ),
+                );
+                _loadQuotations();
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          q.providerName,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
-                      ),
-                      StatusBadge(status: q.status),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Duration: ${q.estimatedDurationDays} business days',
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 12),
-                  const Divider(height: 1, color: AppColors.border),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '${q.items.length} Itemized Line-Items',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
-                      ),
-                      Text(
-                        'LKR ${q.totalAmount.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
+                        StatusBadge(status: q.status),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Duration: ${q.estimatedDurationDays} business days',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1, color: AppColors.border),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${q.items.length} Itemized Line-Items',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        Text(
+                          'LKR ${q.totalAmount.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           );

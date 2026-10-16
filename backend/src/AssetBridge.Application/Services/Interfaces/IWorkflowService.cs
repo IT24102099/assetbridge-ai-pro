@@ -32,4 +32,10 @@ public interface IWorkflowService
     // Component 4: Workflow Simplification & Continuity Agent
     Task<WorkflowAiAssistanceDto> GetWorkflowAiAssistanceAsync(Guid workflowId, Guid currentUserId, string currentUserRole);
     Task<WorkflowAiAskResponseDto> AskWorkflowAgentAsync(Guid workflowId, WorkflowAiAskRequestDto request, Guid currentUserId, string currentUserRole);
+
+    // Component 4: Manager-to-Owner Proposal Lifecycle & Property-Level Assistant
+    Task<WorkflowAiAssistanceDto> SendProposalToOwnerAsync(Guid workflowId, SendProposalToOwnerDto dto, Guid currentUserId, string currentUserRole);
+    Task<WorkflowAiAssistanceDto> ProcessOwnerProposalDecisionAsync(Guid workflowId, OwnerProposalDecisionDto dto, Guid currentUserId, string currentUserRole);
+    Task<List<ProposalAlternativeDto>> GetRejectionAlternativesAsync(Guid workflowId, Guid currentUserId, string currentUserRole);
+    Task<PropertyWorkflowAssistantDto> GetPropertyWorkflowAssistantAsync(Guid assetId, Guid currentUserId, string currentUserRole);
 }

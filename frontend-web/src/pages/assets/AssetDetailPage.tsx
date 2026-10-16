@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { assetApi } from '../../lib/api/assetApi';
 import { incidentApi } from '../../lib/api/incidentApi';
 import { AssetResponseDto, AssetHistoryResponseDto, AssetMediaResponseDto } from '../../types/asset';
@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { SafeImage, DEFAULT_PROPERTY_FALLBACK } from '../../components/common/SafeImage';
 import { MediaLightboxModal, LightboxMediaItem } from '../../components/common/MediaLightboxModal';
+import { PropertyWorkflowAssistant } from '../../components/workflow/PropertyWorkflowAssistant';
 
 const DEFAULT_FALLBACK_IMAGE = DEFAULT_PROPERTY_FALLBACK;
 
@@ -54,7 +55,21 @@ export const AssetDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'overview';
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl && ['overview', 'assistant', 'location', 'media', 'history', 'incidents'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    setSearchParams(newTab === 'overview' ? {} : { tab: newTab });
+  };
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
@@ -68,6 +83,7 @@ export const AssetDetailPage: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [updatingThumbnailId, setUpdatingThumbnailId] = useState<string | null>(null);
 
   const fetchAssetDetails = async () => {
     if (!id) return;
@@ -160,8 +176,10 @@ export const AssetDetailPage: React.FC = () => {
   };
 
   const handleSetThumbnail = async (mediaId: string) => {
-    if (!id) return;
+    if (!id || updatingThumbnailId) return;
     try {
+      setUpdatingThumbnailId(mediaId);
+      setUploadError(null);
       await assetApi.setThumbnail(id, mediaId);
       setUploadSuccess('Cover thumbnail updated successfully!');
       // Update local media state to reflect the single thumbnail immediately
@@ -180,6 +198,8 @@ export const AssetDetailPage: React.FC = () => {
     } catch (err: any) {
       console.error('Failed to update thumbnail', err);
       setUploadError(err?.response?.data?.message || 'Failed to update thumbnail cover image.');
+    } finally {
+      setUpdatingThumbnailId(null);
     }
   };
 
@@ -212,6 +232,7 @@ export const AssetDetailPage: React.FC = () => {
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
+    { id: 'assistant', label: 'Workflow Assistant' },
     { id: 'location', label: 'Location' },
     { id: 'media', label: `Media (${mediaList.length})` },
     { id: 'history', label: 'History' },
@@ -384,7 +405,7 @@ export const AssetDetailPage: React.FC = () => {
         </div>
 
         {/* Tabs Bar matching Screen 4 wireframe */}
-        <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+        <Tabs tabs={tabs} activeTab={activeTab} onChange={handleTabChange} />
 
         {/* Tab 1: Overview Key-Value Table */}
         {activeTab === 'overview' && (
@@ -440,7 +461,12 @@ export const AssetDetailPage: React.FC = () => {
           </div>
         )}
 
-        {/* Tab 2: Location */}
+        {/* Tab 2: Workflow Assistant */}
+        {activeTab === 'assistant' && (
+          <PropertyWorkflowAssistant assetId={asset.id} />
+        )}
+
+        {/* Tab 3: Location */}
         {activeTab === 'location' && (
           <div className="space-y-4">
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
@@ -574,77 +600,92 @@ export const AssetDetailPage: React.FC = () => {
                   {mediaList.map((m) => (
                     <div
                       key={m.id}
-                      className={`rounded-xl border bg-white overflow-hidden shadow-xs group transition ${
+                      className={`rounded-xl border bg-white overflow-hidden shadow-xs flex flex-col justify-between transition ${
                         m.isThumbnail
-                          ? 'border-blue-600 ring-2 ring-blue-500/20'
+                          ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-md'
                           : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
-                      <div
-                        onClick={() => handleOpenLightbox(m.id)}
-                        className="h-40 overflow-hidden bg-slate-100 relative cursor-pointer"
-                        title="Click to preview high-resolution image"
-                      >
-                        <SafeImage
-                          src={m.fileUrl}
-                          alt={m.fileName}
-                          className="w-full h-full object-cover group-hover:scale-103 transition duration-300"
-                        />
-                        <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                          <span className="p-2 rounded-full bg-slate-900/80 text-white shadow-md">
-                            <Maximize2 className="h-4 w-4" />
-                          </span>
+                      <div>
+                        <div
+                          onClick={() => handleOpenLightbox(m.id)}
+                          className="h-44 overflow-hidden bg-slate-100 relative cursor-pointer group"
+                          title="Click to preview high-resolution image"
+                        >
+                          <SafeImage
+                            src={m.fileUrl}
+                            alt={m.fileName}
+                            className="w-full h-full object-cover group-hover:scale-103 transition duration-300"
+                          />
+                          <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                            <span className="p-2 rounded-full bg-slate-900/80 text-white shadow-md">
+                              <Maximize2 className="h-4 w-4" />
+                            </span>
+                          </div>
+
+                          {/* Thumbnail Status Badge on Image */}
+                          {m.isThumbnail && (
+                            <span className="absolute top-2.5 left-2.5 px-2.5 py-1 bg-blue-600 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 shadow-md z-10">
+                              <Star className="h-3 w-3 fill-white text-white" />
+                              Cover Thumbnail
+                            </span>
+                          )}
+
+                          {/* Delete Button */}
+                          {canManageAsset && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteMedia(m.id);
+                              }}
+                              className="absolute top-2.5 right-2.5 h-7 w-7 rounded-lg bg-slate-900/70 hover:bg-red-600 text-white flex items-center justify-center transition shadow-md z-10"
+                              title="Delete photo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
 
-                        {/* Thumbnail Status or Set as Thumbnail Action */}
+                        <div className="p-3.5 bg-white">
+                          <p className="text-xs font-bold text-slate-800 truncate" title={m.fileName}>
+                            {m.fileName}
+                          </p>
+                          <div className="flex items-center justify-between mt-1 text-[11px] text-slate-400">
+                            <span>{Math.round(m.fileSizeBytes / 1024)} KB</span>
+                            <span>
+                              {new Date(m.createdAtUtc).toLocaleDateString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Dedicated Action Footer for Thumbnail Selection */}
+                      <div className="p-3 pt-0 bg-white">
                         {m.isThumbnail ? (
-                          <span className="absolute top-2 left-2 px-2.5 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-md flex items-center gap-1 shadow-md">
-                            <Star className="h-3 w-3 fill-white" />
-                            Thumbnail
-                          </span>
+                          <div className="w-full py-1.5 px-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs">
+                            <Check className="h-3.5 w-3.5 text-blue-600" />
+                            <span>Active Cover Thumbnail</span>
+                          </div>
                         ) : canManageAsset ? (
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSetThumbnail(m.id);
-                            }}
-                            className="absolute top-2 left-2 px-2.5 py-1 bg-slate-900/80 hover:bg-blue-600 text-white text-[10px] font-bold rounded-md opacity-0 group-hover:opacity-100 transition shadow-md"
+                            onClick={() => handleSetThumbnail(m.id)}
+                            disabled={updatingThumbnailId === m.id}
+                            className="w-full py-1.5 px-3 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition disabled:opacity-50"
                           >
-                            Set as Thumbnail
+                            <Star className="h-3.5 w-3.5 text-slate-400 hover:text-blue-600" />
+                            <span>{updatingThumbnailId === m.id ? 'Updating...' : 'Set as Thumbnail'}</span>
                           </button>
-                        ) : null}
-
-                        {/* Delete Button */}
-                        {canManageAsset && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteMedia(m.id);
-                            }}
-                            className="absolute top-2 right-2 h-7 w-7 rounded-full bg-slate-900/80 hover:bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-md"
-                            title="Delete photo"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                        ) : (
+                          <div className="w-full py-1 px-2 text-center text-[11px] text-slate-400">
+                            Property Photo
+                          </div>
                         )}
-                      </div>
-
-                      <div className="p-3 bg-white">
-                        <p className="text-xs font-bold text-slate-800 truncate" title={m.fileName}>
-                          {m.fileName}
-                        </p>
-                        <div className="flex items-center justify-between mt-1 text-[11px] text-slate-400">
-                          <span>{Math.round(m.fileSizeBytes / 1024)} KB</span>
-                          <span>
-                            {new Date(m.createdAtUtc).toLocaleDateString('en-GB', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
-                          </span>
-                        </div>
                       </div>
                     </div>
                   ))}

@@ -34,4 +34,10 @@ class ProviderService {
     }
     throw Exception(apiResponse.message.isNotEmpty ? apiResponse.message : 'Failed to fetch providers.');
   }
+
+  Future<ProviderModel> getProviderById(String id) async {
+    final json = await _apiClient.get(ApiEndpoints.providerDetails(id));
+    final data = json['data'] ?? json;
+    return ProviderModel.fromJson(data as Map<String, dynamic>);
+  }
 }

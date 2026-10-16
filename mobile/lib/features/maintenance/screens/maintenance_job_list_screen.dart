@@ -4,6 +4,7 @@ import '../../../shared/widgets/feedback_states.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../models/maintenance_model.dart';
 import '../services/maintenance_service.dart';
+import 'maintenance_job_detail_screen.dart';
 
 class MaintenanceJobListScreen extends StatefulWidget {
   const MaintenanceJobListScreen({super.key});
@@ -91,57 +92,69 @@ class _MaintenanceJobListScreenState extends State<MaintenanceJobListScreen> {
         itemBuilder: (context, index) {
           final job = _jobs[index];
           return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          job.title,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (ctx) => MaintenanceJobDetailScreen(job: job),
+                  ),
+                );
+                _loadJobs();
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            job.title,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                         ),
-                      ),
-                      StatusBadge(status: job.status),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Property: ${job.assetName}',
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                  Text(
-                    'Contractor: ${job.providerName}',
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 12),
-                  const Divider(height: 1, color: AppColors.border),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Agreed Cost',
-                        style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-                      ),
-                      Text(
-                        'LKR ${job.agreedCost.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
+                        StatusBadge(status: job.status),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Property: ${job.assetName}',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    Text(
+                      'Contractor: ${job.providerName}',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1, color: AppColors.border),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Agreed Cost',
+                          style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        Text(
+                          'LKR ${job.agreedCost.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           );

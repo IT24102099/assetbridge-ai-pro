@@ -15,6 +15,8 @@ import '../../maintenance/screens/maintenance_job_list_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../providers/screens/provider_list_screen.dart';
 import '../../quotations/screens/quotation_list_screen.dart';
+import '../../notifications/screens/notifications_screen.dart';
+import '../../representatives/screens/representative_list_screen.dart';
 import '../../workflows/screens/workflow_list_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -98,6 +100,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return [
         _HomeOverviewTab(onNavigateTab: (idx) => setState(() => _currentIndex = idx)),
         const WorkflowListScreen(),
+        const RepresentativeListScreen(),
         const ProviderListScreen(),
         const ProfileScreen(),
       ];
@@ -172,6 +175,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           icon: Icon(Icons.account_tree_outlined),
           activeIcon: Icon(Icons.account_tree_rounded),
           label: 'Workflows',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.badge_outlined),
+          activeIcon: Icon(Icons.badge_rounded),
+          label: 'Reps',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.handyman_outlined),
@@ -346,8 +354,9 @@ class _HomeOverviewTabState extends State<_HomeOverviewTab> {
               ],
             ),
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('All real-time continuity channels active.')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotificationsScreen()),
               );
             },
           ),
@@ -637,6 +646,89 @@ class _HomeOverviewTabState extends State<_HomeOverviewTab> {
           children: [
             Expanded(
               child: _buildActionCard(
+                icon: Icons.badge_outlined,
+                title: 'Representatives',
+                subtitle: 'NIC & Verification',
+                accentColor: const Color(0xFF10B981),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RepresentativeListScreen()),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.handyman_outlined,
+                title: 'Providers',
+                subtitle: 'Verified Skills',
+                accentColor: const Color(0xFFF59E0B),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProviderListScreen()),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.assignment_outlined,
+                title: 'Inspections',
+                subtitle: 'Checklists & Evidence',
+                accentColor: const Color(0xFF6366F1),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const InspectionListScreen()),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.request_quote_outlined,
+                title: 'Quotations',
+                subtitle: 'Budget Check & Bids',
+                accentColor: const Color(0xFFEC4899),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const QuotationListScreen()),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.build_outlined,
+                title: 'Maintenance',
+                subtitle: 'Active Work Orders',
+                accentColor: const Color(0xFF0EA5E9),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MaintenanceJobListScreen()),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildActionCard(
                 icon: Icons.track_changes_rounded,
                 title: 'Workflows',
                 subtitle: '15-State Track',
@@ -646,17 +738,36 @@ class _HomeOverviewTabState extends State<_HomeOverviewTab> {
                 },
               ),
             ),
-            const SizedBox(width: 10),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
             Expanded(
               child: _buildActionCard(
                 icon: Icons.verified_outlined,
-                title: 'Continuity',
-                subtitle: 'Preventive SLA',
+                title: 'Continuity & SLA',
+                subtitle: 'Preventive Follow-ups',
                 accentColor: AppColors.success,
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const FollowUpScreen()),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.notifications_active_outlined,
+                title: 'Alerts',
+                subtitle: 'Real-time Feed',
+                accentColor: const Color(0xFFF97316),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NotificationsScreen()),
                   );
                 },
               ),

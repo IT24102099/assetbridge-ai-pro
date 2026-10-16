@@ -419,3 +419,137 @@ export interface WorkflowAiAskResponseDto {
   direct_action_available: boolean;
   action_code?: string | null;
 }
+
+export interface SendProposalToOwnerDto {
+  quotationId?: string | null;
+  proposalNotes?: string | null;
+}
+
+export interface OwnerProposalDecisionDto {
+  decision: 'Approve' | 'Reject' | string;
+  rejectionReason?: string | null;
+  comments?: string | null;
+}
+
+export interface ProposalAlternativeDto {
+  alternativeType: string;
+  title: string;
+  rationale: string;
+  estimatedCostRangeLkr: string;
+  feasibilityScore: number;
+  actionCode: string;
+  targetUrl: string;
+}
+
+export interface AssetMediaSummaryDto {
+  id: string;
+  fileUrl: string;
+  fileName: string;
+  isThumbnail: boolean;
+}
+
+export interface PropertyAssistantIncidentDto {
+  id: string;
+  title: string;
+  description: string;
+  category: number;
+  categoryName: string;
+  priority: number;
+  priorityName: string;
+  status: number;
+  statusName: string;
+  estimatedBudget?: number | null;
+  createdAtUtc: string;
+  evidenceCount: number;
+  evidenceUrls: string[];
+  assignedRepresentativeId?: string | null;
+  assignedRepresentativeName?: string | null;
+  activeWorkflowId?: string | null;
+  workflowState?: string | null;
+}
+
+export interface PropertyAssistantInspectionDto {
+  id: string;
+  incidentId: string;
+  incidentTitle: string;
+  scheduledDate: string;
+  status: string;
+  inspectorName?: string | null;
+  findingsSummary?: string | null;
+  defectCount: number;
+  defectDescriptions: string[];
+  recommendedActions: string[];
+  followUpRequired: boolean;
+}
+
+export interface PropertyAssistantJobDto {
+  id: string;
+  incidentId: string;
+  title: string;
+  status: string;
+  providerName?: string | null;
+  scheduledDate?: string | null;
+  completedDate?: string | null;
+  approvedBudget?: number | null;
+  actualCost?: number | null;
+  isOverdue: boolean;
+}
+
+export interface PropertyAssistantQuotationDto {
+  id: string;
+  incidentId: string;
+  providerName?: string | null;
+  totalAmount: number;
+  materialCost?: number | null;
+  laborCost?: number | null;
+  itemCount: number;
+  status: string;
+  warrantyMonths: number;
+  createdAtUtc: string;
+  isSentToOwner: boolean;
+}
+
+export interface PropertyWorkflowAssistantDto {
+  assetId: string;
+  assetCode: string;
+  assetName: string;
+  propertyTypeName: string;
+  address: string;
+  city: string;
+  district: string;
+  status: string;
+  ownerId: string;
+  ownerName: string;
+  ownerEmail: string;
+  authorizedRepresentativeName?: string | null;
+  thumbnailUrl?: string | null;
+  mediaList: AssetMediaSummaryDto[];
+  incidents: PropertyAssistantIncidentDto[];
+  inspections: PropertyAssistantInspectionDto[];
+  maintenanceJobs: PropertyAssistantJobDto[];
+  quotations: PropertyAssistantQuotationDto[];
+  activeWorkflowId?: string | null;
+  currentWorkflowState: string;
+  currentStageLabel: string;
+  plainLanguageSummary: string;
+  responsibleRole: string;
+  proposalStatus: string; // "Draft" | "SentToOwner" | "ApprovedByOwner" | "RejectedByOwner" | "NotInitiated"
+  proposedAmountLkr?: number | null;
+  proposedProviderName?: string | null;
+  proposedQuotationId?: string | null;
+  proposalSentAtUtc?: string | null;
+  ownerDecidedAtUtc?: string | null;
+  ownerRejectionReason?: string | null;
+  ownerComments?: string | null;
+  rejectionAlternatives: ProposalAlternativeDto[];
+  confirmedFacts: string[];
+  aiRecommendations: string[];
+  missingInformation: string[];
+  awaitingHumanDecision: string[];
+  recommendedNextAction: WorkflowNextBestActionDto;
+  auditEventsCount: number;
+  recentAuditHighlight?: string | null;
+  activeFollowUpsCount: number;
+  followUpTasks: FollowUpTaskDto[];
+  isAiServiceConnected: boolean;
+}

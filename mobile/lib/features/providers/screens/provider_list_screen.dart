@@ -4,6 +4,7 @@ import '../../../shared/widgets/feedback_states.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../models/provider_model.dart';
 import '../services/provider_service.dart';
+import 'provider_detail_screen.dart';
 
 class ProviderListScreen extends StatefulWidget {
   const ProviderListScreen({super.key});
@@ -91,8 +92,18 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
         itemBuilder: (context, index) {
           final p = _providers[index];
           return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (ctx) => ProviderDetailScreen(provider: p),
+                  ),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -170,7 +181,8 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                 ],
               ),
             ),
-          );
+          ),
+        );
         },
       ),
     );
