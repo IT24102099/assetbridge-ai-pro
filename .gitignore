@@ -62,3 +62,4 @@ venv/
 Thumbs.db
 
 frontend-web/coverage/
+/scratch
